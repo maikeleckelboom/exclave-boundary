@@ -26,7 +26,7 @@ describe('errors/error – toJSON + type guard coverage', () => {
   });
 
   it('isSeqlokError only accepts branded SeqlokError-like objects (by name)', () => {
-    const seqlokErr = createError('runtime.unsupported', 'Feature unavailable', {
+    const seqlokErr = createError('env.unsupported', 'Feature unavailable', {
       feature: 'SharedArrayBuffer',
       reason: 'Missing COOP/COEP',
     });
@@ -37,7 +37,7 @@ describe('errors/error – toJSON + type guard coverage', () => {
     const foreign2 = {
       name: 'Error',
       message: 'nope',
-      code: 'runtime.unsupported',
+      code: 'env.unsupported',
     } as unknown;
     const foreign3 = null as unknown;
     const foreign4 = 42 as unknown;

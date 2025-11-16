@@ -1,6 +1,22 @@
-import { fnv1aHash } from '../util/hash64';
-
 import type { MeterDef, ParamDef, SpecHash, SpecInput } from './types';
+
+/**
+ * FNV-1a 64-bit, encoded as lowercase base36.
+ *
+ * @remarks
+ * Not cryptographic. Intended for spec fingerprints and cache keys.
+ */
+function fnv1aHash(input: string): string {
+  let offsetBasis = 0xcbf29ce484222325n;
+  const fnvPrime = 0x100000001b3n;
+
+  for (let i = 0; i < input.length; i++) {
+    offsetBasis ^= BigInt(input.charCodeAt(i) & 0xff);
+    offsetBasis = (offsetBasis * fnvPrime) & 0xffffffffffffffffn;
+  }
+
+  return offsetBasis.toString(36);
+}
 
 function canonicalizeParam(def: ParamDef) {
   switch (def.kind) {
@@ -70,11 +86,14 @@ function sortedEntries(
   if (!obj) {
     return [];
   }
+
   const keys = Object.keys(obj).sort();
   const out: (readonly [string, unknown])[] = [];
+
   for (const k of keys) {
     out.push([k, obj[k]]);
   }
+
   return out;
 }
 

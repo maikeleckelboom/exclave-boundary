@@ -30,16 +30,16 @@ interface ErrorRegistryCase<C extends ErrorCode> {
  */
 const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
   {
-    code: 'runtime.unsupported',
+    code: 'env.unsupported',
     expectedMeta: {
       severity: 'fatal',
       recoverable: false,
       safeToExpose: true,
     },
-    messageIncludes: /Required runtime feature unavailable/i,
+    messageIncludes: /Required env feature unavailable/i,
   },
   {
-    code: 'runtime.coopCoepRequired',
+    code: 'env.coopCoepRequired',
     expectedMeta: {
       severity: 'error',
       recoverable: true,
@@ -75,7 +75,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     messageIncludes: /Snapshot retries exhausted/i,
   },
   {
-    code: 'layout.overflowRisk',
+    code: 'plan.overflowRisk',
     expectedMeta: {
       severity: 'warning',
       recoverable: true,
@@ -177,7 +177,7 @@ describe('error registry – structural invariants', () => {
       'nope.not.a.code',
       'binding.unknown_code',
       '',
-      'runtime',
+      'env',
       'layout',
     ];
 
@@ -239,9 +239,9 @@ describe('error registry – domain-level invariants by prefix', () => {
     }
   });
 
-  it('runtime.* errors are safe to expose (they are about environment setup)', () => {
+  it('env.* errors are safe to expose (they are about environment setup)', () => {
     for (const code of getAllCodes()) {
-      if (code.startsWith('runtime.')) {
+      if (code.startsWith('env.')) {
         const meta = getErrorMeta(code);
         expect(meta.safeToExpose).toBe(true);
       }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { allocateSharedPartitioned } from '../../src/backing/allocate-partitioned';
+import { allocateSharedPartitioned } from '../../src/backing/allocate-shared-partitioned';
 import { mapViews } from '../../src/backing/map-views';
 import { planLayout } from '../../src/plan/layout';
 import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';

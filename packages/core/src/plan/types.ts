@@ -65,7 +65,7 @@ export interface EntrySlot {
   /** Element count (1 for scalars; N for arrays). */
   readonly length: number;
   /** Size of one element in bytes for this entry. */
-  readonly elemBytes: number;
+  readonly bytesPerElement: number;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { attachWasmShared } from '../../src/backing/attach-wasm';
+import { allocateWasmShared } from '../../src/backing/allocate-wasm-shared';
 import { isSeqlokError } from '../../src/errors/error';
 import { planLayout } from '../../src/plan/layout';
 import { defineSpec } from '../../src/spec/define';
@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('attachWasmShared — non-shared memory surface', () => {
+describe('allocateWasmShared — non-shared memory surface', () => {
   it('throws backing.wasmMemoryNotShared if Memory.buffer is not a SharedArrayBuffer', () => {
     const spec = defineSpec(({ param, meter }) => ({
       id: 'demo',
@@ -31,7 +31,7 @@ describe('attachWasmShared — non-shared memory surface', () => {
     } as unknown as typeof WebAssembly);
 
     try {
-      attachWasmShared(plan);
+      allocateWasmShared(plan);
       expect(false).toBe(true);
     } catch (e: unknown) {
       if (!isSeqlokError(e)) {
@@ -41,7 +41,7 @@ describe('attachWasmShared — non-shared memory surface', () => {
       if ('shared' in e.details) {
         expect(e.details.shared).toBe(false);
       }
-      expect(e.details.where).toBe('attachWasmShared');
+      expect(e.details.where).toBe('allocateWasmShared');
     }
   });
 });

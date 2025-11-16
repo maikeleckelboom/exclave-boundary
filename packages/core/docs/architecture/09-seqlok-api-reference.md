@@ -10,7 +10,7 @@ Complete API documentation for `@seqlok/core`.
   - [`planLayout`](#planlayout)
   - [`allocateShared`](#allocateshared)
   - [`allocateSharedPartitioned`](#allocatesharedpartitioned)
-  - [`attachWasmShared`](#attachwasmshared)
+  - [`allocateWasmShared`](#allocateWasmShared)
   - [`buildHandoff`](#buildhandoff)
   - [`receiveHandoff`](#receivehandoff)
   - [`verifyHandoff`](#verifyhandoff)
@@ -143,12 +143,12 @@ function allocateSharedPartitioned<S extends SpecInput>(
 
 ---
 
-### `attachWasmShared`
+### `allocateWasmShared`
 
 Use a shared `WebAssembly.Memory` as the backing (advanced).
 
 ```ts
-function attachWasmShared<S extends SpecInput>(
+function allocateWasmShared<S extends SpecInput>(
   plan: Plan<S>,
   memory: WebAssembly.Memory,
 ): WasmSharedBacking;

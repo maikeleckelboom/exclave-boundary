@@ -3,11 +3,12 @@
  *
  * @remarks
  * - `allocateShared` creates a single contiguous `SharedArrayBuffer` sized for the plan.
- * - For shared WebAssembly.Memory, use {@link attachWasmShared}.
+ * - For shared WebAssembly.Memory, use {@link allocateWasmShared}.
  * - For per-plane SABs, use {@link allocateSharedPartitioned}.
  */
 
 import { createError } from '../errors/error';
+import { throwEnvUnsupported } from '../errors/helpers';
 
 import type { SharedBacking } from './types';
 import type { Plan } from '../plan/types';
@@ -19,10 +20,10 @@ import type { SpecInput } from '../spec/types';
  */
 export function allocateShared<S extends SpecInput>(plan: Plan<S>): SharedBacking {
   if (typeof SharedArrayBuffer === 'undefined') {
-    throw createError('runtime.unsupported', 'SharedArrayBuffer unavailable', {
-      feature: 'SharedArrayBuffer',
-      reason: 'missing SharedArrayBuffer (check COOP/COEP for browsers)',
-    });
+    throwEnvUnsupported(
+      'SharedArrayBuffer',
+      'missing SharedArrayBuffer (check COOP/COEP for browsers)',
+    );
   }
 
   try {
@@ -33,10 +34,10 @@ export function allocateShared<S extends SpecInput>(plan: Plan<S>): SharedBackin
       'backing.allocFailed',
       'Failed to allocate SharedArrayBuffer',
       {
-        detail: `bytesTotal=${String(plan.bytesTotal)}`,
-        plane: '',
-        requestedBytes: 0,
+        plane: 'all',
+        requestedBytes: plan.bytesTotal,
         allocatedBytes: 0,
+        where: 'allocateShared',
       },
       cause,
     );

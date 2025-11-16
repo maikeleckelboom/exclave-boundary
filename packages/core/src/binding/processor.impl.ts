@@ -3,8 +3,15 @@
  * Internal implementation — single runtime path (plan + backing → binding).
  * All overload resolution and generic pinning happens in the shim.
  */
-import { mapViews, type MappedViews } from '../backing';
-import { createError, invariant } from '../errors';
+
+import {
+  type MappedViews,
+  mapViews,
+  type MeterPlaneViews,
+  type ParamPlaneViews,
+} from '../backing/map-views';
+import { createError } from '../errors/error';
+import { invariant } from '../errors/invariant';
 import { publish } from '../primitives/seqlock';
 
 import type {
@@ -18,7 +25,6 @@ import type {
   PUSeq,
 } from './types';
 import type { MeterPlane, ParamPlane } from './validate';
-import type { MeterPlaneViews, ParamPlaneViews } from '../backing/map-views';
 import type { Backing } from '../backing/types';
 import type { Plan } from '../plan/types';
 import type { SpecInput } from '../spec/types';
@@ -30,7 +36,7 @@ type _WithinView<S extends SpecInput> =
 interface SlotBase {
   readonly offset: number; // byte offset
   readonly length: number; // element count
-  readonly elemBytes: number;
+  readonly bytesPerElement: number;
 }
 
 interface ParamSlot extends SlotBase {
@@ -86,7 +92,7 @@ function paramArrayViewFor(
     where: 'param.array',
     detail: slot.plane,
   });
-  const start = (slot.offset / slot.elemBytes) | 0;
+  const start = (slot.offset / slot.bytesPerElement) | 0;
   const end = start + slot.length;
   switch (slot.plane) {
     case 'PF32':
@@ -111,7 +117,7 @@ function readParamScalar(
   views: ParamPlaneViews,
   slot: ParamSlot & { plane: ParamPlane; length: 1 },
 ): number | boolean {
-  const i = (slot.offset / slot.elemBytes) | 0;
+  const i = (slot.offset / slot.bytesPerElement) | 0;
   switch (slot.plane) {
     case 'PF32': {
       const at = ensurePlane(views.PF32, 'param.scalar', 'PF32');
@@ -137,7 +143,7 @@ function meterArrayViewFor(
     where: 'meter.array',
     detail: slot.plane,
   });
-  const start = (slot.offset / slot.elemBytes) | 0;
+  const start = (slot.offset / slot.bytesPerElement) | 0;
   const end = start + slot.length;
   switch (slot.plane) {
     case 'MF32':
@@ -159,7 +165,7 @@ function meterArrayViewFor(
 }
 
 function elementIndex(s: SlotBase): number {
-  return (s.offset / s.elemBytes) | 0;
+  return (s.offset / s.bytesPerElement) | 0;
 }
 
 function makeScalarWriter(

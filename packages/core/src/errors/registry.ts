@@ -29,6 +29,12 @@ import {
   type DiagnosticsFeatureDetails,
 } from './codes/diagnostics';
 import {
+  ENV_ERRORS,
+  type EnvErrorCode,
+  type EnvCoopCoepDetails,
+  type EnvUnsupportedDetails,
+} from './codes/env';
+import {
   HANDOFF_ERRORS,
   type HandoffBackingMismatchDetails,
   type HandoffErrorCode,
@@ -42,23 +48,17 @@ import {
   type InternalErrorCode,
 } from './codes/internal';
 import {
-  LAYOUT_ERRORS,
-  type LayoutErrorCode,
-  type LayoutFailedDetails,
-  type LayoutOverflowRiskDetails,
-} from './codes/layout';
-import {
   ORCHESTRATION_ERRORS,
   type OrchestrationDetails,
   type OrchestrationErrorCode,
 } from './codes/orchestration';
-import { PRIMITIVES_ERRORS, type PrimitivesErrorCode } from './codes/primitives';
 import {
-  RUNTIME_ERRORS,
-  type RuntimeErrorCode,
-  type RuntimeCoopCoepDetails,
-  type RuntimeUnsupportedDetails,
-} from './codes/runtime';
+  PLAN_ERRORS,
+  type PlanErrorCode,
+  type PlanFailedDetails,
+  type PlanOverflowRiskDetails,
+} from './codes/plan';
+import { PRIMITIVES_ERRORS, type PrimitivesErrorCode } from './codes/primitives';
 import {
   SPEC_ERRORS,
   type SpecErrorCode,
@@ -110,10 +110,10 @@ export type ErrorCode =
   | PrimitivesErrorCode
   | BackingErrorCode
   | SpecErrorCode
-  | RuntimeErrorCode
+  | EnvErrorCode
   | BindingErrorCode
   | HandoffErrorCode
-  | LayoutErrorCode
+  | PlanErrorCode
   | OrchestrationErrorCode
   | DiagnosticsErrorCode
   | InternalErrorCode;
@@ -148,9 +148,9 @@ export interface CodeToPayload {
   'spec.duplicateKey': SpecDuplicateKeyDetails;
   'spec.builderInvalid': SpecBuilderDetails;
 
-  // runtime.*
-  'runtime.unsupported': RuntimeUnsupportedDetails;
-  'runtime.coopCoepRequired': RuntimeCoopCoepDetails;
+  // env.*
+  'env.unsupported': EnvUnsupportedDetails;
+  'env.coopCoepRequired': EnvCoopCoepDetails;
 
   // binding.*
   'binding.unknownKey': BindingUnknownKeyDetails;
@@ -169,8 +169,8 @@ export interface CodeToPayload {
   'handoff.backingMismatch': HandoffBackingMismatchDetails;
 
   // plan.*
-  'layout.failed': LayoutFailedDetails;
-  'layout.overflowRisk': LayoutOverflowRiskDetails;
+  'plan.failed': PlanFailedDetails;
+  'plan.overflowRisk': PlanOverflowRiskDetails;
 
   // orchestration.*
   'orchestration.createFailed': OrchestrationDetails;
@@ -215,9 +215,9 @@ const RAW_META = {
   [SPEC_ERRORS.duplicateKey.code]: SPEC_ERRORS.duplicateKey.meta,
   [SPEC_ERRORS.builderInvalid.code]: SPEC_ERRORS.builderInvalid.meta,
 
-  // runtime.*
-  [RUNTIME_ERRORS.unsupported.code]: RUNTIME_ERRORS.unsupported.meta,
-  [RUNTIME_ERRORS.coopCoepRequired.code]: RUNTIME_ERRORS.coopCoepRequired.meta,
+  // env.*
+  [ENV_ERRORS.unsupported.code]: ENV_ERRORS.unsupported.meta,
+  [ENV_ERRORS.coopCoepRequired.code]: ENV_ERRORS.coopCoepRequired.meta,
 
   // binding.*
   [BINDING_ERRORS.unknownKey.code]: BINDING_ERRORS.unknownKey.meta,
@@ -240,8 +240,8 @@ const RAW_META = {
   [HANDOFF_ERRORS.backingMismatch.code]: HANDOFF_ERRORS.backingMismatch.meta,
 
   // plan.*
-  [LAYOUT_ERRORS.failed.code]: LAYOUT_ERRORS.failed.meta,
-  [LAYOUT_ERRORS.overflowRisk.code]: LAYOUT_ERRORS.overflowRisk.meta,
+  [PLAN_ERRORS.failed.code]: PLAN_ERRORS.failed.meta,
+  [PLAN_ERRORS.overflowRisk.code]: PLAN_ERRORS.overflowRisk.meta,
 
   // orchestration.*
   [ORCHESTRATION_ERRORS.createFailed.code]: ORCHESTRATION_ERRORS.createFailed.meta,
@@ -279,9 +279,9 @@ const RAW_MESSAGES = {
   [SPEC_ERRORS.duplicateKey.code]: SPEC_ERRORS.duplicateKey.message,
   [SPEC_ERRORS.builderInvalid.code]: SPEC_ERRORS.builderInvalid.message,
 
-  // runtime.*
-  [RUNTIME_ERRORS.unsupported.code]: RUNTIME_ERRORS.unsupported.message,
-  [RUNTIME_ERRORS.coopCoepRequired.code]: RUNTIME_ERRORS.coopCoepRequired.message,
+  // env.*
+  [ENV_ERRORS.unsupported.code]: ENV_ERRORS.unsupported.message,
+  [ENV_ERRORS.coopCoepRequired.code]: ENV_ERRORS.coopCoepRequired.message,
 
   // binding.*
   [BINDING_ERRORS.unknownKey.code]: BINDING_ERRORS.unknownKey.message,
@@ -303,8 +303,8 @@ const RAW_MESSAGES = {
   [HANDOFF_ERRORS.backingMismatch.code]: HANDOFF_ERRORS.backingMismatch.message,
 
   // plan.*
-  [LAYOUT_ERRORS.failed.code]: LAYOUT_ERRORS.failed.message,
-  [LAYOUT_ERRORS.overflowRisk.code]: LAYOUT_ERRORS.overflowRisk.message,
+  [PLAN_ERRORS.failed.code]: PLAN_ERRORS.failed.message,
+  [PLAN_ERRORS.overflowRisk.code]: PLAN_ERRORS.overflowRisk.message,
 
   // orchestration.*
   [ORCHESTRATION_ERRORS.createFailed.code]: ORCHESTRATION_ERRORS.createFailed.message,

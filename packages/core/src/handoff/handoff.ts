@@ -5,7 +5,7 @@
  * All validation happens against the plan, not duplicated header fields.
  */
 
-import { createError } from '../errors';
+import { createError } from '../errors/error';
 
 import type { Handoff, ReceivedHandoff } from './types';
 import type { SharedBacking } from '../backing/types';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { attachWasmShared } from '../../src/backing/attach-wasm';
+import { allocateWasmShared } from '../../src/backing/allocate-wasm-shared';
 import { isSeqlokError } from '../../src/errors/error';
 import { planLayout } from '../../src/plan/layout';
 import { defineSpec } from '../../src/spec/define';
@@ -9,8 +9,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('attachWasmShared — missing WebAssembly environment', () => {
-  it('throws runtime.unsupported when WebAssembly is not available', () => {
+describe('allocateWasmShared — missing WebAssembly environment', () => {
+  it('throws env.unsupported when WebAssembly is not available', () => {
     // Arrange
     const spec = defineSpec(({ param, meter }) => ({
       id: 'test',
@@ -24,14 +24,14 @@ describe('attachWasmShared — missing WebAssembly environment', () => {
 
     // Act/Assert
     try {
-      attachWasmShared(plan);
+      allocateWasmShared(plan);
       expect(false).toBe(true); // should not reach
     } catch (e: unknown) {
       if (!isSeqlokError(e)) {
         throw e;
       }
 
-      expect(e.code).toBe('runtime.unsupported');
+      expect(e.code).toBe('env.unsupported');
 
       // Be tolerant to implementation wording:
       // - "WebAssembly.Memory unavailable"

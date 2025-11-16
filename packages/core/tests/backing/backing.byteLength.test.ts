@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { backingByteLength } from '../../src/backing/allocate';
+import { backingByteLength } from '../../src/backing/allocate-shared';
 
 describe('backingByteLength', () => {
   it('reports sab-contiguous length', () => {

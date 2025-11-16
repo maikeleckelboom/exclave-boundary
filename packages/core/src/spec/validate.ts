@@ -1,4 +1,4 @@
-import { createError } from '../errors';
+import { createError } from '../errors/error';
 
 export interface ScalarRangeInput {
   readonly min?: number;

@@ -1,7 +1,10 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { computePlaneBases, PACK_ORDER_V1 } from '../../src/backing/map-views';
+import {
+  computeBackingPlaneBases,
+  BACKING_PLANE_PACK_ORDER_V1,
+} from '../../src/backing/map-views';
 
 import type { PlaneByteLengths } from '../../src/plan/types';
 import type { PlaneKey } from '../../src/primitives/planes';
@@ -16,7 +19,7 @@ const align4 = [
 const align8 = ['MF64'] as const satisfies readonly PlaneKey[];
 const align1 = ['PB'] as const satisfies readonly PlaneKey[];
 
-describe('computePlaneBases alignment invariants', () => {
+describe('computeBackingPlaneBases alignment invariants', () => {
   it('respects natural alignment and full coverage (contiguous, pack-order)', () => {
     /* PER-PLANE BYTE LENGTHS already aligned for their element width */
     const arb = fc.record<PlaneByteLengths>({
@@ -32,7 +35,7 @@ describe('computePlaneBases alignment invariants', () => {
 
     fc.assert(
       fc.property(arb, (lens) => {
-        const bases = computePlaneBases(lens);
+        const bases = computeBackingPlaneBases(lens);
 
         /* Alignment per plane */
         for (const k of align4) {
@@ -45,17 +48,17 @@ describe('computePlaneBases alignment invariants', () => {
           expect(bases[k] % 1).toBe(0);
         }
 
-        /* Contiguity in PACK_ORDER_V1: base[next] === base[prev] + len[prev] */
-        for (let i = 1; i < PACK_ORDER_V1.length; i++) {
+        /* Contiguity in BACKING_PLANE_PACK_ORDER_V1: base[next] === base[prev] + len[prev] */
+        for (let i = 1; i < BACKING_PLANE_PACK_ORDER_V1.length; i++) {
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const prev = PACK_ORDER_V1[i - 1]!;
+          const prev = BACKING_PLANE_PACK_ORDER_V1[i - 1]!;
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          const curr = PACK_ORDER_V1[i]!;
+          const curr = BACKING_PLANE_PACK_ORDER_V1[i]!;
           expect(bases[curr]).toBe(bases[prev] + lens[prev]);
         }
 
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const last = PACK_ORDER_V1[PACK_ORDER_V1.length - 1]!;
+        const last = BACKING_PLANE_PACK_ORDER_V1[BACKING_PLANE_PACK_ORDER_V1.length - 1]!;
         const endLast = bases[last] + lens[last];
         const sum = (Object.keys(lens) as PlaneKey[]).reduce(
           (acc, k) => acc + lens[k],

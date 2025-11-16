@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { allocateShared } from '../../src/backing/allocate';
+import { allocateShared } from '../../src/backing/allocate-shared';
 import { mapViews } from '../../src/backing/map-views';
-import { type SeqlokError } from '../../src/errors';
 import { planLayout } from '../../src/plan/layout';
 import { defineSpec } from '../../src/spec/define';
+
+import type { SeqlokError } from '../../src/errors/error';
 
 export function isSeqlokError(x: unknown): x is SeqlokError {
   if (typeof x !== 'object' || x === null) {
@@ -47,7 +48,6 @@ describe('mapViews (runtime)', () => {
       params: {
         table: param.f32.array(16),
       },
-      meters: {},
     }));
     const plan = planLayout(spec);
 

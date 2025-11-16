@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { allocateShared } from '../../src/backing/allocate';
+import { allocateShared } from '../../src/backing/allocate-shared';
 import { isSeqlokError } from '../../src/errors/error';
 import { buildHandoff, receiveHandoff, verifyHandoff } from '../../src/handoff/handoff';
 import { planLayout } from '../../src/plan/layout';

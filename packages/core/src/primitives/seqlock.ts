@@ -1,23 +1,43 @@
 /**
- * Seqlock primitives (lock/seq pair).
+ * @fileoverview
+ * Seqlock primitives for Seqlok (LOCK/SEQ pair).
  *
- * Provides:
- *  - createSeqPair(): bounds-checked indices into a shared U32 plane
- *  - beginWrite()/endWrite(): writer critical section (stamp SEQ before unlock)
- *  - publish(): exception-safe writer wrapper
- *  - tryRead(): best-effort coherent read with bounded spinning/verification
- *      Signature: tryRead(p, reader, options?: { spinBudget?, retryBudget? })
- *      Returns { ok, value, status:{ spins, retries } }.
- *  - acquire(): never-degraded read; retries until success or throws
- *  - getSeq()/isWriterActive(): lightweight helpers
+ * This module implements the low-level protocol used by the bindings to
+ * publish and sample coherent state via a single-writer / multi-reader
+ * seqlock:
+ *
+ * - {@link SeqPair} describes indices into a shared `Uint32Array` storing
+ *   `[LOCK, SEQ]`.
+ * - {@link beginWrite} / {@link endWrite} wrap the writer critical section.
+ * - {@link publish} provides an exception-safe RAII-style write.
+ * - {@link tryRead} performs a bounded, best-effort coherent read and is used
+ *   by primitives tests.
+ *
+ * @remarks
+ * This module is an internal implementation detail of `@seqlok/core`.
+ * Runtime bindings call into it indirectly via higher-level helpers.
+ *
+ * Functions {@link createSeqPair} and {@link tryRead} exist primarily for
+ * primitives tests and are marked `@internal`. They are not part of the
+ * supported bindings surface and may change without notice.
  */
 
 import { addU32, loadU32, spinUntilEven } from './atomics';
-import { createError, invariant } from '../errors';
+import { createError } from '../errors/error';
+import { invariant } from '../errors/invariant';
 
-import type { PrimitivesSeqlockTimeoutDetails } from '../errors';
+import type { PrimitivesSeqlockTimeoutDetails } from '../errors/codes/primitives';
 
-/** Pair of indices into a shared U32 plane that stores `[LOCK, SEQ]`. */
+/**
+ * Pair of indices into a shared `Uint32Array` that stores `[LOCK, SEQ]`.
+ *
+ * @remarks
+ * - `LOCK` is incremented by writers:
+ *   - even → no writer active
+ *   - odd  → writer in critical section
+ * - `SEQ` is a monotonically increasing version stamp, incremented exactly
+ *   once per successful commit.
+ */
 export interface SeqPair {
   readonly u32: Uint32Array;
   readonly lockIndex: number;
@@ -25,10 +45,18 @@ export interface SeqPair {
 }
 
 /**
- * Construct a SeqPair with bounds validation.
- * @param u32 Plane holding LOCK/SEQ.
- * @param lockIndex Index of the lock word (odd=writer active).
- * @param seqIndex Index of the monotonic sequence stamp.
+ * Construct a {@link SeqPair} with bounds validation.
+ *
+ * @param u32 Shared `Uint32Array` plane holding the lock/sequence words.
+ * @param lockIndex Index of the LOCK word (must be in-bounds).
+ * @param seqIndex Index of the SEQ word (must be in-bounds and distinct from `lockIndex`).
+ *
+ * @throws {@link import('../errors').SeqlokError}
+ * Throws with code `"internal.assertionFailed"` if any index is out of bounds,
+ * or if `lockIndex === seqIndex`.
+ *
+ * @internal
+ * Used by primitives tests only; not part of the bindings API.
  */
 export function createSeqPair(
   u32: Uint32Array,
@@ -69,26 +97,75 @@ export function createSeqPair(
   return { u32, lockIndex, seqIndex };
 }
 
-/** Options for bounded coherent reads. */
+/**
+ * Configuration for bounded coherent reads.
+ *
+ * @remarks
+ * These budgets control how aggressively `tryRead` will spin and retry in
+ * the presence of a contending writer.
+ */
 export interface TryReadOptions {
-  /** Max spins per attempt while waiting for even LOCK. Default: 1024. */
+  /**
+   * Maximum number of spin iterations per attempt while waiting for an even
+   * LOCK value. Default: 1024.
+   */
   readonly spinBudget?: number;
-  /** Max verification retries if a writer races. Default: 8. */
+
+  /**
+   * Maximum number of verification retries if a writer races the reader
+   * (i.e. SEQ changes during sampling). Default: 8.
+   */
   readonly retryBudget?: number;
 }
 
+/**
+ * Status of a seqlock read attempt.
+ *
+ * @remarks
+ * This aggregates total work and classifies the outcome:
+ *
+ * - `'ok'` – a coherent snapshot was obtained.
+ * - `'writerActive'` – writer never quiesced within the spin budget.
+ * - `'budgetExhausted'` – spin and/or retry budgets were fully consumed.
+ */
 export interface ReadStatus {
-  /** Total lock-load spins across all attempts. */
+  /** Total spins consumed across all attempts. */
   readonly spins: number;
-  /** Number of retries consumed (excludes the initial attempt). */
+  /** Retries consumed because writers raced (excludes the initial attempt). */
   readonly retries: number;
+  /**
+   * Outcome category:
+   * - `'ok'`             → coherent snapshot
+   * - `'writerActive'`   → writer never quiesced on this attempt
+   * - `'budgetExhausted'`→ exceeded spin/retry budgets
+   */
+  readonly kind: 'ok' | 'writerActive' | 'budgetExhausted';
 }
 
+/**
+ * Discriminated result of {@link tryRead}.
+ *
+ * @typeParam T Value type returned by the reader function.
+ */
 export type TryReadResult<T> =
   | { ok: true; value: T; status: ReadStatus }
-  | { ok: false; value: T; status: ReadStatus };
+  | {
+      ok: false;
+      value: T;
+      status: ReadStatus;
+    };
 
-/** Begin a write: even → odd (exclusive). */
+/**
+ * Begin a write: transition LOCK from even → odd to enter the critical section.
+ *
+ * @remarks
+ * This function does **not** perform any memory barriers by itself; the
+ * seqlock protocol relies on the ordering of:
+ *
+ * 1. `beginWrite()` – LOCK becomes odd.
+ * 2. user writes their data.
+ * 3. `endWrite()` – SEQ increment + LOCK becomes even.
+ */
 export function beginWrite(p: SeqPair): void {
   addU32(p.u32, p.lockIndex, 1);
 }
@@ -96,10 +173,14 @@ export function beginWrite(p: SeqPair): void {
 /**
  * End a write: commit the new version first, then unlock.
  *
- * Ordering matters:
- *  - seq++ happens-before readers that validate (seq0 === seq1).
- *  - unlocking after the stamp prevents an even+unchanged illusion
- *    while sampling bytes written under odd LOCK.
+ * @remarks
+ * Ordering is crucial:
+ *
+ * - `SEQ` is incremented *before* releasing the lock so that readers which
+ *   see an even LOCK and stable SEQ pair are guaranteed to observe a fully
+ *   committed snapshot.
+ * - Unlocking last (odd → even) prevents readers from seeing an even LOCK
+ *   with bytes written under the odd phase but without the version stamp.
  */
 export function endWrite(p: SeqPair): void {
   // 1) publish the new version (release edge for readers)
@@ -111,10 +192,26 @@ export function endWrite(p: SeqPair): void {
 /**
  * Exception-safe publish wrapper.
  *
+ * @typeParam T Value type produced by the critical section.
+ * @param p Seqlock pair to guard the critical section.
+ * @param fn Critical section that mutates shared state under the lock.
+ *
+ * @returns The value returned by `fn`.
+ *
+ * @throws Rethrows any error thrown by `fn`.
+ *
  * @remarks
- * This ensures that a writer cannot get stuck in the "odd" (locked) state
- * even if an exception is thrown in the critical section; SEQ is only bumped
- * if `fn` completes without throwing.
+ * This helper ensures that the writer never remains stuck in an odd (locked)
+ * state. If `fn` throws, the lock is released and `SEQ` is **not**
+ * incremented.
+ *
+ * Typical usage:
+ *
+ * ```ts
+ * publish(pair, () => {
+ *   shared[0] = nextValue;
+ * });
+ * ```
  */
 export function publish<T>(p: SeqPair, fn: () => T): T {
   beginWrite(p);
@@ -131,32 +228,39 @@ export function publish<T>(p: SeqPair, fn: () => T): T {
   return result;
 }
 
-/** Spin result status for introspection/diagnostics. */
-export interface SpinStatus {
-  /** Total spins consumed across all attempts. */
-  readonly spins: number;
-  /** Retries consumed because writers raced us. */
-  readonly retries: number;
-  /**
-   * Outcome category:
-   *  - 'ok'             → coherent snapshot
-   *  - 'writerActive'   → writer never quiesced on this attempt
-   *  - 'budgetExhausted'→ exceeded spin/retry budgets
-   */
-  readonly kind: 'ok' | 'writerActive' | 'budgetExhausted';
-}
-
 /**
- * Internal helper: best-effort coherent read with bounded spinning.
+ * Best-effort coherent read with bounded spinning and retries.
  *
- * This is the primitive used by `acquire()`. It never throws; instead it
- * reports whether coherence was achieved within the configured budgets.
+ * @typeParam T Value type produced by the reader function.
+ * @param p Seqlock pair to sample from.
+ * @param reader Function that samples the underlying shared state.
+ * @param options Budgets controlling spin and retry behaviour.
+ *
+ * @returns A {@link TryReadResult} containing the sampled value and status.
+ *
+ * @throws {@link import('../errors').SeqlokError}
+ * Throws with code `"primitives.seqlockTimeout"` if budgets are exhausted
+ * (spins or retries) without obtaining a coherent snapshot.
+ *
+ * @remarks
+ * This primitive is primarily used by primitives tests to exercise and
+ * validate the seqlock behaviour. Production bindings currently use a
+ * simpler single-pass read.
+ *
+ * Behaviour summary:
+ *
+ * - Spins on the LOCK word until it appears even, up to `spinBudget`.
+ * - Reads `SEQ` (`seq0`), then calls `reader()`, then reads `SEQ` again (`seq1`).
+ * - Accepts the snapshot if `seq0 === seq1` and LOCK is still even.
+ * - Otherwise, retries up to `retryBudget` times.
+ * - If budgets are exhausted:
+ *   - A structured timeout error (`primitives.seqlockTimeout`) is thrown.
  */
 export function tryRead<T>(
   p: SeqPair,
   reader: () => T,
   options?: TryReadOptions,
-): { ok: boolean; value: T; status: SpinStatus } {
+): TryReadResult<T> {
   const spinBudgetOption = options?.spinBudget ?? 1024;
   const retryBudgetOption = options?.retryBudget ?? 8;
 
@@ -174,9 +278,7 @@ export function tryRead<T>(
     'Spin budget must be non-negative integer',
     {
       where: 'primitives.seqlock.tryRead',
-      detail: `spinBudget=${String(spinBudgetOption)}, retryBudget=${String(
-        retryBudgetOption,
-      )}`,
+      detail: `spinBudget=${String(spinBudgetOption)}, retryBudget=${String(retryBudgetOption)}`,
     },
   );
 
@@ -192,12 +294,12 @@ export function tryRead<T>(
 
     if (!spinResult) {
       // Never observed an even LOCK within spin budget.
-      const status: SpinStatus = {
+      const status: ReadStatus = {
         spins: totalSpins,
         retries: retriesUsed,
         kind: 'writerActive',
       };
-      // Return a degraded result instead of throwing; acquire() decides.
+      // Degraded snapshot: reader() is called exactly once in this branch.
       return { ok: false, value: reader(), status };
     }
 
@@ -206,9 +308,10 @@ export function tryRead<T>(
     const seq0 = loadU32(p.u32, p.seqIndex);
     const value = reader();
     const seq1 = loadU32(p.u32, p.seqIndex);
+    const lockNow = loadU32(p.u32, p.lockIndex);
 
-    if (seq0 === seq1 && (loadU32(p.u32, p.lockIndex) & 1) === 0) {
-      const status: SpinStatus = {
+    if (seq0 === seq1 && (lockNow & 1) === 0) {
+      const status: ReadStatus = {
         spins: totalSpins,
         retries: retriesUsed,
         kind: 'ok',
@@ -223,99 +326,10 @@ export function tryRead<T>(
   // the sense of the primitives domain; we surface it as a structured error.
   const details = {
     where: 'primitives.seqlock.tryRead',
-    detail: `spinBudget=${String(spinBudget)}, retries=${String(retryBudget)}, spins=${String(
-      totalSpins,
-    )}, retriesUsed=${String(retriesUsed)}`,
+    detail: `spinBudget=${String(spinBudget)}, retryBudget=${String(retryBudget)}, spins=${String(totalSpins)}, retriesUsed=${String(retriesUsed)}`,
     spinBudget,
     actualSpins: totalSpins,
   } as const satisfies PrimitivesSeqlockTimeoutDetails;
 
   throw createError('primitives.seqlockTimeout', 'Seqlock acquisition timeout', details);
-}
-
-/**
- * Acquire a coherent snapshot, optionally degrading to "latest" under
- * pathological contention.
- */
-export interface AcquireOptions extends TryReadOptions {
-  /**
-   * Degrade policy when budgets are exhausted:
-   *  - 'never'       → keep retrying until maxAttempts then throw
-   *  - 'returnLatest'→ return the last sampled value even if coherence
-   *                    could not be proven
-   *
-   * Default: 'never'
-   */
-  readonly degrade?: 'never' | 'returnLatest';
-
-  /**
-   * Hard cap on number of tryRead attempts before giving up.
-   * Default: 1000
-   */
-  readonly maxAttempts?: number;
-}
-
-/**
- * High-level acquire primitive:
- *
- * - Uses `tryRead` internally for bounded coherent attempts.
- * - Will retry up to `maxAttempts` times.
- * - Respects `degrade` to optionally return the latest sampled value instead
- *   of throwing when the seqlock cannot be proven coherent.
- */
-export function acquire<T>(p: SeqPair, reader: () => T, options?: AcquireOptions): T {
-  const degrade = options?.degrade ?? 'never';
-  const maxAttempts = options?.maxAttempts ?? 1000;
-
-  let attempts = 0;
-  let lastValue: T | undefined;
-  let totalSpins = 0;
-
-  while (attempts < maxAttempts) {
-    const result = tryRead(p, reader, options);
-    totalSpins += result.status.spins;
-    attempts += 1;
-
-    if (result.ok) {
-      return result.value;
-    }
-
-    lastValue = result.value;
-
-    // Writer stayed active; just retry.
-    if (result.status.kind === 'writerActive') {
-      // Loop continues, budgets are reset per tryRead call.
-      continue;
-    }
-
-    // Budget exhausted inside tryRead; either degrade or continue.
-    if (result.status.kind === 'budgetExhausted') {
-      if (degrade === 'returnLatest' && lastValue !== undefined) {
-        return lastValue;
-      }
-      // Otherwise, fall through and let the outer attempts budget decide.
-    }
-  }
-
-  // Exceeded maxAttempts: surface a structured timeout.
-  const details = {
-    where: 'primitives.seqlock.acquire',
-    detail: `maxAttempts=${String(maxAttempts)}, degrade=${degrade}, spins=${String(
-      totalSpins,
-    )}`,
-    spinBudget: options?.spinBudget ?? 1024,
-    actualSpins: totalSpins,
-  } as const satisfies PrimitivesSeqlockTimeoutDetails;
-
-  throw createError('primitives.seqlockTimeout', 'Seqlock acquisition timeout', details);
-}
-
-/** Current monotonic SEQ (u32). */
-export function getSeq(p: SeqPair): number {
-  return loadU32(p.u32, p.seqIndex);
-}
-
-/** Whether a writer is currently active (LOCK odd). */
-export function isWriterActive(p: SeqPair): boolean {
-  return (loadU32(p.u32, p.lockIndex) & 1) === 1;
 }

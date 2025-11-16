@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { attachWasmShared } from '../../src/backing/attach-wasm';
+import { allocateWasmShared } from '../../src/backing/allocate-wasm-shared';
 import { isSeqlokError } from '../../src/errors/error';
 import { planLayout } from '../../src/plan/layout';
 import { defineSpec } from '../../src/spec/define';
@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('attachWasmShared — Memory ctor failure path', () => {
+describe('allocateWasmShared — Memory ctor failure path', () => {
   it('throws a typed SeqlokError when WebAssembly.Memory constructor throws', () => {
     // Arrange
     const spec = defineSpec(({ param, meter }) => ({
@@ -37,7 +37,7 @@ describe('attachWasmShared — Memory ctor failure path', () => {
 
     // Act/Assert
     try {
-      attachWasmShared(plan);
+      allocateWasmShared(plan);
       // If we get here, ctor did not throw as expected
       expect(false).toBe(true);
     } catch (e: unknown) {
@@ -45,10 +45,10 @@ describe('attachWasmShared — Memory ctor failure path', () => {
       if (!isSeqlokError(e)) {
         throw e;
       }
-      // Code path caught by attachWasmShared when ctor fails
+      // Code path caught by allocateWasmShared when ctor fails
       expect(e.code).toBe('backing.wasmMemoryNotShared');
       expect(e.message).toMatch(/Failed to attach shared WebAssembly\.Memory/i);
-      expect(e.details.where).toBe('attachWasmShared');
+      expect(e.details.where).toBe('allocateWasmShared');
     }
   });
 });

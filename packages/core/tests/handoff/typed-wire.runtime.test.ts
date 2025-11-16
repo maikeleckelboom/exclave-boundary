@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { allocateShared } from '../../src/backing/allocate';
+import { allocateShared } from '../../src/backing/allocate-shared';
 import { bindController } from '../../src/binding/controller';
 import { bindProcessor } from '../../src/binding/processor';
 import { buildHandoff, receiveHandoff, verifyHandoff } from '../../src/handoff/handoff';

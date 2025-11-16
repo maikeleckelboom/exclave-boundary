@@ -1,21 +1,15 @@
-/**
- * @fileoverview @seqlok/core public API (v2.0 - zero duplication)
- */
-
 // SPEC & LAYOUT
+export { defineSpec, type ParamBuilders, type MeterBuilders } from './spec/define';
 
-export { defineSpec } from './spec/define';
 export { planLayout } from './plan/layout';
-
 export type { SpecInput } from './spec/types';
 
 // BACKING & MEMORY
-
-export { allocateShared } from './backing/allocate';
-export { attachWasmShared } from './backing/attach-wasm';
+export { allocateShared } from './backing/allocate-shared';
+export { allocateSharedPartitioned } from './backing/allocate-shared-partitioned';
+export { allocateWasmShared } from './backing/allocate-wasm-shared';
 
 // BINDINGS (Functions)
-
 export { bindController } from './binding/controller';
 export { bindProcessor } from './binding/processor';
 
@@ -63,24 +57,29 @@ export type {
 } from './binding/types';
 
 // HANDOFF
+export { buildHandoff, receiveHandoff, verifyHandoff } from './handoff/handoff';
 
-export { buildHandoff, receiveHandoff, verifyHandoff } from './handoff';
+export type { Handoff, HandoffPacking, ReceivedHandoff } from './handoff/types';
 
-export type { Handoff, HandoffPacking, ReceivedHandoff } from './handoff';
-
-// ERRORS
-
+// ERRORS (runtime)
 export { SeqlokError, isSeqlokError, createError } from './errors/error';
-export { invariant } from './errors/invariant';
 
+export { invariant } from './errors/invariant';
+export { interpretHealth } from './errors/health';
+
+export { getErrorMeta, getErrorMessage, isErrorCode } from './errors/registry';
+
+// ERRORS (types)
 export type {
   ErrorCode,
   ErrorPayload,
   ErrorDetails,
   ErrorMeta,
   TypedArrayName,
-} from './errors';
+  HealthInterpretation,
+} from './errors/types';
 
+// ENUM UTILITIES
 export {
   enumArrayToLabels,
   enumIndexFromLabel,
@@ -90,4 +89,4 @@ export {
   enumPaletteFor,
   type EnumLabel,
   type EnumKeyOf,
-} from './util/enum-helpers';
+} from './spec/enums';

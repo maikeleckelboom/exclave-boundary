@@ -413,6 +413,159 @@ Rough shape:
 
 We intentionally don't expose `subscribe` here; see §7.3.
 
+### 4.3 Why `receiveHandoff` is separate from `bindProcessor` / `bindObserver`
+
+We **intentionally** keep:
+
+```ts
+const received = receiveHandoff(handoff);
+const proc = bindProcessor(received);
+const obs = bindObserver(received);
+```
+
+instead of collapsing it into a single:
+
+```ts
+// (intentionally *not* an API)
+const proc = bindProcessorFromHandoff(handoff);
+```
+
+This is not accidental boilerplate; it encodes a few important invariants.
+
+#### 4.3.1 Trust boundary vs role binding
+
+Handoff decode and role binding have different responsibilities:
+
+- `receiveHandoff(handoff)`
+  → “I got this opaque envelope from somewhere. Decode it, validate it, and give me a **trusted** description of the
+  backing and layout."
+
+- `bindProcessor(received)` / `bindObserver(received)`
+  → “Given a **trusted** handoff, attach my role-specific API to it."
+
+Conceptually:
+
+```txt
+Owner side                     Wire                     Consumer side
+-----------             ------------------             --------------
+spec → plan → backing → Handoff<S>  → receiveHandoff → ReceivedHandoff<S> → bindProcessor / bindObserver
+```
+
+`receiveHandoff` is the **trust boundary**. Putting that logic _inside_ `bindProcessor` would hide this boundary and
+blur
+“decode & verify” with “attach a processor”.
+
+#### 4.3.2 One decode, many bindings
+
+A single consumer environment often needs multiple bindings to the **same** memory:
+
+```ts
+const received = receiveHandoff(handoff);
+
+const proc = bindProcessor(received);
+const hudObs = bindObserver(received);
+const debugObs = bindObserver(received);
+```
+
+If `bindProcessor` internally did `receiveHandoff`:
+
+- you either pay multiple redundant decodes, or
+- you invent internal caching that entangles "decode the envelope" with "which bindings exist".
+
+By keeping `receiveHandoff` explicit:
+
+- the consumer decodes the envelope **once**, and
+- the resulting `ReceivedHandoff<S>` becomes the canonical "this layout+backing is now trusted" handle, reusable across
+  any bindings.
+
+This is crucial for multi-domain / MWMR-style topologies where the same SAB+layout is observed by many roles.
+
+#### 4.3.3 Not all consumers are processors
+
+Some consumers only want to **observe** state (HUD, inspector, logging) and might never host a processor:
+
+```ts
+const received = receiveHandoff(handoff);
+
+// This worker only inspects / visualizes state
+const observer = bindObserver(received);
+```
+
+If `receiveHandoff` were "hidden inside" `bindProcessor`, we would need parallel “do-everything” entrypoints for other
+roles or reintroduce `(spec, backing)` overloads for convenience. Keeping `receiveHandoff` as a standalone step gives
+all consumer roles a shared, explicit decode step.
+
+#### 4.3.4 Clear owner vs consumer split
+
+The public API encodes a sharp distinction:
+
+- **Owner side** (creates the world):
+
+  - `defineSpec`
+  - `planLayout`
+  - `allocateShared`
+  - `buildHandoff`
+  - `bindController(spec, backing, ...)`
+
+- **Consumer side** (adopts the world):
+
+  - `receiveHandoff(handoff)`
+  - `bindProcessor(received, ...)`
+  - `bindObserver(received, ...)`
+
+Rule of thumb:
+
+- If you have `spec + backing`, you’re on the **owner** side → you can only bind a **controller**.
+- If you only have a `Handoff<S>`, you’re on the **consumer** side → your first step is `receiveHandoff`.
+
+Putting `receiveHandoff` inside `bindProcessor` or `bindObserver` breaks that mental model and encourages overloaded
+“do-everything” entrypoints.
+
+#### 4.3.5 Orchestration, registry, and tooling
+
+Higher-level packages (`@seqlok/orchestration`, registries, debug tools) work directly with handoff envelopes:
+
+```ts
+function attachDomain<S extends SpecInput>(handoff: Handoff<S>) {
+  const received = receiveHandoff(handoff);
+
+  // Decide role(s) based on context
+  const proc = bindProcessor(received);
+  const obs = bindObserver(received);
+}
+```
+
+These layers care about:
+
+- validating the envelope,
+- tracking generations / growth,
+- swapping bindings over time.
+
+They need the decoded form (`ReceivedHandoff<S>`) without being forced to “also stand up a processor right now”.
+
+#### 4.3.6 Performance vs semantics
+
+`receiveHandoff`:
+
+- runs **once per consumer per domain**, not per quantum,
+- does envelope validation + view materialization,
+- is firmly in the setup/boot path, not in the DSP/render hot path.
+
+The cost is negligible compared to the clarity we gain:
+
+- a clean pipeline: `Handoff<S> → ReceivedHandoff<S> → Binding`,
+- a well-defined trust boundary,
+- reusable decoded handoffs for multiple bindings,
+- a stable owner/consumer split that scales to more roles and complex topologies.
+
+Slogan version:
+
+> `receiveHandoff` is where a consumer says **“I trust this envelope now.”** > `bindProcessor` / `bindObserver` are how a consumer says **“Given that trusted memory, this is my role.”**
+
+We keep them separate so the API surface permanently encodes that distinction, even when everything happens to run on
+the
+same thread.
+
 ---
 
 ## 5. Handoff & verification semantics
@@ -467,7 +620,7 @@ Naming rationale:
   - `binding.*` – controller/processor binding issues.
   - `params.*`, `meters.*` – runtime value issues.
 
-- This keeps telemetry and bug reports searchable by **concern** rather than one big error namespace.
+This keeps telemetry and bug reports searchable by **concern** rather than one big error namespace.
 
 We're deliberately conservative with granularity:
 
@@ -623,6 +776,27 @@ Big shift:
 
 > **Old Seqlok:** “small reactive store + memory wire.”
 > **Current Seqlok:** “boring predictable wire” you _plug into_ your store / engine.
+
+### 7.5 Why there is no `controller.params.volume.set(…)` or `.get()`
+
+Seqlok bindings are a **typed shared-memory wire**, not a reactive store with per-field objects.
+
+On the controller side:
+
+- All **writes** go through `params.set`, `params.update`, or `params.stage`, each of which maps directly onto a single
+  seqlock-protected commit.
+- All **reads** go through `params.snapshot(…)`, which gives you a coherent view of one or many params in a single
+  seqlock read.
+
+A property-style API like `controller.params.volume.set(0.8)`:
+
+- would require either allocating per-param objects or using Proxy traps,
+- obscures atomicity (two `.set(…)` calls mean two commits, not one),
+- and hides the fact that reads are seqlock snapshots, not trivial property reads.
+
+If you prefer "handles" like `volume.set(value)`, build them in your own control layer on top of the controller binding
+(for example, small helpers that delegate to `params.set` / `params.snapshot`). `@seqlok/core` stays the boring,
+explicit wire.
 
 ---
 

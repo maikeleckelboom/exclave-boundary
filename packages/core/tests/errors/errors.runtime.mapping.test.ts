@@ -64,14 +64,14 @@ describe('errors/error createError runtime composition', () => {
     expect(err.cause).toBe(cause);
   });
 
-  it('composes runtime.unsupported with feature + reason details', () => {
-    const err = createError('runtime.unsupported', 'Feature unavailable', {
+  it('composes env.unsupported with feature + reason details', () => {
+    const err = createError('env.unsupported', 'Feature unavailable', {
       feature: 'SharedArrayBuffer',
       reason: 'Missing COOP/COEP',
     });
 
     expect(err).toBeInstanceOf(Error);
-    expect(err.code).toBe('runtime.unsupported');
+    expect(err.code).toBe('env.unsupported');
 
     // Human message remains readable and stable
     expect(err.message).toMatch(/Feature unavailable/i);

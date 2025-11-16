@@ -244,7 +244,7 @@ We trade a handful of explicit arguments in setup for:
 
 ---
 
-## 6. Where ergonomics live (sugar without domain fusion)
+## 6. Where ergonomics live
 
 High-level helpers can close over `spec` and `plan` to reduce repetition while keeping kernel signatures explicit:
 
@@ -309,6 +309,81 @@ Why keep `buildHandoff` / `receiveHandoff` as explicit verbs:
 - They mark the **agent boundary**: “this is where we get ready to cross into another thread/runtime.”
 - They carry their own error domain (handoff corruption / incompatibility) instead of burying that inside binds.
 
+### 7.1 Why `handoff` (and not `transfer` or `shared`)
+
+The word **`handoff`** is doing deliberate work in the API. It names a **protocol event** between agents, not just a
+container type.
+
+A handoff is the moment where the owner says:
+
+> “This **plan** is implemented by this **backing**, and I am now giving you everything you need to bind to it safely.”
+
+The object produced by `buildHandoff(plan, backing)` is the concrete representation of that event:
+
+- It carries **layout identity** (plan hash, plane byte lengths, version).
+- It carries **resource identity** (which shared memory object this plan is implemented on).
+- It is **self-contained** enough for `receiveHandoff` to reconstruct a safe `ReceivedHandoff` without the original
+  `spec` or `plan` in the receiving agent.
+
+`handoff` also avoids clashes with two heavily-loaded terms in the JS ecosystem.
+
+#### Why not `transfer`?
+
+In the platform APIs, **“transfer” has a precise meaning**:
+
+- `postMessage(value, { transfer: [...] })` moves `Transferable` objects to another agent.
+- After transfer, the sender **loses access**: the buffer becomes “neutered” / detached on the sending side.
+
+Seqlok's golden path is the opposite:
+
+- The backing is a `SharedArrayBuffer` or shared `WebAssembly.Memory`.
+- **Both** controller and processor must retain access to the same memory region.
+- The handoff value itself is cloned structurally; the underlying memory is _shared_, not moved.
+
+Using "transfer" in this context would strongly suggest that the owner relinquishes access to the memory, which is
+incorrect and actively misleading for anyone familiar with workers and `Transferable`s.
+
+#### Why not `shared*`?
+
+The word **“shared”** already names the underlying primitives:
+
+- `SharedArrayBuffer`
+- shared `WebAssembly.Memory`
+
+Re-using "shared" for the cross-agent envelope ("sharedConfig", "sharedState", …) blurs the line between:
+
+- the **memory** that is physically shared, and
+- the **description** of how that memory is laid out and can be safely bound.
+
+The handoff is not "more shared memory"; it is the _contract_ for how a particular shared memory region implements a
+particular plan.
+
+By avoiding "shared" in the type name, the docs can say precise things like:
+
+- “The backing is shared memory.”
+- “The handoff is the description you send across agents.”
+
+without overloading the same term for two different layers.
+
+#### What `handoff` implies
+
+`handoff` sits in the middle and captures exactly what Seqlok needs:
+
+- It **acknowledges motion** (one agent builds, another receives).
+- It is **neutral** about the underlying primitive (SAB today, shared Wasm or something else tomorrow).
+- It gives the handoff layer a clean **error domain** for "this plan/backing pair cannot be trusted" without implying
+  ownership transfer or re-defining what "shared" means.
+
+The verbs `buildHandoff` and `receiveHandoff` then read naturally as protocol steps:
+
+```ts
+const handoff = buildHandoff(plan, backing); // owner prepares the package
+const received = receiveHandoff(handoff); // engine validates + reconstructs view
+```
+
+They describe _what_ is happening at the agent boundary without colliding with the platform's existing meanings of "
+transfer" and "shared".
+
 ---
 
 ## 8. Allocation variants and the contiguous handoff
@@ -345,8 +420,6 @@ flowchart LR
   F -. postMessage .-> G[received]
   A & C --> H[bindController]
   G --> I[bindProcessor]
-  classDef node fill: #020617, stroke: #1f2937, color: #e5e7eb, stroke-width: 1.0;
-  class A, B, C, D, E, F, G, H, I node;
 ```
 
 Boundaries:

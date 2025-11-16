@@ -48,7 +48,7 @@ export function isSeqlokError(e: unknown): e is SeqlokError {
  *
  * @example
  * ```ts
- * throw createError('runtime.unsupported', 'SharedArrayBuffer unavailable', {
+ * throw createError('env.unsupported', 'SharedArrayBuffer unavailable', {
  *   feature: 'SharedArrayBuffer',
  *   reason: 'Check COOP/COEP headers'
  * });

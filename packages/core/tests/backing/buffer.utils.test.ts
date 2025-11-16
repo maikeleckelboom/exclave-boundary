@@ -1,15 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
-import { getBufferForPlane, getSharedBuffer } from '../../src/backing/buffer';
+import { getSharedBuffer } from '../../src/backing/buffers';
 import { planLayout } from '../../src/plan/layout';
 import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';
 
 import type {
+  Backing,
   SharedBacking,
   SharedPartitionedBacking,
   WasmSharedBacking,
 } from '../../src/backing/types';
 import type { PlaneByteLengths } from '../../src/plan/types';
+import type { PlaneKey } from '../../src/primitives';
+
+export function getBufferForPlane(backing: Backing, plane: PlaneKey): SharedArrayBuffer {
+  if (backing.kind === 'shared-partitioned') {
+    return backing.planes[plane];
+  }
+  return getSharedBuffer(backing);
+}
 
 describe('buffer helpers', () => {
   const bytes: PlaneByteLengths = {

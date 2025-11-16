@@ -5,16 +5,16 @@
  * as structured `SeqlokError<'primitives.atomicsFailed'>` instead of raw
  * Atomics exceptions.
  */
+import { createError } from '../errors/error';
 
-import { createError } from '../errors';
-
-function atomicsFailed(detail: string, where: string): never {
+function atomicsFailed(detail: string, where: string, exception?: unknown): never {
   const details = {
     where,
     detail,
   } as const;
-  // Note: details structurally extends ErrorDetails; extra fields are fine.
-  throw createError('primitives.atomicsFailed', 'Atomics operation failed', details);
+  throw createError('primitives.atomicsFailed', 'Atomics operation failed', details, {
+    cause: exception,
+  });
 }
 
 /**
@@ -28,7 +28,7 @@ export function loadU32(plane: Uint32Array, index: number): number {
   try {
     return Atomics.load(plane, index);
   } catch (e) {
-    atomicsFailed(`loadU32 index=${String(index)}`, 'primitives.atomics.loadU32');
+    atomicsFailed(`loadU32 index=${String(index)}`, 'primitives.atomics.loadU32', e);
   }
 }
 
@@ -42,6 +42,7 @@ export function addU32(plane: Uint32Array, index: number, delta: number): number
     atomicsFailed(
       `addU32 index=${String(index)} delta=${String(delta)}`,
       'primitives.atomics.addU32',
+      e,
     );
   }
 }
@@ -59,7 +60,7 @@ export function spinUntilEven(
   spinBudget: number,
 ): { value: number; spins: number } | undefined {
   let spins = 0;
-  // Cheap fast-path: if already even, we’re done.
+
   let value = loadU32(plane, index);
   if ((value & 1) === 0) {
     return { value, spins };

@@ -346,7 +346,7 @@ There are essentially two phases:
 
 1. **Initialization / binding**
 
-- `defineSpec`, `planLayout`, `allocateShared`, `attachWasmShared`, `buildHandoff`, `receiveHandoff`, `bindController`,
+- `defineSpec`, `planLayout`, `allocateShared`, `allocateWasmShared`, `buildHandoff`, `receiveHandoff`, `bindController`,
   `bindProcessor`.
 - **Most errors should surface here.**
 - Library is strict about correctness.
@@ -403,7 +403,7 @@ If a backing buffer is too small or incorrectly aligned, Seqlok does **not**:
 
 Instead, it throws a `backing.*` error.
 
-Utilities that create backings for you (`allocateShared`, `attachWasmShared`) are designed so that if they succeed,
+Utilities that create backings for you (`allocateShared`, `allocateWasmShared`) are designed so that if they succeed,
 backing/plan/ spec already match. If you choose to provide your own backing, you own the responsibility to match the
 plan exactly.
 

@@ -1,10 +1,11 @@
-import { createError } from '../errors';
 import {
   assertMeterInto,
   assertParamInto,
+  throwUnknownKey,
   type MeterPlane,
   type ParamPlane,
 } from './validate';
+import { createError } from '../errors/error';
 
 import type { ControllerMeters, ControllerParams } from './types';
 import type { MeterPlaneViews, ParamPlaneViews } from '../backing/map-views';
@@ -14,14 +15,14 @@ type SnapshotParamSlot = Readonly<{
   plane: ParamPlane;
   index: number;
   length: number;
-  elemBytes: number;
+  bytesPerElement: number;
 }>;
 
 type SnapshotMeterSlot = Readonly<{
   plane: MeterPlane;
   index: number;
   length: number;
-  elemBytes: number;
+  bytesPerElement: number;
 }>;
 
 function isObject(x: unknown): x is Record<string, unknown> {
@@ -84,21 +85,18 @@ function paramsSnapshotRaw(
   defs: Readonly<Record<string, ParamDef>>,
   slots: Record<string, SnapshotParamSlot>,
   views: ParamPlaneViews,
+  knownParamKeys: readonly string[],
   options?: {
     readonly keys: readonly string[];
     readonly into?: Record<string, Float32Array | Int32Array | Uint8Array>;
   },
 ): Record<string, number | boolean | string | Float32Array | Int32Array | Uint8Array> {
-  const keysList = options ? options.keys : Object.keys(slots);
+  const keysList = options ? options.keys : knownParamKeys;
 
   if (options) {
     for (const k of options.keys) {
       if (!(k in slots)) {
-        throw createError('binding.unknownKey', `Unknown params key "${k}"`, {
-          scope: 'params',
-          key: k,
-          known: Object.keys(slots),
-        });
+        throwUnknownKey('params', k, knownParamKeys);
       }
     }
   }
@@ -112,7 +110,7 @@ function paramsSnapshotRaw(
   for (const key of keysList) {
     const slot = slots[key];
     if (!slot) {
-      throw createError('internal.assertionFailed', `Param snapshot slot missing`, {
+      throw createError('internal.assertionFailed', 'Param snapshot slot missing', {
         where: key,
       });
     }
@@ -145,7 +143,7 @@ function paramsSnapshotRaw(
       if (slot.plane === 'PF32') {
         const vF32 = views.PF32[start];
         if (vF32 === undefined) {
-          throw createError('internal.assertionFailed', `Param PF32 scalar OOB`, {
+          throw createError('internal.assertionFailed', 'Param PF32 scalar OOB', {
             where: key,
             detail: `index ${String(start)}`,
           });
@@ -154,7 +152,7 @@ function paramsSnapshotRaw(
       } else if (slot.plane === 'PI32') {
         const raw = views.PI32[start];
         if (raw === undefined) {
-          throw createError('internal.assertionFailed', `Param PI32 scalar OOB`, {
+          throw createError('internal.assertionFailed', 'Param PI32 scalar OOB', {
             where: key,
             detail: `index ${String(start)}`,
           });
@@ -164,7 +162,7 @@ function paramsSnapshotRaw(
       } else {
         const b = views.PB[start];
         if (b === undefined) {
-          throw createError('internal.assertionFailed', `Param PB scalar OOB`, {
+          throw createError('internal.assertionFailed', 'Param PB scalar OOB', {
             where: key,
             detail: `index ${String(start)}`,
           });
@@ -189,45 +187,44 @@ export function createParamSnapshot<S extends SpecInput>(
     readonly into?: Record<string, Float32Array | Int32Array | Uint8Array>;
   }) => {
     if (!options) {
-      return paramsSnapshotRaw(defs, slots, views);
+      return paramsSnapshotRaw(defs, slots, views, allParamKeys);
     }
+
     if (options.keys && options.keys.length > 0) {
       const base = { keys: options.keys };
       return options.into
-        ? paramsSnapshotRaw(defs, slots, views, {
+        ? paramsSnapshotRaw(defs, slots, views, allParamKeys, {
             ...base,
             into: options.into,
           })
-        : paramsSnapshotRaw(defs, slots, views, base);
+        : paramsSnapshotRaw(defs, slots, views, allParamKeys, base);
     }
+
     const base = { keys: allParamKeys as readonly string[] };
     return options.into
-      ? paramsSnapshotRaw(defs, slots, views, {
+      ? paramsSnapshotRaw(defs, slots, views, allParamKeys, {
           ...base,
           into: options.into,
         })
-      : paramsSnapshotRaw(defs, slots, views, base);
+      : paramsSnapshotRaw(defs, slots, views, allParamKeys, base);
   }) as ControllerParams<S>['snapshot'];
 }
 
 function metersSnapshotRaw(
   slots: Record<string, SnapshotMeterSlot>,
   views: MeterPlaneViews,
+  knownMeterKeys: readonly string[],
   options?: {
     readonly keys: readonly string[];
     readonly into?: Record<string, Float32Array | Float64Array | Uint32Array>;
   },
 ): Record<string, number | Float32Array | Float64Array | Uint32Array> {
-  const keysList = options ? options.keys : Object.keys(slots);
+  const keysList = options ? options.keys : knownMeterKeys;
 
   if (options) {
     for (const k of options.keys) {
       if (!(k in slots)) {
-        throw createError('binding.unknownKey', `Unknown meters key "${k}"`, {
-          scope: 'meters',
-          key: k,
-          known: Object.keys(slots),
-        });
+        throwUnknownKey('meters', k, knownMeterKeys);
       }
     }
   }
@@ -238,7 +235,7 @@ function metersSnapshotRaw(
   for (const key of keysList) {
     const slot = slots[key];
     if (!slot) {
-      throw createError('internal.assertionFailed', `Meter snapshot slot missing`, {
+      throw createError('internal.assertionFailed', 'Meter snapshot slot missing', {
         where: key,
       });
     }
@@ -271,7 +268,7 @@ function metersSnapshotRaw(
       if (slot.plane === 'MF32') {
         const m32 = views.MF32[start];
         if (m32 === undefined) {
-          throw createError('internal.assertionFailed', `Meter MF32 scalar OOB`, {
+          throw createError('internal.assertionFailed', 'Meter MF32 scalar OOB', {
             where: key,
             detail: `index ${String(start)}`,
           });
@@ -280,7 +277,7 @@ function metersSnapshotRaw(
       } else if (slot.plane === 'MF64') {
         const m64 = views.MF64[start];
         if (m64 === undefined) {
-          throw createError('internal.assertionFailed', `Meter MF64 scalar OOB`, {
+          throw createError('internal.assertionFailed', 'Meter MF64 scalar OOB', {
             where: key,
             detail: `index ${String(start)}`,
           });
@@ -289,7 +286,7 @@ function metersSnapshotRaw(
       } else {
         const mu = views.MU32[start];
         if (mu === undefined) {
-          throw createError('internal.assertionFailed', `Meter MU32 scalar OOB`, {
+          throw createError('internal.assertionFailed', 'Meter MU32 scalar OOB', {
             where: key,
             detail: `index ${String(start)}`,
           });
@@ -310,27 +307,29 @@ export function createMeterSnapshot<S extends SpecInput>(
 
   return ((...args: readonly unknown[]) => {
     if (args.length === 0) {
-      return metersSnapshotRaw(slots, views);
+      return metersSnapshotRaw(slots, views, allMeterKeys);
     }
 
     if (Array.isArray(args[0])) {
       const keys = args[0] as readonly string[];
-      const maybeoptions = (args.length > 1 ? args[1] : undefined) as
+      const maybeOptions = (args.length > 1 ? args[1] : undefined) as
         | {
             readonly into?: Record<string, Float32Array | Float64Array | Uint32Array>;
           }
         | undefined;
-      return maybeoptions?.into
-        ? metersSnapshotRaw(slots, views, {
+      return maybeOptions?.into
+        ? metersSnapshotRaw(slots, views, allMeterKeys, {
             keys,
-            into: maybeoptions.into,
+            into: maybeOptions.into,
           })
-        : metersSnapshotRaw(slots, views, { keys });
+        : metersSnapshotRaw(slots, views, allMeterKeys, { keys });
     }
 
     const allStrings = args.every((x) => typeof x === 'string');
     if (allStrings) {
-      return metersSnapshotRaw(slots, views, { keys: args });
+      return metersSnapshotRaw(slots, views, allMeterKeys, {
+        keys: args,
+      });
     }
 
     if (typeof args[0] === 'object' && args[0] !== null) {
@@ -341,21 +340,21 @@ export function createMeterSnapshot<S extends SpecInput>(
       if (Array.isArray(object.keys)) {
         const base = { keys: object.keys as readonly string[] };
         return object.into
-          ? metersSnapshotRaw(slots, views, {
+          ? metersSnapshotRaw(slots, views, allMeterKeys, {
               ...base,
               into: object.into,
             })
-          : metersSnapshotRaw(slots, views, base);
+          : metersSnapshotRaw(slots, views, allMeterKeys, base);
       }
       if (object.into) {
-        return metersSnapshotRaw(slots, views, {
+        return metersSnapshotRaw(slots, views, allMeterKeys, {
           keys: allMeterKeys as readonly string[],
           into: object.into,
         });
       }
-      return metersSnapshotRaw(slots, views);
+      return metersSnapshotRaw(slots, views, allMeterKeys);
     }
 
-    return metersSnapshotRaw(slots, views);
+    return metersSnapshotRaw(slots, views, allMeterKeys);
   }) as ControllerMeters<S>['snapshot'];
 }

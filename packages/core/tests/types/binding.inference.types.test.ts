@@ -48,11 +48,5 @@ describe('public bindController / bindProcessor inference', () => {
     const received = receiveHandoff(handoff);
     const procA = bindProcessor(received);
     expectTypeOf(procA).toEqualTypeOf<ProcessorBinding<DemoSpec>>();
-
-    // Todo: This does not work with TypeScript yet, either remove or fix.
-    //  Consider if it's doing anything for anyone.
-    //  The thought was some IDE help the consumer would get by passing spec? Any other benefits if any at all?
-    // const procB = bindProcessor(spec, received);
-    // expectTypeOf(procB).toEqualTypeOf<ProcessorBinding<DemoSpec>>();
   });
 });

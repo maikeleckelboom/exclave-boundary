@@ -1,7 +1,7 @@
 // packages/core/tests/backing/allocate-shared-partitioned.test.ts
 import { describe, it, expect } from 'vitest';
 
-import { allocateSharedPartitioned } from '../../src/backing/allocate-partitioned';
+import { allocateSharedPartitioned } from '../../src/backing/allocate-shared-partitioned';
 import { mapViews } from '../../src/backing/map-views';
 import { planLayout } from '../../src/plan/layout';
 import { BYTES_PER_ELEM } from '../../src/primitives/planes';

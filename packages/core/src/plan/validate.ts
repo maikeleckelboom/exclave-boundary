@@ -1,4 +1,4 @@
-import { createError } from '../errors';
+import { createError } from '../errors/error';
 import { BYTES_PER_ELEM, type PlaneKey } from '../primitives/planes';
 
 import type { EntrySlot, LockStrideBytes, PlaneByteLengths } from './types';
@@ -51,12 +51,21 @@ function alignUp(n: number, m: number): number {
 const MAX_ARRAY_LENGTH = 1_000_000; // tune as needed
 
 function assertArrayLength(key: string, length: number): void {
-  if (!Number.isFinite(length) || length <= 0 || !Number.isInteger(length)) {
-    throw createError('spec.builderInvalid', 'Array length must be a positive integer', {
+  if (!Number.isFinite(length) || length <= 0) {
+    throw createError('spec.arrayInvalid', 'Array length must be positive and finite', {
       where: 'plan.planLayout',
-      reason: 'planFailed',
       key,
-      detail: String(length),
+      length,
+      reason: 'nonPositive',
+    });
+  }
+
+  if (!Number.isInteger(length)) {
+    throw createError('spec.arrayInvalid', 'Array length must be an integer', {
+      where: 'plan.planLayout',
+      key,
+      length,
+      reason: 'fractional',
     });
   }
 
@@ -73,10 +82,13 @@ function assertArrayLength(key: string, length: number): void {
 /**
  * Validate the basic shape of a spec before planning.
  *
- * - Ensures `id` is a non-empty string.
  * - Ensures at least one param or meter is defined.
  * - Ensures no key is reused across params and meters.
+ *
+ * Id handling is left to the spec builder; `planLayout` will
+ * auto-generate an anonymous id if none is provided.
  */
+
 export function assertValidSpecForPlanning(spec: SpecInput): void {
   const paramsObj = spec.params ?? {};
   const metersObj = spec.meters ?? {};
@@ -238,10 +250,10 @@ export function packParamSlots(params: Readonly<Record<string, ParamDef>>): {
       offset = PB;
       PB += length * elemBytes;
     } else {
-      throw createError('layout.failed', 'Unexpected param plane', { detail: plane });
+      throw createError('plan.failed', 'Unexpected param plane', { detail: plane });
     }
 
-    slots[key] = { plane, offset, length, elemBytes };
+    slots[key] = { plane, offset, length, bytesPerElement: elemBytes };
   }
 
   return { slots, bytes: { PF32, PI32, PB } };
@@ -278,10 +290,10 @@ export function packMeterSlots(meters: Readonly<Record<string, MeterDef>>): {
       offset = MU32;
       MU32 += length * elemBytes;
     } else {
-      throw createError('layout.failed', 'Unexpected meter plane', { detail: plane });
+      throw createError('plan.failed', 'Unexpected meter plane', { detail: plane });
     }
 
-    slots[key] = { plane, offset, length, elemBytes };
+    slots[key] = { plane, offset, length, bytesPerElement: elemBytes };
   }
 
   return { slots, bytes: { MF32, MF64, MU32 } };

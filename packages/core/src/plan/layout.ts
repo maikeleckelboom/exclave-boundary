@@ -1,4 +1,3 @@
-import { createError } from '../errors';
 import {
   assertValidSpecForPlanning,
   composePlaneLengths,
@@ -8,6 +7,7 @@ import {
   withAlignedSeqlockForMeters,
   withAlignedSeqlockForParams,
 } from './validate';
+import { createError } from '../errors/error';
 import { hashSpec } from '../spec/hash';
 
 import type { EntrySlot, LockStrideBytes, Plan, PlanOptions } from './types';
@@ -50,6 +50,18 @@ export function planLayout<S extends SpecInput>(
 
   const lockStrideBytes: LockStrideBytes = options.lockStrideBytes ?? DEFAULT_LOCK_STRIDE;
 
+  if (
+    !Number.isFinite(lockStrideBytes) ||
+    lockStrideBytes < 8 ||
+    !Number.isInteger(lockStrideBytes)
+  ) {
+    throw createError('spec.builderInvalid', 'Invalid lockStrideBytes option', {
+      where: 'plan.planLayout',
+      reason: 'alignmentFailed',
+      detail: String(lockStrideBytes),
+    });
+  }
+
   const { slots: paramSlots, bytes: pBytes0 } = packParamSlots(paramsObj);
   const { pBytes, PU } = withAlignedSeqlockForParams(pBytes0, lockStrideBytes);
 
@@ -60,7 +72,7 @@ export function planLayout<S extends SpecInput>(
   const bytesTotal = totalBytes(planes);
 
   if (bytesTotal > PLAN_SOFT_LIMIT_BYTES) {
-    throw createError('layout.overflowRisk', 'Planned memory exceeds soft limit', {
+    throw createError('plan.overflowRisk', 'Planned memory exceeds soft limit', {
       where: 'plan.planLayout',
       detail: 'plan.size',
       estimatedBytes: bytesTotal,

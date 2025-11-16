@@ -17,6 +17,17 @@
 
 export type PlaneKey = 'PF32' | 'PI32' | 'PB' | 'PU' | 'MF32' | 'MU32' | 'MF64' | 'MU';
 
+export const ALL_PLANES: readonly PlaneKey[] = [
+  'PF32',
+  'PI32',
+  'PB',
+  'PU',
+  'MF32',
+  'MF64',
+  'MU32',
+  'MU',
+];
+
 /** Bytes per element for each plane's natural typed array. */
 export const BYTES_PER_ELEM: Readonly<Record<PlaneKey, number>> = {
   PF32: 4, // Float32Array
@@ -29,14 +40,15 @@ export const BYTES_PER_ELEM: Readonly<Record<PlaneKey, number>> = {
   MU: 4, // Uint32Array
 } as const;
 
-/** True if n is a power of two. */
-export function isPow2(n: number): boolean {
-  return n > 0 && (n & (n - 1)) === 0;
-}
-
-/** Round `n` up to the next multiple of `align` (power-of-two). */
+/**
+ * Round `n` up to the next multiple of `align`.
+ *
+ * @remarks
+ * `align` must be a positive power-of-two. This is enforced to keep the bit
+ * trick `(n + (align - 1)) & ~(align - 1)` valid and branch-free.
+ */
 export function roundUpTo(n: number, align: number): number {
-  if (!isPow2(align)) {
+  if (align <= 0 || (align & (align - 1)) !== 0) {
     throw new Error('roundUpTo: align must be power-of-two');
   }
   return (n + (align - 1)) & ~(align - 1);
@@ -46,10 +58,6 @@ export function roundUpTo(n: number, align: number): number {
  * True if `byteOffset` satisfies alignment requirements for the plane's typed array.
  * For MF64 this is 8-byte alignment; for others it is 4 or 1 as per BYTES_PER_ELEM.
  */
-export function isAligned(byteOffset: number, plane: PlaneKey): boolean {
-  const align = BYTES_PER_ELEM[plane];
-  return (byteOffset & (align - 1)) === 0;
-}
 
 /** Type-level drift guards (no runtime churn). */
 // type _AssertTrue<T extends true> = T;

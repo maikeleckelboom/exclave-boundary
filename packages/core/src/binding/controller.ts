@@ -1,5 +1,3 @@
-// packages/core/src/binding/controller.ts
-
 /**
  * Controller binding (main/UI agent) - public API shim.
  *

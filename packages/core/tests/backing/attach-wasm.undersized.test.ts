@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { attachWasmShared } from '../../src/backing/attach-wasm';
+import { allocateWasmShared } from '../../src/backing/allocate-wasm-shared';
 import { planLayout } from '../../src/plan/layout';
 import { defineSpec } from '../../src/spec/define';
 
@@ -8,7 +8,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('attachWasmShared — allocates enough pages to hold plan.bytesTotal', () => {
+describe('allocateWasmShared — allocates enough pages to hold plan.bytesTotal', () => {
   it('allocates a shared memory whose buffer length covers bytesTotal exactly', () => {
     const spec = defineSpec(({ param, meter }) => ({
       id: 'demo',
@@ -18,7 +18,7 @@ describe('attachWasmShared — allocates enough pages to hold plan.bytesTotal', 
     }));
 
     const plan = planLayout(spec);
-    const backing = attachWasmShared(plan);
+    const backing = allocateWasmShared(plan);
 
     // Sanity: backing exposes the underlying SharedArrayBuffer
     expect(backing.kind).toBe('wasm-shared');

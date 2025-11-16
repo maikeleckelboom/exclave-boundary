@@ -1,6 +1,6 @@
 import { describe, it, expectTypeOf } from 'vitest';
 
-import { allocateShared } from '../../src/backing/allocate';
+import { allocateShared } from '../../src/backing/allocate-shared';
 import { bindProcessor } from '../../src/binding/processor';
 import { buildHandoff, receiveHandoff } from '../../src/handoff/handoff';
 import { planLayout } from '../../src/plan/layout';

@@ -1,5 +1,3 @@
-// packages/core/src/binding/controller.impl.ts
-
 /**
  * Internal controller implementation — single runtime path (plan + backing → binding).
  * All overload resolution and spec processing happens in the shim (controller.ts).
@@ -10,12 +8,23 @@
  * - All validation, range policy, slot precomputation, and write mechanics
  */
 
-import { mapViews } from '../backing';
-import { createError, invariant } from '../errors';
 import { createMeterSnapshot, createParamSnapshot } from './controller.snapshot';
+import {
+  throwInvalidParamValue,
+  throwParamRange,
+  throwUnknownKey,
+  type MeterPlane,
+  type ParamPlane,
+} from './validate';
+import {
+  type MappedViews,
+  mapViews,
+  type MeterPlaneViews,
+  type ParamPlaneViews,
+} from '../backing/map-views';
+import { invariant } from '../errors/invariant';
 import { publish } from '../primitives/seqlock';
 
-import type { MappedViews, MeterPlaneViews, ParamPlaneViews } from '../backing';
 import type {
   ArrayParamView,
   ControllerBinding,
@@ -30,7 +39,6 @@ import type {
   RangePolicy,
   ScalarParamPatch,
 } from './types';
-import type { MeterPlane, ParamPlane } from './validate';
 import type { Backing } from '../backing/types';
 import type { Plan } from '../plan/types';
 import type { ArrayParamKeys, ParamDef, ScalarParamKeys, SpecInput } from '../spec/types';
@@ -38,7 +46,7 @@ import type { ArrayParamKeys, ParamDef, ScalarParamKeys, SpecInput } from '../sp
 interface SlotBase {
   readonly offset: number; // byte offset
   readonly length: number; // number of elements (1 for scalar)
-  readonly elemBytes: number;
+  readonly bytesPerElement: number;
 }
 
 interface ParamSlot extends SlotBase {
@@ -52,12 +60,12 @@ interface MeterSlot extends SlotBase {
 /** Validated fast-path slots (precomputed element index). */
 interface ValidatedParamSlot extends SlotBase {
   readonly plane: ParamPlane;
-  readonly index: number; // element index (offset / elemBytes)
+  readonly index: number; // element index (offset / bytesPerElement)
 }
 
 interface ValidatedMeterSlot extends SlotBase {
   readonly plane: MeterPlane;
-  readonly index: number; // element index (offset / elemBytes)
+  readonly index: number; // element index (offset / bytesPerElement)
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> =>
@@ -111,38 +119,6 @@ function scalarRangeFor(def: unknown): { min: number; max: number } | undefined 
   return undefined;
 }
 
-function throwParamRange(key: string, min: number, max: number, received: number): never {
-  throw createError(
-    'binding.paramRange', // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    `Param "${key}" out of range [${min}, ${max}]: ${received}`,
-    { key, min, max, received },
-  );
-}
-
-function throwInvalidParamValue(
-  key: string,
-  expected?: unknown,
-  received?: unknown,
-): never {
-  throw createError('binding.paramInvalidValue', `Param "${key}" has invalid value`, {
-    key,
-    expected,
-    received,
-  });
-}
-
-function throwUnknownKey(
-  scope: 'params' | 'meters',
-  key: string,
-  known: readonly string[],
-): never {
-  throw createError('binding.unknownKey', `Unknown ${scope} key "${key}"`, {
-    scope,
-    key,
-    known,
-  });
-}
-
 function validateParamSlots(
   slots: Record<string, ParamSlot>,
   views: ParamPlaneViews,
@@ -154,7 +130,7 @@ function validateParamSlots(
       continue;
     }
 
-    const index = (slot.offset / slot.elemBytes) | 0;
+    const index = (slot.offset / slot.bytesPerElement) | 0;
     const length = slot.length;
 
     if (length === 1) {
@@ -196,7 +172,7 @@ function validateParamSlots(
       plane: slot.plane,
       offset: slot.offset,
       length: slot.length,
-      elemBytes: slot.elemBytes,
+      bytesPerElement: slot.bytesPerElement,
       index,
     };
   }
@@ -215,7 +191,7 @@ function validateMeterSlots(
       continue;
     }
 
-    const index = (slot.offset / slot.elemBytes) | 0;
+    const index = (slot.offset / slot.bytesPerElement) | 0;
     const length = slot.length;
 
     if (length === 1) {
@@ -257,7 +233,7 @@ function validateMeterSlots(
       plane: slot.plane,
       offset: slot.offset,
       length: slot.length,
-      elemBytes: slot.elemBytes,
+      bytesPerElement: slot.bytesPerElement,
       index,
     };
   }
@@ -391,6 +367,7 @@ export function controllerImpl<const S extends SpecInput>(
     plan.meters as Record<string, MeterSlot>,
     mapped.meters,
   );
+  const knownParamKeys = Object.keys(validatedParams);
 
   /**
    * Prepare a single scalar write:
@@ -407,9 +384,8 @@ export function controllerImpl<const S extends SpecInput>(
     slot: ValidatedParamSlot & { length: 1 };
     toWrite: number | boolean;
   } {
-    const known = Object.keys(validatedParams);
     const slot = validatedParams[key];
-    assertScalarParamSlot(slot, key, known);
+    assertScalarParamSlot(slot, key, knownParamKeys);
 
     const scalarSlot = slot;
     const def: ParamDef | undefined = paramDefs[key];
@@ -490,7 +466,7 @@ export function controllerImpl<const S extends SpecInput>(
     ): void {
       const slot = validatedParams[key];
       if (!slot || slot.length <= 1) {
-        throwUnknownKey('params', key, Object.keys(validatedParams));
+        throwUnknownKey('params', key, knownParamKeys);
       }
 
       publish(pu, () => {

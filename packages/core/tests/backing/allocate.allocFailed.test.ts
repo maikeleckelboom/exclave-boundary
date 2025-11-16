@@ -23,12 +23,12 @@ describe('errors/error runtime composition', () => {
   });
 
   it('handles env.unsupported shape (feature + reason)', () => {
-    const se = createError('runtime.unsupported', 'Feature unavailable', {
+    const se = createError('env.unsupported', 'Feature unavailable', {
       feature: 'SharedArrayBuffer',
       reason: 'Missing COOP/COEP',
     });
 
-    expect(se.code).toBe('runtime.unsupported');
+    expect(se.code).toBe('env.unsupported');
     expect(se.message).toMatch(/Feature unavailable/i);
     expect(se.details.feature).toBe('SharedArrayBuffer');
     expect(se.details.reason).toMatch(/COOP\/COEP/i);
