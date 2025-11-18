@@ -3,6 +3,9 @@ packages:
   - examples/*
 
 catalog:
+  '@commitlint/cli': ^20.1.0
+  '@commitlint/config-conventional': ^20.0.0
+  '@commitlint/types': ^20.0.0
   '@types/node': ^24.9.2
   '@vitest/coverage-v8': ^4.0.6
   eslint: 9.38.0
@@ -11,17 +14,15 @@ catalog:
   eslint-plugin-regex: ^1.9.0-delta
   fast-check: ^4.3.0
   globals: ^16.5.0
+  prettier: 4.0.0-alpha.12
+  rimraf: ^6.1.0
+  simple-git-hooks: ^2.13.1
+  tsx: ^4.20.6
   typescript: 5.8.2
   typescript-eslint: ^8.46.2
   vite: ^7.1.12
   vite-plugin-dts: ^4.5.4
   vitest: ^4.0.6
-  '@commitlint/cli': ^20.1.0
-  '@commitlint/config-conventional': ^20.0.0
-  '@commitlint/types': ^20.0.0
-  prettier: 4.0.0-alpha.12
-  rimraf: ^6.1.0
-  simple-git-hooks: ^2.13.1
 
 catalogMode: prefer
 

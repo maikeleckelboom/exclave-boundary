@@ -16,34 +16,19 @@ describe('ProcessorMeters.set (runtime)', () => {
     },
   }));
 
-  it('writes scalar and array via set()', () => {
+  it('writes scalar via set()', () => {
     const { ctl, proc } = makeBindingsFromSpec(spec);
 
-    // 1) write scalars + arrays via set()
+    // 1) write scalars via set()
     proc.meters.publish((writer) => {
       writer.set('peak', 0.5);
       writer.set('count', 42);
-      writer.set('spectrum', (dst) => {
-        for (let i = 0; i < dst.length; i++) {
-          dst[i] = 7;
-        }
-      });
     });
 
     const meters = ctl.meters.snapshot(['peak', 'count', 'spectrum']);
 
     expect(meters.peak).toBeCloseTo(0.5);
     expect(meters.count >>> 0).toBe(42);
-
-    const into = new Float32Array(8);
-    const { spectrum } = ctl.meters.snapshot({
-      keys: ['spectrum'] as const,
-      into: { spectrum: into },
-    });
-
-    for (const value of spectrum) {
-      expect(value).toBe(7);
-    }
   });
 
   it('throws on unknown meter key at runtime (type escape for test)', () => {

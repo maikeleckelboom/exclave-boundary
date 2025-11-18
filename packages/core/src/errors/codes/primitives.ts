@@ -36,7 +36,7 @@ const PRIMITIVES_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   planeUnaligned: {
@@ -45,7 +45,7 @@ const PRIMITIVES_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   atomicsFailed: {
@@ -54,7 +54,7 @@ const PRIMITIVES_ERRORS_DEF = {
     meta: {
       severity: 'fatal',
       recoverable: false,
-      safeToExpose: false,
+      boundarySafe: false,
     },
   },
   invalidSpinBudget: {
@@ -63,7 +63,7 @@ const PRIMITIVES_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
 } as const satisfies PrimitivesErrorsMap;

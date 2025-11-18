@@ -1,17 +1,3 @@
-/**
- * @fileoverview Processor binding (v2.0 - golden flow only)
- *
- * Public entry-point for creating a processor binding from a ReceivedHandoff.
- *
- * Design:
- * - Processor never sees the spec value; it only consumes the planned layout.
- * - All processor bindings start from `ReceivedHandoff<S>`.
- * - The owner/main side is responsible for:
- *     defineSpec → planLayout → allocateShared → buildHandoff
- *   and the processor side does:
- *     receiveHandoff → bindProcessor(received)
- */
-
 import { processorImpl } from './processor.impl';
 
 import type { ProcessorBinding, ProcessorOptions } from './types';
@@ -20,7 +6,7 @@ import type { ReceivedHandoff } from '../handoff/types';
 import type { SpecInput } from '../spec/types';
 
 /**
- * Public processor binding (golden flow).
+ * Public processor binding.
  *
  * Use this in workers/worklets or same-thread processors where the spec
  * value is not available. The `received.plan` carries all layout information.
@@ -32,7 +18,7 @@ import type { SpecInput } from '../spec/types';
  *
  * @example
  * ```ts
- * // Worker side (spec-free):
+ * // Worker side:
  * import { receiveHandoff, bindProcessor } from '@seqlok/core';
  * import type { MySpec } from './spec';  // type-only import
  *

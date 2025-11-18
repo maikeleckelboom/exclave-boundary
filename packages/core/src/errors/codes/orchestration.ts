@@ -25,7 +25,7 @@ const ORCHESTRATION_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
 } as const satisfies OrchestrationErrorsMap;

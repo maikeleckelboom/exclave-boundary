@@ -1,4 +1,3 @@
-// packages/core/src/binding/processor.impl.ts
 /**
  * Internal implementation — single runtime path (plan + backing → binding).
  * All overload resolution and generic pinning happens in the shim.
@@ -34,8 +33,8 @@ type _WithinView<S extends SpecInput> =
   _WithinCallback<S> extends (view: infer V) => unknown ? V : never;
 
 interface SlotBase {
-  readonly offset: number; // byte offset
-  readonly length: number; // element count
+  readonly offset: number;
+  readonly length: number;
   readonly bytesPerElement: number;
 }
 
@@ -299,7 +298,6 @@ export function processorImpl<const S extends SpecInput>(
     publish<T>(cb: (writer: MeterWriter<S>) => T): T {
       assertNotDisposed(disposed, 'processor.meters.publish');
 
-      // Writer surface
       const w: Record<string, unknown> = {};
       for (const key of Object.keys(scalarWriters)) {
         w[key] = scalarWriters[key];
@@ -324,22 +322,17 @@ export function processorImpl<const S extends SpecInput>(
         cb2(view);
       }
 
-      function set(key: string, arg: number | ((dst: EM) => void)): void {
-        if (typeof arg === 'function') {
-          stage(key, arg);
-          return;
-        }
+      function set(key: string, value: number): void {
         const f = scalarWriters[key];
         if (!f) {
           throwUnknownKey('meters', key, Object.keys(scalarWriters));
         }
-        f(arg);
+        f(value);
       }
 
-      (w as { stage: typeof stage }).stage = stage;
-      (w as { set: typeof set }).set = set;
+      w.stage = stage;
+      w.set = set;
 
-      // Exactly one MU commit per publish()
       return publish(mu, () => cb(w as MeterWriter<S>));
     },
 

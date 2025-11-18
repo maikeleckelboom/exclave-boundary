@@ -61,7 +61,7 @@ export const BACKING_ERRORS: BackingErrorsMap = {
     meta: {
       severity: 'fatal',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   allocUndersized: {
@@ -70,7 +70,7 @@ export const BACKING_ERRORS: BackingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   wasmMemoryNotShared: {
@@ -79,7 +79,7 @@ export const BACKING_ERRORS: BackingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   intoTypeMismatch: {
@@ -88,7 +88,7 @@ export const BACKING_ERRORS: BackingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   intoLengthMismatch: {
@@ -97,7 +97,7 @@ export const BACKING_ERRORS: BackingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
 } as const;

@@ -49,3 +49,5 @@ Thumbs.db
 *.diff
 *_code.md
 *_code.txt
+seqlok-*.md
+packages/core/bench-results.json

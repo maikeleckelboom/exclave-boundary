@@ -86,9 +86,10 @@ export function throwIntoLength(
   );
 }
 
-/** Internal Param planes (data) — binding-local union. */
+/** @internal Param planes (data) — binding-local union. */
 export type ParamPlane = 'PF32' | 'PI32' | 'PB';
-/** Internal Meter planes (data) — binding-local union. */
+
+/** @internal Meter planes (data) — binding-local union. */
 export type MeterPlane = 'MF32' | 'MF64' | 'MU32';
 
 type ParamDst = Float32Array | Int32Array | Uint8Array;

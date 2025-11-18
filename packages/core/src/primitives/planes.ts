@@ -28,16 +28,28 @@ export const ALL_PLANES: readonly PlaneKey[] = [
   'MU',
 ];
 
-/** Bytes per element for each plane's natural typed array. */
+/**
+ * Specifies the number of bytes per element for various data types used in planes.
+ * This constant maps plane keys to the size in bytes of their corresponding typed arrays.
+ *
+ * @property {number} PF32 - Represents the byte size for a Float32Array.
+ * @property {number} PI32 - Represents the byte size for an Int32Array.
+ * @property {number} PB - Represents the byte size for a Uint8Array.
+ * @property {number} PU - Represents the byte size for a Uint32Array.
+ * @property {number} MF32 - Represents the byte size for a Float32Array.
+ * @property {number} MU32 - Represents the byte size for a Uint32Array.
+ * @property {number} MF64 - Represents the byte size for a Float64Array.
+ * @property {number} MU - Represents the byte size for a Uint32Array.
+ */
 export const BYTES_PER_ELEM: Readonly<Record<PlaneKey, number>> = {
-  PF32: 4, // Float32Array
-  PI32: 4, // Int32Array
-  PB: 1, // Uint8Array
-  PU: 4, // Uint32Array
-  MF32: 4, // Float32Array
-  MU32: 4, // Uint32Array
-  MF64: 8, // Float64Array
-  MU: 4, // Uint32Array
+  PF32: 4,
+  PI32: 4,
+  PB: 1,
+  PU: 4,
+  MF32: 4,
+  MU32: 4,
+  MF64: 8,
+  MU: 4,
 } as const;
 
 /**
@@ -53,13 +65,3 @@ export function roundUpTo(n: number, align: number): number {
   }
   return (n + (align - 1)) & ~(align - 1);
 }
-
-/**
- * True if `byteOffset` satisfies alignment requirements for the plane's typed array.
- * For MF64 this is 8-byte alignment; for others it is 4 or 1 as per BYTES_PER_ELEM.
- */
-
-/** Type-level drift guards (no runtime churn). */
-// type _AssertTrue<T extends true> = T;
-// type _PlaneBytesCovered = _AssertTrue<Exclude<PlaneKey, keyof typeof BYTES_PER_ELEM> extends never ? true : false>;
-// type _PlaneMapNoExtras = _AssertTrue<Exclude<keyof typeof BYTES_PER_ELEM, PlaneKey> extends never ? true : false>;

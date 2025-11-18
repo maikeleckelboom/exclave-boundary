@@ -1,13 +1,3 @@
-/**
- * Internal controller implementation — single runtime path (plan + backing → binding).
- * All overload resolution and spec processing happens in the shim (controller.ts).
- *
- * This mirrors processor.impl.ts architecture:
- * - Receives a concrete Plan<S> plus pre-extracted ParamDef map
- * - No planLayout() calls here
- * - All validation, range policy, slot precomputation, and write mechanics
- */
-
 import { createMeterSnapshot, createParamSnapshot } from './controller.snapshot';
 import {
   throwInvalidParamValue,
@@ -44,8 +34,8 @@ import type { Plan } from '../plan/types';
 import type { ArrayParamKeys, ParamDef, ScalarParamKeys, SpecInput } from '../spec/types';
 
 interface SlotBase {
-  readonly offset: number; // byte offset
-  readonly length: number; // number of elements (1 for scalar)
+  readonly offset: number;
+  readonly length: number;
   readonly bytesPerElement: number;
 }
 
@@ -334,6 +324,37 @@ function writeScalarUnchecked(
 }
 
 /**
+ * Assert that the backing buffer is large enough for the plan.
+ *
+ * @remarks
+ * For shared backings, validates that the SAB byteLength can satisfy
+ * the layout described by plan.bytesTotal. Other backing kinds (WASM,
+ * partitioned) should be validated in their respective allocators or
+ * mapViews implementations.
+ */
+function assertBackingCapacity<S extends SpecInput>(
+  plan: Plan<S>,
+  backing: Backing,
+): void {
+  if (backing.kind === 'shared') {
+    const required = plan.bytesTotal >>> 0;
+    const actual = backing.sab.byteLength >>> 0;
+
+    invariant(
+      actual >= required,
+      'internal.assertionFailed',
+      'Shared backing byteLength smaller than plan.bytesTotal',
+      {
+        where: 'binding.controller.backing',
+        detail: `required=${String(required)}, actual=${String(actual)}`,
+      },
+    );
+  }
+  // Other backing kinds (e.g. WASM, partitioned) should be validated
+  // in their respective allocators / mapViews implementations.
+}
+
+/**
  * Build a controller binding from a concrete plan + backing.
  *
  * @remarks
@@ -348,6 +369,8 @@ export function controllerImpl<const S extends SpecInput>(
   options: ControllerOptions = {},
 ): ControllerBinding<S> {
   const policy: RangePolicy = options.params?.rangePolicy ?? 'reject';
+
+  assertBackingCapacity(plan, backing);
 
   const mapped: MappedViews = mapViews(plan, backing);
 

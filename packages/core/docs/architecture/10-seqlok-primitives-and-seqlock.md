@@ -2,10 +2,10 @@
 
 Lock-free building blocks used by the planner and bindings.
 
-* **Allocation-free** on hot paths
-* Use JS `Atomics.*` with **sequential consistency**
-* SWMR-friendly (Single-Writer / Multiple-Reader)
-* Thin, policy-light surfaces – all higher-level policy lives in bindings
+- **Allocation-free** on hot paths
+- Use JS `Atomics.*` with **sequential consistency**
+- SWMR-friendly (Single-Writer / Multiple-Reader)
+- Thin, policy-light surfaces – all higher-level policy lives in bindings
 
 Primitives live in the core as a small, focused layer: seqlock, atomics helpers, and plane utilities.
 
@@ -15,8 +15,8 @@ Primitives live in the core as a small, focused layer: seqlock, atomics helpers,
 
 Each domain (params / meters) uses a **dual-counter seqlock** stored in a shared `Uint32Array`:
 
-* `LOCK` — odd while writer is active, even while quiescent
-* `SEQ` — monotonically incremented **exactly once per successful commit**
+- `LOCK` — odd while writer is active, even while quiescent
+- `SEQ` — monotonically incremented **exactly once per successful commit**
   (the **one-bump rule**)
 
 That pair is represented as:
@@ -25,7 +25,7 @@ That pair is represented as:
 export interface SeqPair {
   readonly u32: Uint32Array;
   readonly lockIndex: number; // LOCK word
-  readonly seqIndex: number;  // SEQ word
+  readonly seqIndex: number; // SEQ word
 }
 ```
 
@@ -106,9 +106,9 @@ Higher layers (bindings, golden flow) never expose this loop directly; they wrap
 const pair = createSeqPair(u32Plane, lockIndex, seqIndex);
 ```
 
-* Validates that `lockIndex` and `seqIndex` are in-bounds.
-* Throws `SeqlokError<'internal.assertionFailed'>` if indices are invalid.
-* Used by planner/bindings to hook the control planes (`PU`, `MU`) up to seqlock logic.
+- Validates that `lockIndex` and `seqIndex` are in-bounds.
+- Throws `SeqlokError<'internal.assertionFailed'>` if indices are invalid.
+- Used by planner/bindings to hook the control planes (`PU`, `MU`) up to seqlock logic.
 
 This is the only supported way to construct a `SeqPair`.
 
@@ -132,16 +132,16 @@ export function endWrite(p: SeqPair): void;
 export function publish<T>(p: SeqPair, fn: () => T): T;
 ```
 
-* `beginWrite(p)`
+- `beginWrite(p)`
 
-  * `LOCK += 1` (even → odd).
+  - `LOCK += 1` (even → odd).
 
-* `endWrite(p)`
+- `endWrite(p)`
 
-  * `SEQ += 1` (commit fence).
-  * `LOCK += 1` (odd → even).
+  - `SEQ += 1` (commit fence).
+  - `LOCK += 1` (odd → even).
 
-* `publish(p, fn)` – RAII wrapper:
+- `publish(p, fn)` – RAII wrapper:
 
   ```ts
   export function publish<T>(p: SeqPair, fn: () => T): T {
@@ -161,8 +161,8 @@ export function publish<T>(p: SeqPair, fn: () => T): T;
 
   Guarantees:
 
-  * **Exactly one** SEQ bump per successful call.
-  * If `fn` throws, `LOCK` is restored to even and **`SEQ` is not incremented** (no ghost commit).
+  - **Exactly one** SEQ bump per successful call.
+  - If `fn` throws, `LOCK` is restored to even and **`SEQ` is not incremented** (no ghost commit).
 
 Bindings always use `publish`; raw `beginWrite` / `endWrite` are internal primitives.
 
@@ -180,8 +180,8 @@ Readers aim to observe a stable version:
 
 In the primitives layer there are two reader helpers that implement budgeted, structured versions of this pattern:
 
-* `tryRead` – bounded, explicit status, may return degraded values or throw.
-* `acquire` – higher-level wrapper that either returns a coherent value or applies a degradation policy / throws.
+- `tryRead` – bounded, explicit status, may return degraded values or throw.
+- `acquire` – higher-level wrapper that either returns a coherent value or applies a degradation policy / throws.
 
 Note: these live in the primitives module and are used by bindings. They are **not** part of the `@seqlok/core`
 top-level public API surface.
@@ -222,40 +222,40 @@ export function tryRead<T>(
 
 **Behavior:**
 
-* Validates `spinBudget` / `retryBudget` as non-negative integers
+- Validates `spinBudget` / `retryBudget` as non-negative integers
   (invalid → `SeqlokError<'primitives.invalidSpinBudget'>`).
 
-* Then performs bounded attempts to get a coherent snapshot:
+- Then performs bounded attempts to get a coherent snapshot:
 
-  * If it manages a stable read:
+  - If it manages a stable read:
 
-    * Returns `{ ok: true, value, status: { kind: 'ok', spins, retries } }`.
+    - Returns `{ ok: true, value, status: { kind: 'ok', spins, retries } }`.
 
-  * If a writer **never quiesces within the spin budget** on the attempt where it decides to degrade:
+  - If a writer **never quiesces within the spin budget** on the attempt where it decides to degrade:
 
-    * Returns `{ ok: false, value: reader(), status: { kind: 'writerActive', ... } }`.
+    - Returns `{ ok: false, value: reader(), status: { kind: 'writerActive', ... } }`.
       This is a **best-effort** sample with explicit "writer is stuck" telemetry.
 
-  * If it **exhausts budgets** (spin and/or retries) per its internal policy:
+  - If it **exhausts budgets** (spin and/or retries) per its internal policy:
 
-    * Returns with `status.kind === 'budgetExhausted'` *or* throws
+    - Returns with `status.kind === 'budgetExhausted'` _or_ throws
       `SeqlokError<'primitives.seqlockTimeout'>` depending on the exact branch in your current implementation.
       (The type describes the returned shape; throwing is an additional runtime behavior, not reflected in the TS return
       type.)
 
 So at the type level:
 
-* `ok` tells you whether the snapshot is proven coherent.
-* `status.kind` tells you **why** you got what you got:
+- `ok` tells you whether the snapshot is proven coherent.
+- `status.kind` tells you **why** you got what you got:
 
-  * `'ok'` → strong guarantee.
-  * `'writerActive'` → writer wouldn’t let go within the chosen spin budget.
-  * `'budgetExhausted'` → you hit configured limits; check the error path / policy at the call site.
+  - `'ok'` → strong guarantee.
+  - `'writerActive'` → writer wouldn’t let go within the chosen spin budget.
+  - `'budgetExhausted'` → you hit configured limits; check the error path / policy at the call site.
 
 Bindings treat:
 
-* `ok === true && kind === 'ok'` as the only "proper" snapshot.
-* Anything else as degraded/diagnostic or escalated via `acquire` on top.
+- `ok === true && kind === 'ok'` as the only "proper" snapshot.
+- Anything else as degraded/diagnostic or escalated via `acquire` on top.
 
 ---
 
@@ -280,16 +280,12 @@ export interface AcquireOptions extends TryReadOptions {
   readonly maxAttempts?: number;
 }
 
-export function acquire<T>(
-  p: SeqPair,
-  reader: () => T,
-  options?: AcquireOptions,
-): T;
+export function acquire<T>(p: SeqPair, reader: () => T, options?: AcquireOptions): T;
 ```
 
 **Behavior (conceptual):**
 
-* Internally calls `tryRead` in a loop:
+- Internally calls `tryRead` in a loop:
 
   ```ts
   let lastValue: T | undefined;
@@ -307,19 +303,19 @@ export function acquire<T>(
   }
   ```
 
-* If the loop exits without success:
+- If the loop exits without success:
 
-  * If `degrade === 'returnLatest'` and it has at least one `lastValue`, it returns that **best-effort** sample.
-  * Otherwise, it throws `SeqlokError<'primitives.seqlockTimeout'>`.
+  - If `degrade === 'returnLatest'` and it has at least one `lastValue`, it returns that **best-effort** sample.
+  - Otherwise, it throws `SeqlokError<'primitives.seqlockTimeout'>`.
 
 **Usage pattern:**
 
-* Real-time bindings (params/meters) typically use `acquire` under the hood with:
+- Real-time bindings (params/meters) typically use `acquire` under the hood with:
 
-  * A conservative `maxAttempts`.
-  * `degrade: 'never'` for correctness-critical paths.
+  - A conservative `maxAttempts`.
+  - `degrade: 'never'` for correctness-critical paths.
 
-* Diagnostic / "HUD-ish" code could opt into `degrade: 'returnLatest'` to get a non-coherent sample instead of an
+- Diagnostic / "HUD-ish" code could opt into `degrade: 'returnLatest'` to get a non-coherent sample instead of an
   exception, but that's strictly opt-in at higher layers and usually not part of the core binding flow.
 
 ---
@@ -334,13 +330,13 @@ export function getSeq(p: SeqPair): number;
 export function isWriterActive(p: SeqPair): boolean;
 ```
 
-* `getSeq` is a cheap `Atomics.load` of the `SEQ` word.
-* `isWriterActive` checks whether `LOCK` is odd right now.
+- `getSeq` is a cheap `Atomics.load` of the `SEQ` word.
+- `isWriterActive` checks whether `LOCK` is odd right now.
 
 These are useful for:
 
-* HUDs (e.g., "param version" / "meter updates per second").
-* Metrics about writer activity.
+- HUDs (e.g., "param version" / "meter updates per second").
+- Metrics about writer activity.
 
 They do not attempt to establish coherence; they're just probes.
 
@@ -384,8 +380,8 @@ consume(snapshot); // coherent or throws on timeout
 
 Bindings layer essentially uses `acquire`-style semantics inside:
 
-* `params.within(...)`
-* `meters.snapshot(...)`
+- `params.within(...)`
+- `meters.snapshot(...)`
 
 …so user code normally interacts with those higher-level APIs, not with `tryRead`/`acquire` directly.
 
@@ -398,11 +394,7 @@ All direct `Atomics` usage is centralized in a tiny helper module:
 ```ts
 export function loadU32(plane: Uint32Array, index: number): number;
 
-export function addU32(
-  plane: Uint32Array,
-  index: number,
-  delta: number,
-): number;
+export function addU32(plane: Uint32Array, index: number, delta: number): number;
 
 export function spinUntilEven(
   plane: Uint32Array,
@@ -415,28 +407,28 @@ export function spinUntilEven(
 
 These wrappers route failures through structured errors instead of leaking raw JS exceptions:
 
-* `SeqlokError<'primitives.atomicsFailed'>` – if `Atomics.load` / `Atomics.add` throw.
-* `SeqlokError<'primitives.invalidSpinBudget'>` – if budgets are negative or non-integers.
+- `SeqlokError<'primitives.atomicsFailed'>` – if `Atomics.load` / `Atomics.add` throw.
+- `SeqlokError<'primitives.invalidSpinBudget'>` – if budgets are negative or non-integers.
 
 This gives you:
 
-* Stable error codes
-* Structured `where` / `detail` metadata
-* One place to attach telemetry / crash reporting
+- Stable error codes
+- Structured `where` / `detail` metadata
+- One place to attach telemetry / crash reporting
 
 ### `loadU32`
 
 Thin `Atomics.load` wrapper:
 
-* Sequentially consistent read.
-* Used for all LOCK/SEQ and control word loads.
+- Sequentially consistent read.
+- Used for all LOCK/SEQ and control word loads.
 
 ### `addU32`
 
 Thin `Atomics.add` wrapper:
 
-* Used for incrementing `LOCK` and `SEQ`.
-* Returns the previous value (same semantics as `Atomics.add`).
+- Used for incrementing `LOCK` and `SEQ`.
+- Returns the previous value (same semantics as `Atomics.add`).
 
 ### `spinUntilEven`
 
@@ -452,12 +444,12 @@ if (result) {
 }
 ```
 
-* Fast path: first `loadU32` sees an even value → returns immediately.
-* Slow path: re-reads up to `spinBudget` times until an even value is found.
-* Returns:
+- Fast path: first `loadU32` sees an even value → returns immediately.
+- Slow path: re-reads up to `spinBudget` times until an even value is found.
+- Returns:
 
-  * `{ value, spins }` if an even value is observed.
-  * `undefined` if budget is exhausted without observing an even value.
+  - `{ value, spins }` if an even value is observed.
+  - `undefined` if budget is exhausted without observing an even value.
 
 Seqlock readers use this as the core "wait for writer to quiesce" primitive.
 
@@ -467,9 +459,9 @@ Seqlock readers use this as the core "wait for writer to quiesce" primitive.
 
 Planes define how logical fields map onto shared memory. Each plane has:
 
-* A **typed array kind** (`Float32Array`, `Uint32Array`, etc.)
-* A **byte width** per element
-* A role (params vs meters, payload vs control)
+- A **typed array kind** (`Float32Array`, `Uint32Array`, etc.)
+- A **byte width** per element
+- A role (params vs meters, payload vs control)
 
 ### Plane keys
 
@@ -477,12 +469,12 @@ Planes define how logical fields map onto shared memory. Each plane has:
 export type PlaneKey =
   | 'PF32' // Float32 params           (f32, f32.array)
   | 'PI32' // Int32  params           (i32, i32.array, enum indices)
-  | 'PB'   // Uint8  params           (bool / bool.array as 0/1 bytes)
-  | 'PU'   // Uint32 param control    (param seqlock [LOCK, SEQ])
+  | 'PB' // Uint8  params           (bool / bool.array as 0/1 bytes)
+  | 'PU' // Uint32 param control    (param seqlock [LOCK, SEQ])
   | 'MF32' // Float32 meters          (f32, f32.array)
   | 'MU32' // Uint32 meters           (u32 counters, bool meters as 0/1)
   | 'MF64' // Float64 meters          (f64, f64.array)
-  | 'MU';  // Uint32 meter control    (meter seqlock [LOCK, SEQ])
+  | 'MU'; // Uint32 meter control    (meter seqlock [LOCK, SEQ])
 ```
 
 ### Bytes per element
@@ -502,9 +494,9 @@ export const BYTES_PER_ELEM: Readonly<Record<PlaneKey, number>> = {
 
 Conventions:
 
-* Bool params → `PB` as 0/1 bytes (ABI v1; no bit-packing).
-* Bool meters → `MU32` as 0/1 `u32`.
-* `PU` / `MU` planes store seqlock control words only: `[LOCK, SEQ]`.
+- Bool params → `PB` as 0/1 bytes (ABI v1; no bit-packing).
+- Bool meters → `MU32` as 0/1 `u32`.
+- `PU` / `MU` planes store seqlock control words only: `[LOCK, SEQ]`.
 
 > **No DSL leakage.** Planes store **raw numeric payload** only:
 > floats, ints, counters, indices, flags.
@@ -541,9 +533,9 @@ const aligned = roundUpTo(offset, BYTES_PER_ELEM.MF64);
 
 Used by the planner to:
 
-* Enforce 4-byte alignment for PF32/PI32/PU/MF32/MU32/MU.
-* Enforce 8-byte alignment for MF64.
-* Leave PB minimally aligned (1-byte).
+- Enforce 4-byte alignment for PF32/PI32/PU/MF32/MU32/MU.
+- Enforce 8-byte alignment for MF64.
+- Leave PB minimally aligned (1-byte).
 
 #### `isAligned(byteOffset, plane)`
 
@@ -575,26 +567,26 @@ typed arrays.
 
 The primitives layer is deliberately simple:
 
-* **Minimal, stable surface** used by planner, allocator, and bindings:
+- **Minimal, stable surface** used by planner, allocator, and bindings:
 
-  * Seqlock: `SeqPair`, `createSeqPair`, `publish`, `tryRead`, `acquire`, `getSeq`, `isWriterActive`
-  * Atomics: `loadU32`, `addU32`, `spinUntilEven`
-  * Planes: `PlaneKey`, `BYTES_PER_ELEM`, `roundUpTo`, `isPow2`, `isAligned`
+  - Seqlock: `SeqPair`, `createSeqPair`, `publish`, `tryRead`, `acquire`, `getSeq`, `isWriterActive`
+  - Atomics: `loadU32`, `addU32`, `spinUntilEven`
+  - Planes: `PlaneKey`, `BYTES_PER_ELEM`, `roundUpTo`, `isPow2`, `isAligned`
 
-* **No allocations** in hot paths; the only state is in the shared planes you supply.
+- **No allocations** in hot paths; the only state is in the shared planes you supply.
 
-* **No hidden policy** beyond:
+- **No hidden policy** beyond:
 
-  * bounded spinning,
-  * explicit degrade-vs-throw behavior,
-  * clearly named error codes.
+  - bounded spinning,
+  - explicit degrade-vs-throw behavior,
+  - clearly named error codes.
 
 These primitives line up exactly with the higher-level semantics:
 
-* SEQ as a version counter (`meters.version()` reads it).
-* SWMR per domain (Controller vs Processor).
-* Coherent read windows (`params.within`, `meters.snapshot`).
-* Atomic meter commits (`meters.publish`).
+- SEQ as a version counter (`meters.version()` reads it).
+- SWMR per domain (Controller vs Processor).
+- Coherent read windows (`params.within`, `meters.snapshot`).
+- Atomic meter commits (`meters.publish`).
 
 Everything above this layer can be fancy.
 This layer must stay boring enough that you can reason about it at 2am with a pencil and a coffee.

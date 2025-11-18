@@ -174,7 +174,7 @@ describe('processor: coherent reads & meter writes', () => {
 
     proc.meters.publish((writer) => {
       writer.set('peak', 1.25);
-      writer.set('spectrum', (dst) => {
+      writer.stage('spectrum', (dst) => {
         dst.fill(255, 256, 512);
       });
     });

@@ -1,8 +1,22 @@
 /**
- * @fileoverview Handoff construction and validation (v2.0 - zero duplication)
+ * @fileoverview
+ * Handoff construction and validation (v2.0 – zero duplication).
  *
- * Design principle: Plan<S> is the single source of truth.
- * All validation happens against the plan, not duplicated header fields.
+ * This module defines the producer/consumer helpers that move a `Plan<S>`
+ * and its backing memory across concurrency boundaries:
+ *
+ * - `buildHandoff(plan, backing)` – owner-side construction of a `Handoff<S>`.
+ * - `receiveHandoff(handoff)` – boundary validation → `ReceivedHandoff<S>`.
+ * - `verifyHandoff(localPlan, remotePlan)` – optional consistency check.
+ *
+ * Design principles:
+ *
+ * - `Plan<S>` is the single source of truth for layout and spec metadata.
+ * - The handoff envelope carries only `{ version, packing, sab, plan }`.
+ * - No duplicated header fields, no derived lengths stored twice.
+ * - Consumers bind from `ReceivedHandoff<S>` (plan + SAB), not from
+ *   `(Plan<S>, SharedBacking)` directly – preserving the owner/processor
+ *   authority boundary.
  */
 
 import { createError } from '../errors/error';
@@ -12,21 +26,61 @@ import type { SharedBacking } from '../backing/types';
 import type { Plan, PlaneByteLengths } from '../plan/types';
 import type { SpecInput } from '../spec/types';
 
+/**
+ * Protocol version supported by this module.
+ *
+ * @remarks
+ * - Used by `buildHandoff` as the outbound version tag.
+ * - Checked by `receiveHandoff` at the boundary.
+ * - Increment when introducing breaking changes to the handoff shape or
+ *   interpretation semantics.
+ */
 const SUPPORTED_HANDOFF_VERSION = 1 as const;
 
-function isObject(x: unknown): x is Record<string, unknown> {
+/**
+ * Narrow an arbitrary value to a plain object.
+ *
+ * @param x - Value to test.
+ * @returns `true` if `x` is a non-null object.
+ *
+ * @internal
+ * Used for structural validation of handoff envelopes and plans.
+ */
+function isPlainObject(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
 }
 
-function isSharedArrayBufferLike(x: unknown): x is SharedArrayBuffer {
+/**
+ * Check whether a value is a `SharedArrayBuffer`.
+ *
+ * @param x - Value to test.
+ * @returns `true` if `x` is an instance of `SharedArrayBuffer`.
+ *
+ * @remarks
+ * Guards against environments where `SharedArrayBuffer` is not defined.
+ *
+ * @internal
+ */
+function isSharedArrayBuffer(x: unknown): x is SharedArrayBuffer {
   return typeof SharedArrayBuffer !== 'undefined' && x instanceof SharedArrayBuffer;
 }
 
-function isPlaneByteLengths(value: unknown): value is PlaneByteLengths {
-  if (!isObject(value)) {
+/**
+ * Structural guard for `PlaneByteLengths`.
+ *
+ * @param v - Value to probe for `PlaneByteLengths` shape.
+ * @returns `true` if `v` exposes numeric byte lengths for all planes.
+ *
+ * @remarks
+ * This does not validate any semantics beyond the presence and type of
+ * the numeric fields (`PF32`, `PI32`, `PB`, `PU`, `MF32`, `MF64`, `MU32`, `MU`).
+ *
+ * @internal
+ */
+function isPlaneByteLengths(v: unknown): v is PlaneByteLengths {
+  if (!isPlainObject(v)) {
     return false;
   }
-  const v = value;
   return (
     typeof v.PF32 === 'number' &&
     typeof v.PI32 === 'number' &&
@@ -39,9 +93,27 @@ function isPlaneByteLengths(value: unknown): value is PlaneByteLengths {
   );
 }
 
-/** Minimal structural guard for Plan<S>. */
+/**
+ * Minimal structural guard for `Plan<S>`.
+ *
+ * @typeParam S - Spec type parameter inferred from upstream `defineSpec`.
+ * @param x - Value to test.
+ * @returns `true` if `x` looks like a `Plan<S>` (hash + bytesTotal + planes).
+ *
+ * @remarks
+ * This performs a shallow shape check only:
+ *
+ * - `hash` must be a string.
+ * - `bytesTotal` must be a number.
+ * - `planes` must match {@link PlaneByteLengths}.
+ *
+ * Deeper invariants (e.g. hash content, byte layout, offsets) are enforced
+ * by the plan/backing/bindings pipeline, not here.
+ *
+ * @internal
+ */
 function isPlanLike<S extends SpecInput>(x: unknown): x is Plan<S> {
-  if (!isObject(x)) {
+  if (!isPlainObject(x)) {
     return false;
   }
   const rx = x as { hash?: unknown; bytesTotal?: unknown; planes?: unknown };
@@ -53,15 +125,22 @@ function isPlanLike<S extends SpecInput>(x: unknown): x is Plan<S> {
 }
 
 /**
- * Producer-side: builds a typed handoff envelope.
+ * Producer-side: build a typed handoff envelope from a plan and backing.
  *
- * Returns `Handoff<S>` where `S` is inferred from `plan: Plan<S>`.
- * The handoff carries only the essential fields - plan is the metadata source.
+ * @typeParam S - Spec type (inferred from `plan: Plan<S>`).
+ * @param plan - Typed memory layout plan (single source of truth).
+ * @param backing - Shared backing for the plan (must expose a `SharedArrayBuffer`).
+ * @returns Typed handoff envelope (`Handoff<S>`) suitable for transfer.
  *
- * @template S - Spec type (inferred from plan)
- * @param plan - Typed memory layout plan (single source of truth)
- * @param backing - SharedArrayBuffer backing
- * @returns Typed handoff envelope (no duplicated metadata)
+ * @throws {@link import('../errors').SeqlokError}
+ * Throws `handoff.invalidArtifact` if `backing.sab` is not a `SharedArrayBuffer`.
+ *
+ * @remarks
+ * - The handoff carries only `{ version, packing, sab, plan }`. All metadata
+ *   (hash, byte lengths, planes, spec shape) is derived from `plan`.
+ * - This is an owner-side operation: callers must already have a `Plan<S>`
+ *   and a `SharedBacking`, typically obtained via `planLayout(spec)` and
+ *   `allocateShared(plan)`.
  *
  * @example
  * ```ts
@@ -80,7 +159,7 @@ export function buildHandoff<S extends SpecInput>(
   plan: Plan<S>,
   backing: SharedBacking,
 ): Handoff<S> {
-  if (!isSharedArrayBufferLike(backing.sab)) {
+  if (!isSharedArrayBuffer(backing.sab)) {
     throw createError(
       'handoff.invalidArtifact',
       'Handoff requires a SharedArrayBuffer backing',
@@ -101,55 +180,53 @@ export function buildHandoff<S extends SpecInput>(
 }
 
 /**
- * Receiver-side: validates and unpacks a handoff envelope.
+ * Receiver-side overload: validates and unpacks a typed handoff envelope.
  *
- * Generic parameter `S` is automatically inferred from `handoff.plan`.
- * If handoff type is erased (e.g., `unknown` from postMessage), falls back to `SpecInput`.
+ * @typeParam S - Spec type (inferred from `handoff.plan: Plan<S>`).
+ * @param handoff - Handoff envelope received from another thread/process.
+ * @returns Validated {@link ReceivedHandoff} with a typed plan.
  *
- * Validates:
- * - Protocol version
- * - Packing strategy
- * - Plan structure (hash, bytesTotal, planes)
- * - SAB presence
+ * @throws {@link import('../errors').SeqlokError}
+ * Throws one of:
+ * - `handoff.invalidArtifact` – wrong shape, missing plan, or invalid SAB.
+ * - `handoff.versionMismatch` – unsupported `version` field.
  *
- * All metadata comes from the plan.
- *
- * @template S - Spec type (inferred from handoff.plan: Plan<S>)
- * @param handoff - Handoff envelope (from postMessage)
- * @returns Validated handoff with typed plan
- *
- * @example
- * ```ts
- * import type { Handoff } from '@seqlok/core';
- * import type { MySpec } from './spec';
- *
- * type InitMessage = { handoff: Handoff<MySpec> };
- *
- * self.onmessage = (ev: MessageEvent<InitMessage>) => {
- *   const received = receiveHandoff(ev.data.handoff);
- *   //    ^? ReceivedHandoff<MySpec> ✓
- *
- *   // Access metadata via plan:
- *   console.log(received.plan.hash);
- *   console.log(received.plan.bytesTotal);
- * };
- * ```
+ * @remarks
+ * Use this overload when the `Handoff<S>` type is preserved across the
+ * boundary (e.g. strongly-typed `postMessage` payloads).
  */
 export function receiveHandoff<S extends SpecInput>(
   handoff: Handoff<S>,
 ): ReceivedHandoff<S>;
 
 /**
- * Fallback overload for untyped handoff (runtime validation only).
- * Returns `ReceivedHandoff<SpecInput>` with untyped spec.
+ * Receiver-side overload: validates and unpacks an untyped envelope.
+ *
+ * @param handoff - Handoff envelope with erased type (e.g. `unknown` from `postMessage`).
+ * @returns Validated {@link ReceivedHandoff} with a generic `SpecInput` plan.
+ *
+ * @throws {@link import('../errors').SeqlokError}
+ * Throws one of:
+ * - `handoff.invalidArtifact` – wrong shape, missing plan, or invalid SAB.
+ * - `handoff.versionMismatch` – unsupported `version` field.
+ *
+ * @remarks
+ * Use this overload when the inbound value is `unknown` or not statically
+ * typed as `Handoff<S>`. The resulting plan is still structurally validated
+ * but typed as `Plan<SpecInput>`.
  */
 export function receiveHandoff(handoff: unknown): ReceivedHandoff<SpecInput>;
 
+/**
+ * Runtime implementation for both `receiveHandoff` overloads.
+ *
+ * @internal
+ */
 export function receiveHandoff<S extends SpecInput>(
   // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   handoff: Handoff<S> | unknown,
 ): ReceivedHandoff<S> {
-  if (!isObject(handoff)) {
+  if (!isPlainObject(handoff)) {
     throw createError('handoff.invalidArtifact', 'Handoff artifact must be an object', {
       where: 'handoff.receiveHandoff',
       detail: 'non-object',
@@ -189,7 +266,7 @@ export function receiveHandoff<S extends SpecInput>(
   }
 
   // Validate SAB backing
-  if (!isSharedArrayBufferLike(hx.sab)) {
+  if (!isSharedArrayBuffer(hx.sab)) {
     throw createError(
       'handoff.invalidArtifact',
       'Handoff buffer is not SharedArrayBuffer',
@@ -204,7 +281,23 @@ export function receiveHandoff<S extends SpecInput>(
   return { sab: hx.sab, plan: hx.plan };
 }
 
-/** Lightweight diff string for two hash strings (prefix context + preview). */
+/**
+ * Compute a lightweight diff description for two hash strings.
+ *
+ * @param expected - Expected hash string.
+ * @param received - Received hash string.
+ * @returns Human-readable summary of the first difference.
+ *
+ * @remarks
+ * - If either input is not a string, returns a simple type mismatch summary.
+ * - If the strings are identical, returns `"identical"`.
+ * - Otherwise, reports the first differing index, length info, and short
+ *   previews around the differing region.
+ *
+ * This is primarily used to enrich error metadata in `verifyHandoff`.
+ *
+ * @internal
+ */
 function computeHashDiff(expected: unknown, received: unknown): string {
   if (typeof expected !== 'string' || typeof received !== 'string') {
     return `types differ: expected=${typeof expected}, received=${typeof received}`;
@@ -237,17 +330,33 @@ function computeHashDiff(expected: unknown, received: unknown): string {
 /**
  * Optional verification that two plans match (hash + bytesTotal).
  *
- * Compares plans directly - no separate metadata structure.
- * Useful for asserting local plan matches remote received plan.
+ * @typeParam S - Spec type for both plans.
+ * @param localPlan - Local plan (e.g. from `planLayout(spec)` on this side).
+ * @param remotePlan - Plan extracted from a received handoff.
  *
- * @param localPlan - Your local plan (from planLayout)
- * @param remotePlan - Plan from received handoff
- * @throws {SeqlokError} If plans don't match
+ * @throws {@link import('../errors').SeqlokError}
+ * Throws:
+ * - `handoff.specHashMismatch` if `hash` values differ.
+ * - `handoff.backingMismatch` if `bytesTotal` values differ.
+ *
+ * @remarks
+ * This function compares plans directly – no separate metadata structure.
+ * It is useful when you want to assert that a locally computed plan matches
+ * the one embedded in a remote handoff, for example in:
+ *
+ * - Electron main vs renderer,
+ * - multi-process setups,
+ * - or diagnostics tests that must prove spec parity.
+ *
+ * It does **not** perform any binding or mapping; callers still bind from
+ * {@link ReceivedHandoff}, never from `(Plan, SharedBacking)` directly.
  *
  * @example
  * ```ts
  * // Main thread:
+ * const spec = defineSpec(...);
  * const plan = planLayout(spec);
+ * const backing = allocateShared(plan);
  * const handoff = buildHandoff(plan, backing);
  *
  * // Worker thread:

@@ -73,7 +73,7 @@ const SPEC_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   enumInvalid: {
@@ -82,7 +82,7 @@ const SPEC_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   arrayInvalid: {
@@ -91,7 +91,7 @@ const SPEC_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   duplicateKey: {
@@ -100,7 +100,7 @@ const SPEC_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   builderInvalid: {
@@ -109,7 +109,7 @@ const SPEC_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: false,
+      boundarySafe: false,
     },
   },
 } as const satisfies SpecErrorsMap;

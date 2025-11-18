@@ -18,7 +18,7 @@ import {
  */
 interface ErrorRegistryCase<C extends ErrorCode> {
   readonly code: C;
-  readonly expectedMeta: Pick<ErrorMeta, 'severity' | 'recoverable' | 'safeToExpose'>;
+  readonly expectedMeta: Pick<ErrorMeta, 'severity' | 'recoverable' | 'boundarySafe'>;
   readonly messageIncludes?: string | RegExp;
 }
 
@@ -34,7 +34,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'fatal',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
     messageIncludes: /Required env feature unavailable/i,
   },
@@ -43,7 +43,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
     messageIncludes: /COOP\/COEP headers required/i,
   },
@@ -52,7 +52,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
     messageIncludes: /WebAssembly\.Memory is not shared/i,
   },
@@ -61,7 +61,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
     messageIncludes: /typed array mismatch/i,
   },
@@ -70,7 +70,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'warning',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
     messageIncludes: /Snapshot retries exhausted/i,
   },
@@ -79,7 +79,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'warning',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
     messageIncludes: /soft limit/i,
   },
@@ -88,7 +88,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: false,
+      boundarySafe: false,
     },
     messageIncludes: /Spec builder validation failed/i,
   },
@@ -97,7 +97,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'fatal',
       recoverable: false,
-      safeToExpose: false,
+      boundarySafe: false,
     },
     messageIncludes: /Unreachable code executed/i,
   },
@@ -106,7 +106,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
     messageIncludes: /creation\/orchestration failed/i,
   },
@@ -115,7 +115,7 @@ const CASES: readonly ErrorRegistryCase<ErrorCode>[] = [
     expectedMeta: {
       severity: 'warning',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
     messageIncludes: /Diagnostics counter invalid/i,
   },
@@ -156,7 +156,7 @@ describe('error registry – structural invariants', () => {
       expect(meta).toBeDefined();
       expect(typeof meta.severity).toBe('string');
       expect(typeof meta.recoverable).toBe('boolean');
-      expect(typeof meta.safeToExpose).toBe('boolean');
+      expect(typeof meta.boundarySafe).toBe('boolean');
 
       expect(msg).toBeDefined();
       expect(typeof msg).toBe('string');
@@ -194,7 +194,7 @@ describe('error registry – semantic expectations (selected codes)', () => {
     const meta = getErrorMeta(code);
     expect(meta.severity).toBe(expectedMeta.severity);
     expect(meta.recoverable).toBe(expectedMeta.recoverable);
-    expect(meta.safeToExpose).toBe(expectedMeta.safeToExpose);
+    expect(meta.boundarySafe).toBe(expectedMeta.boundarySafe);
 
     if (messageIncludes !== undefined) {
       const msg = getErrorMessage(code);
@@ -214,7 +214,7 @@ describe('error registry – domain-level invariants by prefix', () => {
         const meta = getErrorMeta(code);
         expect(meta.severity).toBe('fatal');
         expect(meta.recoverable).toBe(false);
-        expect(meta.safeToExpose).toBe(false);
+        expect(meta.boundarySafe).toBe(false);
       }
     }
   });
@@ -234,7 +234,7 @@ describe('error registry – domain-level invariants by prefix', () => {
         const meta = getErrorMeta(code);
         expect(meta.severity).toBe('warning');
         expect(meta.recoverable).toBe(true);
-        expect(meta.safeToExpose).toBe(false);
+        expect(meta.boundarySafe).toBe(false);
       }
     }
   });
@@ -243,7 +243,7 @@ describe('error registry – domain-level invariants by prefix', () => {
     for (const code of getAllCodes()) {
       if (code.startsWith('env.')) {
         const meta = getErrorMeta(code);
-        expect(meta.safeToExpose).toBe(true);
+        expect(meta.boundarySafe).toBe(true);
       }
     }
   });
@@ -256,7 +256,7 @@ describe('error registry – domain-level invariants by prefix', () => {
         code === 'binding.coherentRetryExhausted'
       ) {
         const meta = getErrorMeta(code);
-        expect(meta.safeToExpose).toBe(false);
+        expect(meta.boundarySafe).toBe(false);
       }
     }
   });
@@ -267,7 +267,7 @@ describe('error registry – domain-level invariants by prefix', () => {
         const meta = getErrorMeta(code);
         expect(meta.severity).toBe('error');
         expect(meta.recoverable).toBe(false);
-        expect(meta.safeToExpose).toBe(true);
+        expect(meta.boundarySafe).toBe(true);
       }
     }
   });

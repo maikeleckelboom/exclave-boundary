@@ -104,7 +104,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   paramRange: {
@@ -113,7 +113,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   paramInvalidValue: {
@@ -122,7 +122,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   shapeInvalid: {
@@ -131,7 +131,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   snapshotIntoTypeMismatch: {
@@ -140,7 +140,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
   },
   snapshotIntoLengthMismatch: {
@@ -149,7 +149,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
   },
   snapshotRetryExhausted: {
@@ -158,7 +158,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'warning',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
   },
   coherentRetryExhausted: {
@@ -167,7 +167,7 @@ export const BINDING_ERRORS: BindingErrorsMap = {
     meta: {
       severity: 'warning',
       recoverable: true,
-      safeToExpose: false,
+      boundarySafe: false,
     },
   },
 } as const;

@@ -60,7 +60,7 @@ const HANDOFF_ERRORS_DEF: HandoffErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   invalidArtifact: {
@@ -69,7 +69,7 @@ const HANDOFF_ERRORS_DEF: HandoffErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   specHashMismatch: {
@@ -78,7 +78,7 @@ const HANDOFF_ERRORS_DEF: HandoffErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   backingMismatch: {
@@ -87,7 +87,7 @@ const HANDOFF_ERRORS_DEF: HandoffErrorsMap = {
     meta: {
       severity: 'error',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
 } as const;

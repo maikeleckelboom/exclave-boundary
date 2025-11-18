@@ -36,7 +36,7 @@ const ENV_ERRORS_DEF = {
     meta: {
       severity: 'fatal',
       recoverable: false,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
   coopCoepRequired: {
@@ -45,7 +45,7 @@ const ENV_ERRORS_DEF = {
     meta: {
       severity: 'error',
       recoverable: true,
-      safeToExpose: true,
+      boundarySafe: true,
     },
   },
 } as const satisfies EnvErrorsMap;

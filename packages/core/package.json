@@ -17,23 +17,27 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "lint": "eslint src --fix",
+    "bench": "vitest bench run --reporter=verbose",
+    "bench:format": "tsx scripts/format-bench.ts",
+    "bench:report": "pnpm run bench && pnpm bench:format",
+    "lint": "eslint src bench --fix",
     "clean": "rimraf dist .eslintcache node_modules/.vite node_modules/.cache pnpm-debug.log",
     "test:types": "tsc -b --noEmit --pretty"
   },
   "devDependencies": {
-    "typescript": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
-    "typescript-eslint": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "eslint-plugin-regex": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "globals": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
     "vite": "catalog:",
     "vite-plugin-dts": "catalog:",
-    "vitest": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "fast-check": "catalog:",
-    "globals": "catalog:"
+    "vitest": "catalog:"
   }
 }

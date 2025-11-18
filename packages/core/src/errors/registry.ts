@@ -97,7 +97,7 @@ export type TypedArrayName =
 export interface ErrorMeta {
   readonly severity: 'fatal' | 'error' | 'warning';
   readonly recoverable: boolean;
-  readonly safeToExpose: boolean;
+  readonly boundarySafe: boolean;
   readonly deprecated?: { readonly useInstead: string };
   readonly docsUrl?: string;
 }

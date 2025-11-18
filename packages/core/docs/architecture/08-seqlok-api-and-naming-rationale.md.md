@@ -1,3 +1,5 @@
+// File: packages/core/docs/architecture/08-seqlok-api-and-naming-rationale.md
+
 # API & Naming Rationale
 
 **Audience:** future maintainers, contributors, and “why is it called that?” readers.
@@ -90,7 +92,7 @@ Conceptually:
 6. `bindProcessor` – attach the **processor role** to the received layout.
 
 The verbs are chosen to reflect those responsibilities; the rest of this doc is mostly "why this name and not the
-half-dozen other ones we tried."
+half-dozen other ones we tried".
 
 ---
 
@@ -221,13 +223,14 @@ On the processor side, v2 removes the requirement to pass `spec` at runtime:
 
 That aligns with the threat model (cooperative bundle, not hostile actors) and keeps processor code slim.
 
-### 2.5 Param verbs: `set`, `update`, `stage`
+### 2.5 Param verbs: `set`, `update`, `stage`, `hydrate`
 
 The controller param API is intentionally small and verb-y:
 
-- `params.set(key, value)` – scalar one-off write.
-- `params.update(patch)` – atomic multi-param write.
-- `params.stage(key, cb(view))` – RAII writes into array params with exactly one seqlock bump.
+- `params.set(key, value)` – scalar one-off write (**hot path**).
+- `params.update(patch)` – atomic multi-param **scalar** write (**hot path**).
+- `params.stage(key, cb(view))` – RAII writes into array params with exactly one seqlock bump (**hot path**).
+- `params.hydrate(patch)` – bulk scalar + array patch for presets, snapshots, project restore, and IPC (**cold path**).
 
 We explicitly moved away from earlier names like `setMany`:
 
@@ -245,6 +248,15 @@ Reasons:
 - “update” suggests **patch semantics** (“apply this update”) and reads better next to `publish` / `within`.
 
 We also didn't ship a public `transaction` API; see §7.2 for that design history.
+
+Key invariant:
+
+- `update` is **scalar-only forever**: array params are always written through `stage` on the hot path, or through
+  `hydrate` on the cold path.
+- `hydrate` is explicitly **cold-path**: great for presets and snapshots, not meant for per-frame or audio-rate loops.
+
+This keeps the cost profile of `update` obvious (no hidden large memcopies) while still making bulk state changes
+ergonomic via `hydrate`.
 
 ### 2.6 Meter verbs: `publish`, `snapshot`, `version`
 
@@ -373,32 +385,35 @@ Naming decisions:
 - `length` – number of slots; fixed by spec.
 - Backing uses **indices** into `values` in the `PI32` plane.
 
-We explicitly document this in the "How Enum Arrays Work" doc so people don't assume we're repeating strings in memory.
+We explicitly document this in "How Enum Arrays Work" so people don't assume we're repeating strings in memory.
 
 ---
 
 ## 4. Bindings: roles & responsibilities
 
-### 4.1 ControllerBinding<S>
+### 4.1 ControllerBinding
 
 Rough shape (omitting all the generics noise):
 
 - **Params**
 
-  - `params.set(key, value)` – single scalar write (range policy enforced).
-  - `params.update(patch)` – atomic multi-write (one seqlock commit).
-  - `params.stage(key, cb(view))` – RAII array write with one seqlock bump.
+  - `params.set(key, value)` – single scalar write (range policy enforced, one commit).
+  - `params.update(patch)` – atomic multi-scalar write (one commit).
+  - `params.stage(key, cb(view))` – RAII array write with one commit.
+  - `params.hydrate(patch)` – cold-path bulk patch for scalars + arrays (one commit).
 
 - **Meters**
 
   - `meters.snapshot(keys?, opts?)` – coherent read.
   - `meters.version()` – SEQ counter.
 
-Why `update` instead of "setMany"?
+This gives you:
 
-Covered in §2.5; summary: better semantics, reads more naturally in English next to `publish`/`within`.
+- obvious hot-path verbs (`set`/`update`/`stage`),
+- a single cold-path bulk verb (`hydrate`),
+- a consistent story about atomic commits (one seqlock bump per call).
 
-### 4.2 ProcessorBinding<S>
+### 4.2 ProcessorBinding
 
 Rough shape:
 
@@ -419,7 +434,9 @@ We **intentionally** keep:
 
 ```ts
 const received = receiveHandoff(handoff);
+
 const proc = bindProcessor(received);
+// Conceptual future role:
 const obs = bindObserver(received);
 ```
 
@@ -430,7 +447,9 @@ instead of collapsing it into a single:
 const proc = bindProcessorFromHandoff(handoff);
 ```
 
-This is not accidental boilerplate; it encodes a few important invariants.
+This isn't accidental boilerplate; it encodes a few important invariants.
+
+> Note: `bindObserver` is a **conceptual** role used in docs and design notes. It is not part of the current public API.
 
 #### 4.3.1 Trust boundary vs role binding
 
@@ -452,8 +471,7 @@ spec → plan → backing → Handoff<S>  → receiveHandoff → ReceivedHandoff
 ```
 
 `receiveHandoff` is the **trust boundary**. Putting that logic _inside_ `bindProcessor` would hide this boundary and
-blur
-“decode & verify” with “attach a processor”.
+blur "decode & verify" with "attach a processor".
 
 #### 4.3.2 One decode, many bindings
 
@@ -463,6 +481,7 @@ A single consumer environment often needs multiple bindings to the **same** memo
 const received = receiveHandoff(handoff);
 
 const proc = bindProcessor(received);
+// Conceptual observers:
 const hudObs = bindObserver(received);
 const debugObs = bindObserver(received);
 ```
@@ -487,7 +506,7 @@ Some consumers only want to **observe** state (HUD, inspector, logging) and migh
 ```ts
 const received = receiveHandoff(handoff);
 
-// This worker only inspects / visualizes state
+// Conceptual: this worker only inspects / visualizes state
 const observer = bindObserver(received);
 ```
 
@@ -511,7 +530,7 @@ The public API encodes a sharp distinction:
 
   - `receiveHandoff(handoff)`
   - `bindProcessor(received, ...)`
-  - `bindObserver(received, ...)`
+  - conceptual `bindObserver(received, ...)`
 
 Rule of thumb:
 
@@ -523,7 +542,7 @@ Putting `receiveHandoff` inside `bindProcessor` or `bindObserver` breaks that me
 
 #### 4.3.5 Orchestration, registry, and tooling
 
-Higher-level packages (`@seqlok/orchestration`, registries, debug tools) work directly with handoff envelopes:
+Higher-level packages (`@seqlok/compose` / orchestration, registries, debug tools) work directly with handoff envelopes:
 
 ```ts
 function attachDomain<S extends SpecInput>(handoff: Handoff<S>) {
@@ -531,7 +550,7 @@ function attachDomain<S extends SpecInput>(handoff: Handoff<S>) {
 
   // Decide role(s) based on context
   const proc = bindProcessor(received);
-  const obs = bindObserver(received);
+  // maybe also: bindObserver(received) in conceptual APIs
 }
 ```
 
@@ -558,13 +577,12 @@ The cost is negligible compared to the clarity we gain:
 - reusable decoded handoffs for multiple bindings,
 - a stable owner/consumer split that scales to more roles and complex topologies.
 
-Slogan version:
+Slogan:
 
 > `receiveHandoff` is where a consumer says **“I trust this envelope now.”** > `bindProcessor` / `bindObserver` are how a consumer says **“Given that trusted memory, this is my role.”**
 
 We keep them separate so the API surface permanently encodes that distinction, even when everything happens to run on
-the
-same thread.
+the same thread.
 
 ---
 
@@ -607,7 +625,7 @@ We use a dedicated `SeqlokError` with:
 
 - `code` – machine-readable identifier (e.g. `spec.invalid`, `plan.overflowRisk`, `binding.doubleBind`),
 - `details` – structured per-throw payload (where, key, expected, received, etc.),
-- `meta` – severity, scope, `safeToExpose` hints.
+- `meta` – severity, scope, `boundarySafe` hints.
 
 Naming rationale:
 
@@ -619,6 +637,7 @@ Naming rationale:
   - `handoff.*` – build/receive/verify issues.
   - `binding.*` – controller/processor binding issues.
   - `params.*`, `meters.*` – runtime value issues.
+  - `diagnostics.*` – diagnostics-only failure modes.
 
 This keeps telemetry and bug reports searchable by **concern** rather than one big error namespace.
 
@@ -712,7 +731,7 @@ function setGainAndCutoff(
 
 So when someone asks "where is `transaction`?” the answer is:
 
-> The atomic commit lives at `params.update`/`meters.publish`.
+> The atomic commit lives at `params.set` / `params.update` / `params.stage` / `params.hydrate` and `meters.publish`.
 > Richer transactions live above the wire, not inside it.
 
 ### 7.3 Why there is no `subscribe`
@@ -758,7 +777,7 @@ Forcing one inside Seqlok would either be too opinionated or too weak.
 
 If you want reactivity:
 
-- use `params.update` as the commit point, and/or
+- use `params.update`/`params.set` as the commit point, and/or
 - poll `meters.version()` + `snapshot` into whatever reactive system you're already using.
 
 ### 7.4 Old vs new concepts (quick map)
@@ -783,8 +802,8 @@ Seqlok bindings are a **typed shared-memory wire**, not a reactive store with pe
 
 On the controller side:
 
-- All **writes** go through `params.set`, `params.update`, or `params.stage`, each of which maps directly onto a single
-  seqlock-protected commit.
+- All **writes** go through `params.set`, `params.update`, `params.stage`, or `params.hydrate`, each of which maps
+  directly onto a single seqlock-protected commit.
 - All **reads** go through `params.snapshot(…)`, which gives you a coherent view of one or many params in a single
   seqlock read.
 
@@ -794,9 +813,9 @@ A property-style API like `controller.params.volume.set(0.8)`:
 - obscures atomicity (two `.set(…)` calls mean two commits, not one),
 - and hides the fact that reads are seqlock snapshots, not trivial property reads.
 
-If you prefer "handles" like `volume.set(value)`, build them in your own control layer on top of the controller binding
-(for example, small helpers that delegate to `params.set` / `params.snapshot`). `@seqlok/core` stays the boring,
-explicit wire.
+If you prefer "handles" like `volume.set(value)` and `volume.get()`, build them in your own control layer on top of the
+controller binding (for example, small helpers that delegate to `params.set` / `params.snapshot`).
+`@seqlok/core` stays the boring, explicit wire.
 
 ---
 
@@ -810,19 +829,23 @@ explicit wire.
     `bindProcessor`.
 
 - Controller vs processor split and their responsibilities.
+
 - Range-only numeric DSL (`{min,max}`) and the current param/meter kind set:
 
   - params: `f32`, `i32`, `bool`, `enum`, `*.array`, `enum.array`.
   - meters: `f32`, `f64`, `u32`, `bool`, `*.array`.
 
-- “One atomic commit per `params.update` / `params.stage` / `meters.publish`” semantics.
+- “One atomic commit per `params.set` / `params.update` / `params.stage` / `params.hydrate` / `meters.publish`”
+  semantics.
+
 - Seqlock-based coherence with per-family control planes (`PU`, `MU`).
+
 - Cooperative same-bundle threat model (no adversarial JS hardening beyond compatibility checks).
 
 **Revisitable (with strong justification):**
 
-- Exact method names _within_ bindings if a better triad emerged (`update` / `publish` / `within` is pretty clean, but
-  not sacred).
+- Exact method names _within_ bindings if a better verb set emerged (`update` / `publish` / `within` is pretty clean,
+  but not sacred).
 - The exposure shape of debug/verification helpers (`verifyHandoff`, dev-only paranoid modes).
 - Soft limits / tuning knobs for `planLayout` (max array length, total bytes).
 - Where exactly advanced sanity checks live (core vs `@seqlok/debug`-style addon).
@@ -834,3 +857,56 @@ If you change any of the **frozen** names or semantics, this doc should be updat
 - and the alternatives that were considered and rejected.
 
 That's how we keep the API intentional instead of "whatever sounded nice that week".
+
+---
+
+## 9. Diagnostics domain (`diagnostics.*`)
+
+Diagnostics in Seqlok is **introspection-only**. It lives entirely off the hot path and is not required for normal use.
+
+There are three layers involved:
+
+1. **Errors (`diagnostics.*`)**
+
+- `diagnostics.counterInvalid`
+- `diagnostics.featureInvalid`
+
+These are raised when the _diagnostics subsystem itself_ is misconfigured or corrupted:
+
+- invalid counters / budgets / timestamps,
+- unknown diagnostics feature flags.
+
+They carry `ErrorMeta` with:
+
+- `severity: 'warning'`
+- `recoverable: true`
+- `boundarySafe: false`
+
+2. **Health interpretation**
+
+   The central `interpretHealth(error)` helper treats `diagnostics.*` as:
+
+- `status: 'degraded'`
+- label along the lines of "Diagnostics subsystem issue"
+- hint: "Introspection is misconfigured; core engine remains healthy."
+
+This keeps diagnostics failures clearly separate from engine failures.
+
+3. **Diagnostics toolkit (internal, non-barrel)**
+
+   This lives under `src/diagnostics/*` and is currently _not_ part of the public API:
+
+- `counters` – named introspection counters (degraded snapshots, spin budget exhaustions, …)
+- `budgets` – validated limits for diagnostics-only work
+- `features` – typed debug feature flags (e.g. `seqlockTrace`, `swapTimeline`)
+- `session` – start/end diagnostics sessions with timestamp sanity
+- `export` – JSON / Prometheus / CSV export for counters
+
+These modules are intended for:
+
+- CI / stress tests,
+- dev HUDs and profiling tools,
+- Node/Electron CLIs that scrape diagnostics.
+
+Core primitives, planning, backing, and bindings **do not depend** on diagnostics. Integration is opt-in and always
+attached at the edges (tests, tools, dev wrappers), never in the real-time hot path.

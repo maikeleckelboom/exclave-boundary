@@ -27,7 +27,6 @@ export function specFromPlaneBytes(bytes: PlaneByteLengths) {
           ...(pi32N > 0 ? { p_i32: param.i32.array(pi32N) } : {}),
         }
       : {
-          // ensure at least one param for planning
           p_min: param.f32.array(1),
         },
     meters: hasAnyMeter
@@ -38,6 +37,3 @@ export function specFromPlaneBytes(bytes: PlaneByteLengths) {
       : {},
   }));
 }
-
-// Provide default too, in case of accidental default import usage.
-export default specFromPlaneBytes;

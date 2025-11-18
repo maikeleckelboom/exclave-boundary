@@ -19,13 +19,15 @@ const IGNORES = [
   '**/generated/**',
   '**/node_modules/**',
   '**/*.d.ts',
-  '**/test-types/**',
 ];
 
 const SRC = ['src/**/*.{ts,tsx}'];
 const TESTS = ['tests/**/*.{ts,tsx}', '**/*.test.ts', '**/*.spec.ts'];
 const EXAMPLES = ['examples/**/*.{ts,tsx}'];
-const ALL_TS = [...SRC, ...TESTS, ...EXAMPLES];
+const BENCH = ['bench/**/*.{ts,tsx}'];
+const SCRIPTS = ['scripts/**/*.{ts,tsx}'];
+
+const ALL_TS = [...SRC, ...TESTS, ...EXAMPLES, ...BENCH, ...SCRIPTS];
 
 /** Layers (co-location + import direction) */
 const LAYERS = {

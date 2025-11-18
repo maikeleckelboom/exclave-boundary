@@ -23,5 +23,24 @@ export default defineConfig({
         'src/errors/codes/**',
       ],
     },
+
+    environment: 'node',
+
+    // Let Vitest use its default pool (threads) or even `vm`,
+    // but don't ask it to fork separate processes.
+    // pool: 'forks',  <-- drop this
+
+    fileParallelism: false, // run files serially
+    isolate: false, // reuse the same VM / modules
+
+    testTimeout: 60_000,
+    hookTimeout: 30_000,
+
+    benchmark: {
+      include: ['bench/**/*.bench.ts'],
+      exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+      reporters: ['verbose'],
+      outputJson: 'bench-results.json', // compare: 'bench-results-main.json',
+    },
   },
 });

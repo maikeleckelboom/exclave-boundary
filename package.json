@@ -28,6 +28,7 @@
     "lint": "pnpm -w -r -F \"@seqlok/*\" run lint",
     "lint:fix": "pnpm -w -r -F \"@seqlok/*\" run lint --fix",
     "test": "pnpm -w -F \"@seqlok/core\" run test",
+    "bench": "pnpm -w -F \"@seqlok/core\" run bench",
     "test:types": "pnpm -w -F \"@seqlok/core\" run test:types",
     "test:watch": "pnpm run test --watch",
     "commitlint": "commitlint --color",

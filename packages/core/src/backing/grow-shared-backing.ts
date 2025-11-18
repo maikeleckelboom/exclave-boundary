@@ -1,10 +1,8 @@
 import { computeBackingPlaneBases, BACKING_PLANE_PACK_ORDER_V1 } from './map-views';
 
-import type { Backing } from './types';
+import type { SharedBacking } from './types';
 import type { Plan, PlaneByteLengths } from '../plan/types';
 import type { Mutable, SpecInput } from '../spec/types';
-
-type SharedBacking = Extract<Backing, { kind: 'shared' }>;
 
 /**
  * Grow a single-SAB backing by plane-byte targets.

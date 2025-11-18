@@ -107,7 +107,7 @@ describe('Controller meters: snapshot into() identity and key validation', () =>
   });
 
   it('unknown key in meters.snapshot() throws', () => {
-    const { ctl, proc } = setupController();
+    const { ctl } = setupController();
     expect(() => {
       // @ts-expect-error intentional invalid key to test guard
       ctl.meters.snapshot({ keys: ['nope'] });

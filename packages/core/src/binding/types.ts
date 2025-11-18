@@ -176,7 +176,7 @@ export type CoherentParamShape<S extends SpecInput> = Display<
 >;
 
 /* Processor-side params view (used by ProcessorParams.within) */
-export type ParamsView<S extends SpecInput> = Display<
+export type ProcessorParamsView<S extends SpecInput> = Display<
   {
     readonly [K in ScalarParamKeys<S>]: CoherentValue<ScalarFor<S, K>>;
   } & {
@@ -199,8 +199,6 @@ export type Ephemeral<T extends EphemeralTypedArray> = T & {
 
 /* convenience */
 export type RawParamShape<S extends SpecInput> = ParamShape<S>;
-
-/* options: policies & binding configuration */
 
 /**
  * Policy for handling out-of-range param writes on the controller side.
@@ -459,43 +457,55 @@ type MeterArrayFor<S extends SpecInput, K extends MeterKeys<S>> = NonNullable<
         : never;
 
 /**
- * MeterWriter provides two distinct patterns for meter updates:
+ * Writer used inside `processor.meters.publish(...)`.
  *
- * 1. **Scalar meters**: Direct function call or `set()` with value
- *    ```ts
- *    writer.rms(0.5);              // direct
- *    writer.set('rms', 0.5);       // via set
- *    ```
+ * Semantics:
  *
- * 2. **Array meters**: `stage()` or `set()` with mutator callback
- *    ```ts
- *    writer.stage('spectrum', (dest) => { ... });
- *    writer.set('spectrum', (dest) => { ... });
- *    ```
+ * - Scalar meters:
+ *   ```ts
+ *   writer.level(0.75);          // direct, hot-path
+ *   writer.set('level', 0.75);   // dynamic, key-driven
+ *   ```
  *
- * The `set()` method uses overloads to provide parameter name hints:
- * - Scalar keys → `value` parameter
- * - Array keys → `mutate` parameter
+ * - Array meters:
+ *   ```ts
+ *   writer.stage('spectrum', (dest) => {
+ *     dest.set(spectrumSource);
+ *   });
+ *   ```
+ *
+ * Arrays are intentionally **stage-only**:
+ *
+ * - There is no `set('spectrum', fn)` overload.
+ * - The array write path is always explicit: publish → stage → dest.set.
+ *
+ * `set(key, value)` exists only as scalar sugar when you need dynamic,
+ * key-driven writes (e.g. in loops, tables, or generic instrumentation).
  */
 export type MeterWriter<S extends SpecInput> = {
   [K in ScalarMeterKeys<S>]: (value: MeterScalarFor<S, K>) => void;
 } & {
+  /**
+   * Stage an array meter update with an ephemeral view.
+   *
+   * The callback receives a view that is valid only for the duration of
+   * the enclosing `publish(...)` call.
+   */
   stage<const K extends ArrayMeterKeys<S>>(
     key: K,
     callback: (destination: Ephemeral<MeterArrayFor<S, K>>) => void,
   ): void;
 
-  // Scalar meters: w.set('rms', 0.5)
-  // IDE shows: set<'rms'>(key: "rms", value: number): void
+  /**
+   * Dynamic scalar setter.
+   *
+   * Example:
+   * ```ts
+   * const key: 'rms' | 'peak' = decideKey();
+   * writer.set(key, 0.5);
+   * ```
+   */
   set<K extends ScalarMeterKeys<S>>(key: K, value: MeterScalarFor<S, K>): void;
-
-  // Array meters: w.set('spectrum', (dest) => { ... })
-  // IDE shows: set<'spectrum'>(key: "spectrum", mutate: (destination: ...) => void): void
-  set<K extends ArrayMeterKeys<S>>(
-    key: K,
-    // eslint-disable-next-line @typescript-eslint/unified-signatures
-    mutate: (destination: Ephemeral<MeterArrayFor<S, K>>) => void,
-  ): void;
 };
 
 /* Processor side */
@@ -508,7 +518,7 @@ export interface ProcessorParams<S extends SpecInput> {
    * - Scalar params as coherent values (atomic read guarantee)
    * - Array params as ephemeral typed arrays (callback-scoped)
    */
-  within<T>(callback: (view: ParamsView<S>) => T): T;
+  within<T>(callback: (view: ProcessorParamsView<S>) => T): T;
 
   version(): PUSeq;
 }
@@ -519,7 +529,10 @@ export interface ProcessorMeters<S extends SpecInput> {
    *
    * The writer provides:
    * - Direct scalar setters (e.g., `writer.rms(0.5)`)
-   * - `stage()` and `set()` for array meters with ephemeral destinations
+   * - `set(key, value)` as dynamic scalar sugar
+   * - `stage(key, dest => ...)` for array meters
+   *
+   * Array meters are stage-only; there is no `set(key, fn)` array overload.
    */
   publish<T>(callback: (writer: MeterWriter<S>) => T): T;
 
