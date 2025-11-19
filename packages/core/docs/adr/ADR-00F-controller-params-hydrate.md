@@ -27,7 +27,7 @@ interface ControllerParams<S extends SpecInput> {
     cb: (view: ArrayParamView<S, K>) => void,
   ): void;
 
-  snapshot(...): FullParamsSnapshot<S> | SnapshotParamsObject<S, any>;
+  snapshot(...): ParamsSnapshot<S> | SnapshotParamsObject<S, any>;
   version(): PUSeq;
 }
 ```
@@ -352,7 +352,7 @@ interface ControllerParams<S extends SpecInput> {
   // new cold-path verb
   hydrate(patch: HydratePatch<S>): void;
 
-  snapshot(...): FullParamsSnapshot<S> | SnapshotParamsObject<S, any>;
+  snapshot(...): ParamsSnapshot<S> | SnapshotParamsObject<S, any>;
   version(): PUSeq;
 }
 ```

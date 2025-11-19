@@ -1,7 +1,7 @@
 import { bench, describe } from 'vitest';
 
-import { MICRO_BENCH_OPTS } from './_options';
 import { createSeqPair, publish, tryRead } from '../src/primitives/seqlock';
+import { MICRO_BENCH_OPTS } from '../vitest.config';
 
 const sab = new SharedArrayBuffer(16);
 const u32 = new Uint32Array(sab);

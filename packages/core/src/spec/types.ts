@@ -106,13 +106,13 @@ export interface SpecInput {
  * narrow (`never`), which is friendlier for the compiler and avoids
  * accidental `string` blow-ups in generic code.
  */
-export type ParamsOf<S extends SpecInput> =
+type ParamsOf<S extends SpecInput> =
   S['params'] extends Readonly<Record<string, ParamDef>> ? S['params'] : object;
 
 /**
  * Helper: meters mapping for a spec, or `{}` when absent.
  */
-export type MetersOf<S extends SpecInput> =
+type MetersOf<S extends SpecInput> =
   S['meters'] extends Readonly<Record<string, MeterDef>> ? S['meters'] : object;
 
 /**
@@ -183,47 +183,3 @@ export type ArrayMeterKeys<S extends SpecInput> = Extract<
   }[MeterKeys<S>],
   string
 >;
-
-/**
- * Helper: Extract the literal min value from a scalar param def, if present.
- *
- * This preserves the literal type of the min value.
- */
-export type MinOf<T extends ScalarParamDef> = T extends {
-  readonly min: infer M extends number;
-}
-  ? M
-  : never;
-
-/**
- * Helper: Extract the literal max value from a scalar param def, if present.
- *
- * This preserves the literal type of the max value.
- */
-export type MaxOf<T extends ScalarParamDef> = T extends {
-  readonly max: infer M extends number;
-}
-  ? M
-  : never;
-
-/**
- * Helper: Extract the literal length from an array param/meter def.
- *
- * This preserves the literal type of the length value.
- */
-export type LengthOf<T extends ArrayParamDef | ArrayMeterDef> = T extends {
-  readonly length: infer L extends number;
-}
-  ? L
-  : never;
-
-/**
- * Helper: Extract the literal enum values from an enum param def.
- *
- * This preserves the tuple type with literal string values.
- */
-export type ValuesOf<T extends ParamDef> = T extends { readonly values: infer V }
-  ? V extends readonly string[]
-    ? V
-    : never
-  : never;

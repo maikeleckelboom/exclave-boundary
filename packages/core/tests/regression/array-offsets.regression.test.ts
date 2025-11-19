@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defineSpec } from '../../src';
-import { makeBindingsFromSpec } from '../__helpers__/binding';
+import { bindingsFromSpec } from '../helpers/binding';
 
 describe('array offsets: regression tests', () => {
   it('correctly reads multiple array params with non-zero offsets', () => {
@@ -15,7 +15,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     // Write distinct values
     ctl.params.set('a', 0.1);
@@ -67,7 +67,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     ctl.params.set('gain', 0.5);
     ctl.params.set('mode', 7);
@@ -110,7 +110,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     proc.meters.publish((writer) => {
       writer.rms(0.5);
@@ -148,7 +148,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl } = makeBindingsFromSpec(spec);
+    const { ctl } = bindingsFromSpec(spec);
 
     ctl.params.stage('arr1', (v) => {
       v.fill(1.0);
@@ -189,7 +189,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     ctl.params.stage('late', (v) => {
       for (let i = 0; i < v.length; i++) {
@@ -221,7 +221,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     // Stage enum array via controller (indices)
     ctl.params.stage('waveforms', (v) => {
@@ -256,7 +256,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     proc.meters.publish((writer) => {
       writer.counter(42);
@@ -297,7 +297,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     // Cycle 1
     ctl.params.stage('b', (v) => {
@@ -347,7 +347,7 @@ describe('array offsets: regression tests', () => {
       },
     }));
 
-    const { ctl } = makeBindingsFromSpec(spec);
+    const { ctl } = bindingsFromSpec(spec);
 
     ctl.params.stage('arr1', (v) => {
       for (let i = 0; i < v.length; i++) {

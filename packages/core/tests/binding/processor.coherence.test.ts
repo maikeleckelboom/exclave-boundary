@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defineSpec, planLayout } from '../../src';
-import { makeBindingsFromSpec } from '../__helpers__/binding';
+import { bindingsFromSpec } from '../helpers/binding';
 
 describe('processor: coherent reads & meter writes', () => {
   it('reads params coherently via within()', () => {
@@ -16,7 +16,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     ctl.params.set('gain', 2.5);
     ctl.params.stage('curve', (v) => {
@@ -39,7 +39,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     proc.meters.publish((w) => {
       w.rms(0.75);
@@ -60,7 +60,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     proc.meters.publish((w) => {
       w.stage('spectrum', (dst) => {
@@ -87,7 +87,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     // Controller writes using the label union
     ctl.params.set('mode', 'mid');
@@ -109,7 +109,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { proc } = makeBindingsFromSpec(spec);
+    const { proc } = bindingsFromSpec(spec);
 
     expect(() => {
       proc.meters.publish((w) => {
@@ -149,7 +149,7 @@ describe('processor: coherent reads & meter writes', () => {
       meters: {},
     }));
 
-    const { proc } = makeBindingsFromSpec(spec);
+    const { proc } = bindingsFromSpec(spec);
 
     const v1 = proc.params.version();
     expect(v1).toBeGreaterThanOrEqual(0);
@@ -168,7 +168,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { proc } = makeBindingsFromSpec(spec);
+    const { proc } = bindingsFromSpec(spec);
 
     const v1 = proc.meters.version();
 
@@ -193,7 +193,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     ctl.params.set('enabled', true);
     ctl.params.stage('flags', (v) => {
@@ -218,7 +218,7 @@ describe('processor: coherent reads & meter writes', () => {
       },
     }));
 
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     proc.meters.publish((writer) => {
       writer.set('precise', Math.PI);

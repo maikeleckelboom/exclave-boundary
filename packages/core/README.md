@@ -326,7 +326,7 @@ Seqlok's design is documented in depth. This is the recommended reading order.
 
 ### Core concepts (start here)
 
-- [E2E Flow – Visual Guide](./docs/architecture/06-seqlok-e2e-flow-visual-guide.md)
+- [E2E Flow – Visual Guide](docs/architecture/16-seqlok-e2e-flow-visual-guide.md)
   High-level mental model of the `spec → plan → backing → handoff → bindings` pipeline.
 - [Concurrency Model & Roles](./docs/architecture/03-seqlok-concurrency-model-and-roles.md)
   Controller vs Processor, params vs meters, and coherence guarantees.
@@ -342,7 +342,7 @@ Seqlok's design is documented in depth. This is the recommended reading order.
 - [Intellectual Heritage](./docs/architecture/02-seqlok-intellectual-heritage.md)
 - [Object Model Rationale](./docs/architecture/06-object-model-rationale.md)
 - [API Shape Rationale](./docs/architecture/07-seqlok-api-shape-rationale.md)
-- [API & Naming Rationale](./docs/architecture/08-seqlok-api-and-naming-rationale.md)
+- [API & Naming Rationale](./docs/architecture/08-seqlok-api-and-naming-rationale)
 
 ### Coherence & memory model
 
@@ -360,7 +360,7 @@ Seqlok's design is documented in depth. This is the recommended reading order.
 ### Reference & ADRs
 
 - [API Reference](./docs/architecture/09-seqlok-api-reference.md)
-- [ADR-2025-11-12 — Meter Writes & Snapshot `into`](./docs/adr/ADR-2025-11-12-meter-writes-and-snapshot-into.md)
+- [ADR-2025-11-12 — Meter Writes & Snapshot `into`](docs/adr/ADR-00C-meter-writes-and-snapshot-into.md)
 
 ---
 

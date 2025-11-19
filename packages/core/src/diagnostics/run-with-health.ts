@@ -19,7 +19,7 @@ import { resetDiagnosticsCounters, snapshotDiagnosticsCounters } from './counter
 import { exportDiagnosticsCounters } from './export';
 import { endDiagnosticsSession, startDiagnosticsSession } from './session';
 import { isSeqlokError } from '../errors/error';
-import { getDocsUrl, interpretHealth, isSafeToExpose } from '../errors/health';
+import { getDocsUrl, interpretHealth, isBoundarySafe } from '../errors/health';
 import { getErrorMeta } from '../errors/registry';
 
 import type { DiagnosticsCounterName, DiagnosticsCountersSnapshot } from './counters';
@@ -311,7 +311,7 @@ function buildRunResult<T>(args: BuildResultArgs<T>): RunWithDiagnosticsResult<T
     value,
     error,
     health,
-    boundarySafe: meta ? isSafeToExpose(meta) : false,
+    boundarySafe: meta ? isBoundarySafe(meta) : false,
     docsUrl: meta ? getDocsUrl(meta) : undefined,
     diagnosticsSession,
     diagnosticsCounters,

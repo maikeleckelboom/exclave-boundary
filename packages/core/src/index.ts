@@ -32,8 +32,8 @@ export type {
   MeterValueFor,
 
   // Snapshot
-  FullParamsSnapshot,
-  FullMetersSnapshot,
+  ParamsSnapshot,
+  MetersSnapshot,
   SnapshotParamsObject,
   SnapshotMetersObject,
   SnapshotParamsOptions,
@@ -52,7 +52,7 @@ export { buildHandoff, receiveHandoff, verifyHandoff } from './handoff/handoff';
 export type { Handoff, HandoffPacking, ReceivedHandoff } from './handoff/types';
 
 // ERRORS
-export { SeqlokError, isSeqlokError, createError } from './errors/error';
+export { SeqlokError, isSeqlokError } from './errors/error';
 export { getErrorMeta, getErrorMessage, isErrorCode } from './errors/registry';
 export { interpretHealth } from './errors/health';
 
@@ -62,7 +62,6 @@ export type {
   ErrorPayload,
   ErrorDetails,
   ErrorMeta,
-  TypedArrayName,
   HealthInterpretation,
 } from './errors/types';
 
@@ -87,3 +86,29 @@ export type {
   SnapshotOf,
   SnapshotMetersOf,
 } from './types';
+
+// PRIMITIVES
+export {
+  SWSR_HEADER_WORDS,
+  SWSR_HEADER_WRITE_INDEX,
+  SWSR_HEADER_READ_INDEX,
+  SWSR_HEADER_WRITE_SEQ,
+  SWSR_HEADER_DROPPED,
+  allocateSwsrRing,
+  bindSwsrRingProducer,
+  bindSwsrRingConsumer,
+} from './primitives/swsr-ring';
+
+export type {
+  SwsrRingLayout,
+  SwsrRingBacking,
+  SwsrRingEncode,
+  SwsrRingDecode,
+  SwsrRingProducer,
+  SwsrRingConsumer,
+  SwsrRingStats,
+} from './primitives/swsr-ring';
+
+// DIAGNOSTICS
+export { describeViews } from './diagnostics/describe-views';
+export { probeEnvironment, assertSharedArrayBufferSupport } from './diagnostics/env';

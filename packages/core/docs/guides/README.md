@@ -11,7 +11,7 @@ know the basic golden flow:
 
 ## Available guides
 
-- [Enum helpers & UI wiring](00-enum-helpers.md)
+- [Enum helpers & UI wiring](./enum-helpers.md)
   How to drive UI controls, legends, and fixtures directly from enum params/meters using:
   - `enumValues`
   - `enumPaletteFor`

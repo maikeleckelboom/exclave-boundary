@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defineSpec } from '../../src';
-import { makeBindingsFromSpec } from '../__helpers__/binding';
+import { bindingsFromSpec } from '../helpers/binding';
 
 describe('ProcessorMeters.set (runtime)', () => {
   const spec = defineSpec(({ param, meter }) => ({
@@ -17,7 +17,7 @@ describe('ProcessorMeters.set (runtime)', () => {
   }));
 
   it('writes scalar via set()', () => {
-    const { ctl, proc } = makeBindingsFromSpec(spec);
+    const { ctl, proc } = bindingsFromSpec(spec);
 
     // 1) write scalars via set()
     proc.meters.publish((writer) => {
@@ -32,7 +32,7 @@ describe('ProcessorMeters.set (runtime)', () => {
   });
 
   it('throws on unknown meter key at runtime (type escape for test)', () => {
-    const { proc } = makeBindingsFromSpec(spec);
+    const { proc } = bindingsFromSpec(spec);
 
     expect(() => {
       proc.meters.publish((w) => {

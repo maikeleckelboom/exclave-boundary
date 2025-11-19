@@ -1,5 +1,3 @@
-// src/diagnostics/export.ts
-
 import { createError } from '../errors/error';
 
 import type { DiagnosticsCounterName, DiagnosticsCountersSnapshot } from './counters';

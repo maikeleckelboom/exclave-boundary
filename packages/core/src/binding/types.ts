@@ -21,22 +21,21 @@ import type {
   SpecInput,
 } from '../spec/types';
 
-/* sequence stamps */
 export type PUSeq = number;
+
 export type MUSeq = number;
 
-/* display helper that never rewrites functions */
 type Display<T> = T extends (...args: readonly unknown[]) => unknown
   ? T
   : { [K in keyof T]: T[K] } & {};
 
-/* spec access */
 type ParamsOf<S extends SpecInput> = S['params'] extends object ? S['params'] : object;
 type MetersOf<S extends SpecInput> = S['meters'] extends object ? S['meters'] : object;
 
 type ParamAt<S extends SpecInput, K extends ParamKeys<S>> = K extends keyof ParamsOf<S>
   ? ParamsOf<S>[K]
   : never;
+
 type MeterAt<S extends SpecInput, K extends MeterKeys<S>> = K extends keyof MetersOf<S>
   ? MetersOf<S>[K]
   : never;
@@ -66,7 +65,7 @@ type MeterKind =
   | 'bool.array';
 
 /* value maps (processor-side views) */
-interface ParamProcMap {
+interface ParamProcessorMap {
   f32: number;
   i32: number;
   bool: boolean;
@@ -78,7 +77,7 @@ interface ParamProcMap {
   'enum.array': Int32Array; // indices
 }
 
-interface MeterProcMap {
+interface MeterProcessorMap {
   f32: number;
   u32: number;
   f64: number;
@@ -90,7 +89,7 @@ interface MeterProcMap {
 }
 
 /* controller-visible maps */
-interface ParamCtlMap {
+interface ParamControllerMap {
   f32: number;
   i32: number;
   bool: boolean;
@@ -101,7 +100,7 @@ interface ParamCtlMap {
   'enum.array': Readonly<Int32Array>; // indices
 }
 
-interface MeterCtlMap {
+interface MeterControllerMap {
   f32: number;
   u32: number;
   f64: number;
@@ -118,7 +117,7 @@ export type ParamShape<S extends SpecInput> = Display<{
     kind: infer Kind;
   }
     ? Kind extends ParamKind
-      ? ParamProcMap[Kind]
+      ? ParamProcessorMap[Kind]
       : never
     : never;
 }>;
@@ -128,7 +127,7 @@ export type MeterShape<S extends SpecInput> = Display<{
     kind: infer Kind;
   }
     ? Kind extends MeterKind
-      ? MeterProcMap[Kind]
+      ? MeterProcessorMap[Kind]
       : never
     : never;
 }>;
@@ -141,7 +140,7 @@ export type ParamValueFor<S extends SpecInput, K extends ParamKeys<S>> =
     ? Kind extends 'enum'
       ? EnumValuesOf<ParamAt<S, K>>
       : Kind extends Exclude<ParamKind, 'enum'>
-        ? ParamCtlMap[Kind]
+        ? ParamControllerMap[Kind]
         : never
     : never;
 
@@ -150,7 +149,7 @@ export type MeterValueFor<S extends SpecInput, K extends MeterKeys<S>> =
     kind: infer Kind;
   }
     ? Kind extends MeterKind
-      ? MeterCtlMap[Kind]
+      ? MeterControllerMap[Kind]
       : never
     : never;
 
@@ -284,13 +283,28 @@ export interface ControllerOptions {
 
   /**
    * General controller-wide flags.
-   * This is where an 'exclusive' binding flag belongs.
+   *
+   * If true (default), this controller binding is exclusive for its backing:
+   * attempting to create a second exclusive controller for the same backing
+   * will throw an internal assertion error.
+   *
+   * Set to false only for advanced "shared controller" scenarios.
+   *
+   * @default true
    */
   readonly exclusive?: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ProcessorOptions {
-  readonly diagnostics?: boolean;
+  /**
+   * Reserved for future processor-side policies (e.g. diagnostics / tracing).
+   *
+   * @remarks
+   * At the moment, passing options has no effect. This exists purely to keep
+   * the public `bindProcessor(..., options?)` / `processorImpl(..., options?)`
+   * shape stable while we iterate on higher-level policies.
+   */
 }
 
 /* bindings */
@@ -367,6 +381,11 @@ export type ScalarParamPatch<S extends SpecInput> = Readonly<
   Partial<{ [K in ScalarParamKeys<S>]: ParamValueFor<S, K> }>
 >;
 
+/** Cold-path bulk patch – accepts both scalar and array params. */
+export type HydratePatch<S extends SpecInput> = Readonly<
+  Partial<{ [K in ParamKeys<S>]: ParamValueFor<S, K> }>
+>;
+
 /* Controller side */
 export interface ControllerParams<S extends SpecInput> {
   set<K extends ScalarParamKeys<S>>(key: K, value: ParamValueFor<S, K>): void;
@@ -378,8 +397,17 @@ export interface ControllerParams<S extends SpecInput> {
     callback: (view: Ephemeral<ArrayParamView<S, K>>) => void,
   ): void;
 
+  /**
+   * Cold-path bulk write:
+   * - accepts both scalar and array params,
+   * - applies scalar range policy (`'reject' | 'clamp'`),
+   * - validates array types/lengths,
+   * - commits all changes under a single PU publish.
+   */
+  hydrate(patch: HydratePatch<S>): void;
+
   /** Full snapshot of all params. */
-  snapshot(): FullParamsSnapshot<S>;
+  snapshot(): ParamsSnapshot<S>;
 
   /** Array + (optional) options — put this BEFORE the varargs overload. */
   snapshot<const K extends readonly ParamKeys<S>[]>(
@@ -396,14 +424,14 @@ export interface ControllerParams<S extends SpecInput> {
   // eslint-disable-next-line @typescript-eslint/unified-signatures
   snapshot(options: {
     readonly into: IntoForParams<S, readonly ParamKeys<S>[]>;
-  }): FullParamsSnapshot<S>;
+  }): ParamsSnapshot<S>;
 
   version(): PUSeq;
 }
 
 export interface ControllerMeters<S extends SpecInput> {
   /** Full snapshot of all meters. */
-  snapshot(): FullMetersSnapshot<S>;
+  snapshot(): MetersSnapshot<S>;
 
   /** Array + (optional) options — put this BEFORE the varargs overload. */
   snapshot<const K extends readonly MeterKeys<S>[]>(
@@ -425,7 +453,7 @@ export interface ControllerMeters<S extends SpecInput> {
   // eslint-disable-next-line @typescript-eslint/unified-signatures
   snapshot(options: {
     readonly into: IntoForMeters<S, readonly MeterKeys<S>[]>;
-  }): FullMetersSnapshot<S>;
+  }): MetersSnapshot<S>;
 
   /** Monotonic MU sequence value published by the processor. */
   version(): MUSeq;
@@ -539,26 +567,11 @@ export interface ProcessorMeters<S extends SpecInput> {
   version(): MUSeq;
 }
 
-/* convenience unions */
-export type ScalarParamValue = number | boolean | string;
-export type ScalarMeterValue = number;
-
-/* snapshots */
-export type ControllerParamsSnapshot<
-  S extends SpecInput,
-  Keys extends readonly ParamKeys<S>[],
-> = SnapshotParamsObject<S, Keys>;
-
-export type ControllerMetersSnapshot<
-  S extends SpecInput,
-  Keys extends readonly MeterKeys<S>[],
-> = SnapshotMetersObject<S, Keys>;
-
-export type FullParamsSnapshot<S extends SpecInput> = Readonly<
+export type ParamsSnapshot<S extends SpecInput> = Readonly<
   Display<{ [K in ParamKeys<S>]: ParamValueFor<S, K> }>
 >;
 
-export type FullMetersSnapshot<S extends SpecInput> = Readonly<
+export type MetersSnapshot<S extends SpecInput> = Readonly<
   Display<{ [K in MeterKeys<S>]: MeterValueFor<S, K> }>
 >;
 
@@ -580,17 +593,3 @@ export type SnapshotMetersObject<
   S extends SpecInput,
   KS extends readonly MeterKeys<S>[],
 > = Readonly<Display<{ [K in MeterSnapshotKeys<S, KS>]: MeterValueFor<S, K> }>>;
-
-/** Quick access to parameter value type for a key */
-export type ParamType<S extends SpecInput, K extends ParamKeys<S>> = ParamValueFor<S, K>;
-
-/** Quick access to meter value type for a key */
-export type MeterType<S extends SpecInput, K extends MeterKeys<S>> = MeterValueFor<S, K>;
-
-/** True if K is an array param key */
-export type IsArrayParam<S extends SpecInput, K extends ParamKeys<S>> =
-  K extends ArrayParamKeys<S> ? true : false;
-
-/** True if K is a scalar meter key */
-export type IsScalarMeter<S extends SpecInput, K extends MeterKeys<S>> =
-  K extends ScalarMeterKeys<S> ? true : false;

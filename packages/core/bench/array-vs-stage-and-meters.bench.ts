@@ -9,7 +9,7 @@ import {
   planLayout,
   receiveHandoff,
 } from '../src';
-import { MICRO_BENCH_OPTS } from './_options';
+import { MICRO_BENCH_OPTS } from '../vitest.config';
 
 describe('MeterWriter sugar: set vs stage, direct vs named', () => {
   const spec = defineSpec(({ param, meter }) => ({

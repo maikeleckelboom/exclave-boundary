@@ -1,10 +1,13 @@
+// packages/core/src/errors/codes/primitives.ts
+
 import type { ErrorDetails, ErrorMeta } from '../registry';
 
 export type PrimitivesErrorKey =
   | 'seqlockTimeout'
   | 'planeUnaligned'
   | 'atomicsFailed'
-  | 'invalidSpinBudget';
+  | 'invalidSpinBudget'
+  | 'swsrRingInvalidLayout';
 
 interface PrimitivesErrorsMap {
   seqlockTimeout: {
@@ -27,9 +30,14 @@ interface PrimitivesErrorsMap {
     readonly message: string;
     readonly meta: ErrorMeta;
   };
+  swsrRingInvalidLayout: {
+    readonly code: 'primitives.swsrRingInvalidLayout';
+    readonly message: string;
+    readonly meta: ErrorMeta;
+  };
 }
 
-const PRIMITIVES_ERRORS_DEF = {
+const PRIMITIVES_ERRORS_DEF: PrimitivesErrorsMap = {
   seqlockTimeout: {
     code: 'primitives.seqlockTimeout',
     message: 'Seqlock acquisition timeout',
@@ -66,18 +74,40 @@ const PRIMITIVES_ERRORS_DEF = {
       boundarySafe: true,
     },
   },
-} as const satisfies PrimitivesErrorsMap;
+  swsrRingInvalidLayout: {
+    code: 'primitives.swsrRingInvalidLayout',
+    message: 'SWSR ring layout is invalid',
+    meta: {
+      severity: 'error',
+      recoverable: false,
+      boundarySafe: true,
+    },
+  },
+} as const;
 
 export const PRIMITIVES_ERRORS: PrimitivesErrorsMap = PRIMITIVES_ERRORS_DEF;
 
 export type PrimitivesErrorCode = PrimitivesErrorsMap[PrimitivesErrorKey]['code'];
 
+/**
+ * Details for seqlock timeout diagnostics.
+ */
 export interface PrimitivesSeqlockTimeoutDetails extends ErrorDetails {
   readonly spinBudget: number;
   readonly actualSpins: number;
 }
 
+/**
+ * Details for invalid SWSR layout.
+ * Used when capacity/wordsPerSlot are rejected at allocation time.
+ */
+export interface PrimitivesSwsrRingInvalidLayoutDetails extends ErrorDetails {
+  readonly capacity: number;
+  readonly wordsPerSlot: number;
+}
+
 type _VerifyPrimitivesCodes = PrimitivesErrorCode extends PrimitivesErrorCode
   ? true
   : never;
-export const _primitivesCodesMatch: _VerifyPrimitivesCodes = true;
+const _primitivesCodesMatch: _VerifyPrimitivesCodes = true;
+void _primitivesCodesMatch;

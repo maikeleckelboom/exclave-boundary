@@ -9,7 +9,7 @@ import {
   planLayout,
   receiveHandoff,
 } from '../src';
-import { E2E_BENCH_OPTS } from './_options';
+import { E2E_BENCH_OPTS } from '../vitest.config';
 
 let _blackhole = 0;
 

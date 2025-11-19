@@ -9,7 +9,7 @@ import {
   planLayout,
   receiveHandoff,
 } from '../src';
-import { MICRO_BENCH_OPTS } from './_options';
+import { MICRO_BENCH_OPTS } from '../vitest.config';
 
 let _blackhole = 0;
 
@@ -77,7 +77,6 @@ function paramsUpdateScalarsAndStageArray(): void {
   // Array via stage()
   controller.params.stage('eqBands', (view) => {
     const len = view.length;
-    // Hot loop; we keep a classic for-loop and placate ESLint.
 
     for (let i = 0; i < len; i++) {
       view[i] = eqWriteBuffer[i] ?? 0;
@@ -85,6 +84,21 @@ function paramsUpdateScalarsAndStageArray(): void {
   });
 
   _blackhole ^= 4;
+}
+
+/**
+ * Bulk hydrate: 3 scalars + eqBands f32[8] via params.hydrate().
+ *
+ * Mirrors paramsUpdateScalarsAndStageArray(), but exercises the hydrate macro path.
+ */
+function paramsHydrateScalarsAndArray(): void {
+  controller.params.hydrate({
+    gain: 0.8,
+    cutoffHz: 8_000,
+    drive: 5.0,
+    eqBands: eqWriteBuffer,
+  });
+  _blackhole ^= 1024;
 }
 
 /**
@@ -171,6 +185,14 @@ describe('Parameter operations: controller ↔ processor', () => {
     'controller.params.update (3 scalars + f32[8])',
     () => {
       paramsUpdateScalarsAndStageArray();
+    },
+    MICRO_BENCH_OPTS,
+  );
+
+  bench(
+    'controller.params.hydrate (3 scalars + f32[8])',
+    () => {
+      paramsHydrateScalarsAndArray();
     },
     MICRO_BENCH_OPTS,
   );

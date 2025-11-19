@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getSharedBuffer } from '../../src/backing/buffers';
 import { planLayout } from '../../src/plan/layout';
-import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';
+import { specFromPlaneBytes } from '../helpers/spec-from-bytes';
 
 import type {
   Backing,

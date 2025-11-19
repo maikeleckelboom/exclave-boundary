@@ -1,5 +1,3 @@
-// src/diagnostics/counters.ts
-
 import { createError } from '../errors/error';
 
 import type { DiagnosticsCounterDetails } from '../errors/codes/diagnostics';

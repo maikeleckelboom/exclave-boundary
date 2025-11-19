@@ -5,7 +5,7 @@ import {
   BACKING_PLANE_PACK_ORDER_V1,
 } from '../../src/backing/map-views';
 import { planLayout } from '../../src/plan/layout';
-import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';
+import { specFromPlaneBytes } from '../helpers/spec-from-bytes';
 
 const B4 = 4;
 const B8 = 8;

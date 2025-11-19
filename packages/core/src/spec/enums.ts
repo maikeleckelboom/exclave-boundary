@@ -388,17 +388,17 @@ export interface EnumOption<L extends string> {
  *
  * @remarks
  * - Framework-agnostic; works with any UI library expecting `{value, label}`.
- * - Optional `pretty` function transforms labels for display.
- * - Defaults to using raw label as display label if `pretty` is omitted.
+ * - Optional `transform` function transforms labels for display.
+ * - Defaults to using raw label as display label if `transform` is omitted.
  * - Not for RT hot paths; intended for UI setup.
  */
 export function enumOptionsFor<S extends SpecInput, K extends EnumKeyOf<S>>(
   spec: S,
   key: K,
-  pretty?: (label: EnumLabel<S, K>) => string,
+  transform?: (label: EnumLabel<S, K>) => string,
 ): EnumOption<EnumLabel<S, K>>[] {
   const values = enumValues<S, K>(spec, key);
-  const format = pretty ?? ((l) => l);
+  const format = transform ?? ((l) => l);
 
   return values.map((value) => ({
     value,

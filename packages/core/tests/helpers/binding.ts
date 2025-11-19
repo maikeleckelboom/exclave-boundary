@@ -1,4 +1,3 @@
-// tests/__helpers__/binding.ts
 import {
   allocateShared,
   bindController,
@@ -26,7 +25,7 @@ export interface BoundPair<S extends SpecInput> {
   readonly proc: ProcessorBinding<S>;
 }
 
-export function makeBindingsFromSpec<S extends SpecInput>(
+export function bindingsFromSpec<S extends SpecInput>(
   spec: S,
   options?: {
     readonly controller?: ControllerOptions;

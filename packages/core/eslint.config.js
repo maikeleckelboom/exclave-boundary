@@ -1,36 +1,42 @@
-import regex from 'eslint-plugin-regex';
-import tseslint from 'typescript-eslint';
-import importPlugin from 'eslint-plugin-import';
-import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import { defineConfig } from 'eslint/config';
+import { fileURLToPath } from 'node:url';
+
+import importPlugin from 'eslint-plugin-import';
+import regex from 'eslint-plugin-regex';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(dirname(HERE));
 
-const IGNORES = [
-  '**/dist/**',
-  '**/build/**',
-  '**/.coverage/**',
-  '**/coverage/**',
-  '**/.vite/**',
-  '**/.output/**',
-  '**/generated/**',
-  '**/node_modules/**',
-  '**/*.d.ts',
+const paths = {
+  ignores: [
+    '**/dist/**',
+    '**/build/**',
+    '**/.coverage/**',
+    '**/coverage/**',
+    '**/.vite/**',
+    '**/.output/**',
+    '**/generated/**',
+    '**/node_modules/**',
+    '**/*.d.ts',
+  ],
+  src: ['src/**/*.{ts,tsx}'],
+  tests: ['tests/**/*.{ts,tsx}', '**/*.test.ts', '**/*.spec.ts'],
+  examples: ['examples/**/*.{ts,tsx}'],
+  bench: ['bench/**/*.{ts,tsx}'],
+  scripts: ['scripts/**/*.{ts,tsx}'],
+};
+
+paths.allTs = [
+  ...paths.src,
+  ...paths.tests,
+  ...paths.examples,
+  ...paths.bench,
+  ...paths.scripts,
 ];
 
-const SRC = ['src/**/*.{ts,tsx}'];
-const TESTS = ['tests/**/*.{ts,tsx}', '**/*.test.ts', '**/*.spec.ts'];
-const EXAMPLES = ['examples/**/*.{ts,tsx}'];
-const BENCH = ['bench/**/*.{ts,tsx}'];
-const SCRIPTS = ['scripts/**/*.{ts,tsx}'];
-
-const ALL_TS = [...SRC, ...TESTS, ...EXAMPLES, ...BENCH, ...SCRIPTS];
-
-/** Layers (co-location + import direction) */
-const LAYERS = {
+const layers = {
   primitives: 'src/primitives',
   errors: 'src/errors',
   types: 'src/types',
@@ -39,24 +45,249 @@ const LAYERS = {
   backing: 'src/backing',
   handoff: 'src/handoff',
   binding: 'src/binding',
+  diagnostics: 'src/diagnostics',
 };
 
-export default defineConfig(
-  // Global ignores
-  { ignores: IGNORES },
+function buildLayerRestrictions() {
+  const restrictions:{
+    target: string;
+    from: string;
+    message: string;
+  }[] = [];
 
-  // TS-ESLint presets (typed) scoped to TS files
-  ...tseslint.configs.strictTypeChecked.map((c) => ({ ...c, files: ALL_TS })),
-  ...tseslint.configs.stylisticTypeChecked.map((c) => ({ ...c, files: ALL_TS })),
+  const addRestriction = (target: string, from: string, message: string) => {
+    restrictions.push({ target, from, message });
+  };
 
-  // eslint-plugin-import presets
+  // errors: foundational leaf — cannot import any other layer
+  const layersAboveErrors: (keyof typeof layers)[] = [
+    'primitives',
+    'types',
+    'spec',
+    'plan',
+    'backing',
+    'handoff',
+    'binding',
+  ];
+  for (const layer of layersAboveErrors) {
+    addRestriction(layers.errors, layers[layer], `errors must not import ${layer}`);
+  }
+
+  // primitives: bottom layer — cannot import domain layers
+  const layersAbovePrimitives: (keyof typeof layers)[] = [
+    'types',
+    'spec',
+    'plan',
+    'backing',
+    'handoff',
+    'binding',
+  ];
+  for (const layer of layersAbovePrimitives) {
+    addRestriction(
+      layers.primitives,
+      layers[layer],
+      `primitives must not import ${layer}`,
+    );
+  }
+
+  // types: cannot import any domain layer or primitives/errors
+  const layersAboveTypes: (keyof typeof layers)[] = [
+    'spec',
+    'plan',
+    'backing',
+    'handoff',
+    'binding',
+    'errors',
+    'primitives',
+  ];
+  for (const layer of layersAboveTypes) {
+    addRestriction(layers.types, layers[layer], `types must not import ${layer}`);
+  }
+
+  // spec: cannot import layers above it
+  for (const layer of ['plan', 'backing', 'handoff', 'binding'] as const) {
+    addRestriction(layers.spec, layers[layer], `spec must not import ${layer}`);
+  }
+
+  // plan: above spec, below backing
+  for (const layer of ['backing', 'handoff', 'binding'] as const) {
+    addRestriction(layers.plan, layers[layer], `plan must not import ${layer}`);
+  }
+
+  // backing: below handoff/binding
+  for (const layer of ['handoff', 'binding'] as const) {
+    addRestriction(layers.backing, layers[layer], `backing must not import ${layer}`);
+  }
+
+  // handoff: cannot import binding
+  addRestriction(layers.handoff, layers.binding, 'handoff must not import binding');
+
+  // Prevent imports from central type files (use domain-owned types instead)
+  const centralTypeFiles: { file: string; domain: string }[] = [
+    { file: 'src/types/backing.ts', domain: 'src/backing/types.ts' },
+    { file: 'src/types/binding.ts', domain: 'src/binding/types.ts' },
+    { file: 'src/types/spec.ts', domain: 'src/spec/types.ts' },
+    { file: 'src/types/plan.ts', domain: 'src/plan/types.ts' },
+    { file: 'src/types/handoff.ts', domain: 'src/handoff/types.ts' },
+    { file: 'src/types/errors.ts', domain: 'src/errors/types.ts' },
+  ];
+
+  for (const { file, domain } of centralTypeFiles) {
+    addRestriction('src', file, `Import from ${domain}`);
+  }
+
+  // diagnostics: outermost leaf — production core layers cannot import it,
+  // EXCEPT binding, which is allowed to bump counters on slow/error paths.
+  const productionLayersExceptBinding: (keyof typeof layers)[] = [
+    'primitives',
+    'errors',
+    'types',
+    'spec',
+    'plan',
+    'backing',
+    'handoff',
+    // 'binding' intentionally excluded: binding is allowed to import diagnostics.
+  ];
+  for (const layer of productionLayersExceptBinding) {
+    addRestriction(
+      layers[layer],
+      layers.diagnostics,
+      `${layer} must not import diagnostics`,
+    );
+  }
+
+  return restrictions;
+}
+
+const baseRules: Record<string, unknown> = {
+  // Code hygiene
+  curly: ['error', 'all'],
+  eqeqeq: ['error', 'smart'],
+  'no-var': 'error',
+  'prefer-const': ['error', { destructuring: 'all' }],
+  'no-console': 'warn',
+
+  // TypeScript
+  '@typescript-eslint/consistent-type-imports': [
+    'error',
+    { fixStyle: 'inline-type-imports' },
+  ],
+  '@typescript-eslint/no-explicit-any': 'error',
+  '@typescript-eslint/no-unused-vars': [
+    'warn',
+    {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+      ignoreRestSiblings: true,
+    },
+  ],
+  '@typescript-eslint/no-non-null-assertion': 'error',
+  '@typescript-eslint/no-unsafe-function-type': 'error',
+  '@typescript-eslint/ban-ts-comment': [
+    'error',
+    {
+      'ts-expect-error': 'allow-with-description',
+      'ts-ignore': true,
+      'ts-nocheck': true,
+      'ts-check': false,
+      minimumDescriptionLength: 3,
+    },
+  ],
+
+  // Import ordering and organization
+  'import/order': [
+    'error',
+    {
+      groups: [
+        'builtin',
+        'external',
+        'internal',
+        ['parent', 'sibling', 'index'],
+        'object',
+        'type',
+      ],
+      'newlines-between': 'always',
+      alphabetize: { order: 'asc', caseInsensitive: true },
+    },
+  ],
+  'import/no-duplicates': 'error',
+  'import/newline-after-import': 'error',
+  'import/extensions': [
+    'error',
+    'never',
+    { ts: 'never', tsx: 'never', js: 'never', jsx: 'never' },
+  ],
+  'import/no-extraneous-dependencies': [
+    'error',
+    {
+      devDependencies: true,
+      optionalDependencies: false,
+      peerDependencies: true,
+      packageDir: [HERE, REPO_ROOT],
+    },
+  ],
+  'import/no-cycle': ['error', { maxDepth: 2 }],
+  'import/no-restricted-paths': ['error', { zones: buildLayerRestrictions() }],
+};
+
+const regexRules: Record<string, unknown> = {
+  'regex/invalid': [
+    'error',
+    [
+      {
+        id: 'no-blanket-type-barrels',
+        message: 'Do not blanket re-export types; import from the owning domain.',
+        regex: String.raw`^\s*export\s+type\s+\*\s+from\s+['"]\./types['"];`,
+        regexOptions: 'm',
+      },
+      {
+        id: 'no-fence-singleline',
+        message: 'Avoid fence-style section headers; prefer concise JSDoc.',
+        regex: String.raw`^\s*//\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}.*$`,
+        regexOptions: 'u',
+      },
+      {
+        id: 'no-fence-block-start',
+        message: 'Avoid banner block comment starts.',
+        regex: String.raw`^\s*/\*+\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}.*$`,
+        regexOptions: 'u',
+      },
+      {
+        id: 'no-fence-block-line',
+        message: 'Avoid banner lines inside block comments.',
+        regex: String.raw`^\s*\*\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}\s*(?:\*/)?\s*$`,
+        regexOptions: 'u',
+      },
+      {
+        id: 'no-fence-one-line-block',
+        message: 'Avoid one-line banner comments.',
+        regex: String.raw`^\s*/\*+\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}\s*\*+/\s*$`,
+        regexOptions: 'u',
+      },
+    ],
+  ],
+};
+
+export default tseslint.config(
+  { ignores: paths.ignores },
+
+  ...tseslint.configs.strictTypeChecked.map((c) => ({
+    ...c,
+    files: paths.allTs,
+  })),
+
+  ...tseslint.configs.stylisticTypeChecked.map((c) => ({
+    ...c,
+    files: paths.allTs,
+  })),
+
   ...[importPlugin.flatConfigs.recommended, importPlugin.flatConfigs.typescript].map(
-    (c) => ({ ...c, files: ALL_TS }),
+    (c) => ({ ...c, files: paths.allTs }),
   ),
 
-  // Project settings + base rules
   {
-    files: ALL_TS,
+    name: 'seqlok/base',
+    files: paths.allTs,
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -68,348 +299,50 @@ export default defineConfig(
     },
     settings: {
       'import/resolver': {
-        typescript: { project: ['./tsconfig.json'], alwaysTryTypes: true },
-        node: { extensions: ['.ts', '.tsx', '.js', '.jsx'] },
+        typescript: {
+          project: ['./tsconfig.json'],
+          alwaysTryTypes: true,
+        },
+        node: {
+          extensions: ['.ts', '.tsx', '.js', '.jsx'],
+        },
       },
       'import/ignore': ['\\?url$', '^virtual:', '^vite(-client)?$'],
     },
-    linterOptions: { reportUnusedDisableDirectives: 'error' },
-    rules: {
-      // Hygiene
-      curly: ['error', 'all'],
-      eqeqeq: ['error', 'smart'],
-      'no-var': 'error',
-      'prefer-const': ['error', { destructuring: 'all' }],
-      'no-console': 'warn',
-
-      // TypeScript
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        { fixStyle: 'inline-type-imports' },
-      ],
-      '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
-      ],
-      '@typescript-eslint/no-non-null-assertion': 'error',
-      '@typescript-eslint/no-unsafe-function-type': 'error',
-      '@typescript-eslint/ban-ts-comment': [
-        'error',
-        {
-          'ts-expect-error': 'allow-with-description',
-          'ts-ignore': true,
-          'ts-nocheck': true,
-          'ts-check': false,
-          minimumDescriptionLength: 3,
-        },
-      ],
-
-      // Imports
-      'import/order': [
-        'error',
-        {
-          groups: [
-            'builtin',
-            'external',
-            'internal',
-            ['parent', 'sibling', 'index'],
-            'object',
-            'type',
-          ],
-          'newlines-between': 'always',
-          alphabetize: { order: 'asc', caseInsensitive: true },
-        },
-      ],
-      'import/no-duplicates': 'error',
-      'import/newline-after-import': 'error',
-      'import/extensions': [
-        'error',
-        'never',
-        { ts: 'never', tsx: 'never', js: 'never', jsx: 'never' },
-      ],
-      'import/no-extraneous-dependencies': [
-        'error',
-        {
-          devDependencies: true,
-          optionalDependencies: false,
-          peerDependencies: true,
-          packageDir: [HERE, REPO_ROOT],
-        },
-      ],
-      'import/no-cycle': ['error', { maxDepth: 2 }],
-
-      /**
-       * Directional flow lock (production code only; tests/examples override below)
-       * Each zone reads as: modules in `target` MUST NOT import from `from`.
-       */
-      'import/no-restricted-paths': [
-        'error',
-        {
-          zones: [
-            // errors: foundational LEAF — must not depend on other layers
-            {
-              target: LAYERS.errors,
-              from: LAYERS.primitives,
-              message: 'errors must not import primitives',
-            },
-            {
-              target: LAYERS.errors,
-              from: LAYERS.types,
-              message: 'errors must not import types',
-            },
-            {
-              target: LAYERS.errors,
-              from: LAYERS.spec,
-              message: 'errors must not import spec',
-            },
-            {
-              target: LAYERS.errors,
-              from: LAYERS.plan,
-              message: 'errors must not import plan',
-            },
-            {
-              target: LAYERS.errors,
-              from: LAYERS.backing,
-              message: 'errors must not import backing',
-            },
-            {
-              target: LAYERS.errors,
-              from: LAYERS.handoff,
-              message: 'errors must not import handoff',
-            },
-            {
-              target: LAYERS.errors,
-              from: LAYERS.binding,
-              message: 'errors must not import binding',
-            },
-
-            // primitives: bottom
-            {
-              target: LAYERS.primitives,
-              from: LAYERS.types,
-              message: 'primitives must not import types',
-            },
-            {
-              target: LAYERS.primitives,
-              from: LAYERS.spec,
-              message: 'primitives must not import spec',
-            },
-            {
-              target: LAYERS.primitives,
-              from: LAYERS.plan,
-              message: 'primitives must not import plan',
-            },
-            {
-              target: LAYERS.primitives,
-              from: LAYERS.backing,
-              message: 'primitives must not import backing',
-            },
-            {
-              target: LAYERS.primitives,
-              from: LAYERS.handoff,
-              message: 'primitives must not import handoff',
-            },
-            {
-              target: LAYERS.primitives,
-              from: LAYERS.binding,
-              message: 'primitives must not import binding',
-            },
-
-            {
-              target: LAYERS.types,
-              from: LAYERS.spec,
-              message: 'types must not import spec',
-            },
-            {
-              target: LAYERS.types,
-              from: LAYERS.plan,
-              message: 'types must not import plan',
-            },
-            {
-              target: LAYERS.types,
-              from: LAYERS.backing,
-              message: 'types must not import backing',
-            },
-            {
-              target: LAYERS.types,
-              from: LAYERS.handoff,
-              message: 'types must not import handoff',
-            },
-            {
-              target: LAYERS.types,
-              from: LAYERS.binding,
-              message: 'types must not import binding',
-            },
-            {
-              target: LAYERS.types,
-              from: LAYERS.errors,
-              message: 'types must not import errors',
-            },
-            {
-              target: LAYERS.types,
-              from: LAYERS.primitives,
-              message: 'types must not import primitives',
-            },
-
-            // spec: must not depend upward
-            {
-              target: LAYERS.spec,
-              from: LAYERS.plan,
-              message: 'spec must not import plan',
-            },
-            {
-              target: LAYERS.spec,
-              from: LAYERS.backing,
-              message: 'spec must not import backing',
-            },
-            {
-              target: LAYERS.spec,
-              from: LAYERS.handoff,
-              message: 'spec must not import handoff',
-            },
-            {
-              target: LAYERS.spec,
-              from: LAYERS.binding,
-              message: 'spec must not import binding',
-            },
-            // plan: above spec, below backing
-            {
-              target: LAYERS.plan,
-              from: LAYERS.backing,
-              message: 'plan must not import backing',
-            },
-            {
-              target: LAYERS.plan,
-              from: LAYERS.handoff,
-              message: 'plan must not import handoff',
-            },
-            {
-              target: LAYERS.plan,
-              from: LAYERS.binding,
-              message: 'plan must not import binding',
-            },
-
-            // backing: below handoff/binding
-            {
-              target: LAYERS.backing,
-              from: LAYERS.handoff,
-              message: 'backing must not import handoff',
-            },
-            {
-              target: LAYERS.backing,
-              from: LAYERS.binding,
-              message: 'backing must not import binding',
-            },
-
-            {
-              target: LAYERS.handoff,
-              from: LAYERS.binding,
-              message: 'handoff must not import binding',
-            },
-
-            // binding: top — allowed to import downwards (no zones here)
-
-            /**
-             * Ban "central types hop": anywhere under src/**, do not import
-             * domain-owned type files from src/types/*.ts — import from that domain’s own types.ts.
-             */
-            {
-              target: 'src',
-              from: 'src/types/backing.ts',
-              message: 'Import from src/backing/types.ts',
-            },
-            {
-              target: 'src',
-              from: 'src/types/binding.ts',
-              message: 'Import from src/binding/types.ts',
-            },
-            {
-              target: 'src',
-              from: 'src/types/spec.ts',
-              message: 'Import from src/spec/types.ts',
-            },
-            {
-              target: 'src',
-              from: 'src/types/plan.ts',
-              message: 'Import from src/plan/types.ts',
-            },
-            {
-              target: 'src',
-              from: 'src/types/handoff.ts',
-              message: 'Import from src/handoff/types.ts',
-            },
-            {
-              target: 'src',
-              from: 'src/types/errors.ts',
-              message: 'Import from src/errors/types.ts',
-            },
-          ],
-        },
-      ],
+    linterOptions: {
+      reportUnusedDisableDirectives: 'error',
     },
+    rules: baseRules,
   },
 
-  // Tests & examples: allow crossing boundaries and enable vitest globals
   {
-    files: [...TESTS, ...EXAMPLES],
-    languageOptions: { globals: { ...globals.vitest } },
+    name: 'seqlok/tests-and-examples',
+    files: [...paths.tests, ...paths.examples],
+    languageOptions: {
+      globals: { ...globals.vitest },
+    },
     rules: {
       'import/no-restricted-paths': 'off',
     },
   },
 
-  // Regex bans (global)
   {
+    name: 'seqlok/regex-bans',
     files: ['**/*.{ts,tsx,js,jsx}'],
-    plugins: { regex: { rules: regex.rules } },
-    rules: {
-      'regex/invalid': [
-        'error',
-        [
-          // 1) No blanket type barrels inside a domain
-          {
-            id: 'no-blanket-type-barrels',
-            message: 'Do not blanket re-export types; import from the owning domain.',
-            regex: String.raw`^\s*export\s+type\s+\*\s+from\s+['"]\./types['"];`,
-            regexOptions: 'm',
-          },
-          // 2) No fence-style section headers (house style)
-          {
-            id: 'no-fence-singleline',
-            message: 'Avoid fence-style section headers; prefer concise JSDoc.',
-            regex: String.raw`^\s*//\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}.*$`,
-            regexOptions: 'u',
-          },
-          {
-            id: 'no-fence-block-start',
-            message: 'Avoid banner block comment starts.',
-            regex: String.raw`^\s*/\*+\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}.*$`,
-            regexOptions: 'u',
-          },
-          {
-            id: 'no-fence-block-line',
-            message: 'Avoid banner lines inside block comments.',
-            regex: String.raw`^\s*\*\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}\s*(?:\*/)?\s*$`,
-            regexOptions: 'u',
-          },
-          {
-            id: 'no-fence-one-line-block',
-            message: 'Avoid one-line banner comments.',
-            regex: String.raw`^\s*/\*+\s*([=\-*_/\u2500-\u257F\u23AF\u2013\u2014\u2015\u2212])\1{3,}\s*\*+/\s*$`,
-            regexOptions: 'u',
-          },
-        ],
-      ],
+    plugins: {
+      regex: { rules: regex.rules },
     },
+    rules: regexRules,
   },
 
-  // .d.ts: no project for perf; relax unused-vars
   {
+    name: 'seqlok/type-declarations',
     files: ['**/*.d.ts'],
     languageOptions: {
       parser: tseslint.parser,
-      parserOptions: { project: null },
+      parserOptions: {
+        project: null,
+      },
     },
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',

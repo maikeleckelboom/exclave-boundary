@@ -6,7 +6,7 @@ import { mapViews } from '../../src/backing/map-views';
 import { planLayout } from '../../src/plan/layout';
 import { BYTES_PER_ELEM } from '../../src/primitives/planes';
 import { defineSpec } from '../../src/spec/define';
-import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';
+import { specFromPlaneBytes } from '../helpers/spec-from-bytes';
 
 import type { SharedPartitionedBacking } from '../../src/backing/types';
 

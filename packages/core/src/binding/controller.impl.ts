@@ -1,4 +1,5 @@
 import { createMeterSnapshot, createParamSnapshot } from './controller.snapshot';
+import { claimBinding, noteBinding, releaseBinding } from './registry';
 import {
   throwInvalidParamValue,
   throwParamRange,
@@ -23,6 +24,7 @@ import type {
   ControllerParams,
   Ephemeral,
   EphemeralTypedArray,
+  HydratePatch,
   MUSeq,
   ParamValueFor,
   PUSeq,
@@ -31,7 +33,13 @@ import type {
 } from './types';
 import type { Backing } from '../backing/types';
 import type { Plan } from '../plan/types';
-import type { ArrayParamKeys, ParamDef, ScalarParamKeys, SpecInput } from '../spec/types';
+import type {
+  ArrayParamKeys,
+  ParamDef,
+  ParamKeys,
+  ScalarParamKeys,
+  SpecInput,
+} from '../spec/types';
 
 interface SlotBase {
   readonly offset: number;
@@ -58,7 +66,25 @@ interface ValidatedMeterSlot extends SlotBase {
   readonly index: number; // element index (offset / bytesPerElement)
 }
 
-const isObj = (x: unknown): x is Record<string, unknown> =>
+/** Internal helper for bulk array copies in hydrate(). */
+type ArrayOp =
+  | {
+      readonly plane: 'PF32';
+      readonly slot: ValidatedParamSlot;
+      readonly src: Float32Array;
+    }
+  | {
+      readonly plane: 'PI32';
+      readonly slot: ValidatedParamSlot;
+      readonly src: Int32Array;
+    }
+  | {
+      readonly plane: 'PB';
+      readonly slot: ValidatedParamSlot;
+      readonly src: Uint8Array;
+    };
+
+const isObject = (x: unknown): x is Record<string, unknown> =>
   x !== null && typeof x === 'object';
 
 /** Range-bearing scalar defs. */
@@ -80,15 +106,21 @@ type EnumDef = Extract<ParamDef, { kind: 'enum' }>;
  * do not rely on `as unknown` casts.
  */
 const isF32RangeDef = (d: unknown): d is F32RangeDef =>
-  isObj(d) && d.kind === 'f32' && typeof d.min === 'number' && typeof d.max === 'number';
+  isObject(d) &&
+  d.kind === 'f32' &&
+  typeof d.min === 'number' &&
+  typeof d.max === 'number';
 
 const isI32RangeDef = (d: unknown): d is I32RangeDef =>
-  isObj(d) && d.kind === 'i32' && typeof d.min === 'number' && typeof d.max === 'number';
+  isObject(d) &&
+  d.kind === 'i32' &&
+  typeof d.min === 'number' &&
+  typeof d.max === 'number';
 
-const isBoolDef = (d: unknown): d is BoolDef => isObj(d) && d.kind === 'bool';
+const isBoolDef = (d: unknown): d is BoolDef => isObject(d) && d.kind === 'bool';
 
 const isEnumDef = (d: unknown): d is EnumDef =>
-  isObj(d) && d.kind === 'enum' && Array.isArray(d.values);
+  isObject(d) && d.kind === 'enum' && Array.isArray(d.values);
 
 /** Clamp helper for range policy 'clamp'. */
 const clamp = (v: number, min: number, max: number): number =>
@@ -358,7 +390,7 @@ function assertBackingCapacity<S extends SpecInput>(
  * Build a controller binding from a concrete plan + backing.
  *
  * @remarks
- * - One successful commit (set/update/stage) → exactly one PU bump.
+ * - One successful commit (set/update/stage/hydrate) → exactly one PU bump.
  * - All validation happens before `publish`, so failures never bump PU.
  * - `version()` reads the commit counter; no parity check needed on the controller side.
  */
@@ -369,176 +401,317 @@ export function controllerImpl<const S extends SpecInput>(
   options: ControllerOptions = {},
 ): ControllerBinding<S> {
   const policy: RangePolicy = options.params?.rangePolicy ?? 'reject';
+  const exclusive = options.exclusive ?? true;
 
   assertBackingCapacity(plan, backing);
 
-  const mapped: MappedViews = mapViews(plan, backing);
-
-  // PU seqlock pair for controller param writes (one bump per successful commit).
-  const pu = {
-    u32: mapped.locks.PU,
-    lockIndex: plan.locks.PU.lock,
-    seqIndex: plan.locks.PU.seq,
-  };
-
-  // Prevalidate & cache fast-path slots.
-  const validatedParams = validateParamSlots(
-    plan.params as Record<string, ParamSlot>,
-    mapped.params,
-  );
-  const validatedMeters = validateMeterSlots(
-    plan.meters as Record<string, MeterSlot>,
-    mapped.meters,
-  );
-  const knownParamKeys = Object.keys(validatedParams);
-
-  /**
-   * Prepare a single scalar write:
-   * - validates key/shape,
-   * - normalizes public value,
-   * - applies range policy (throw for 'reject', clamp for 'clamp'),
-   * - returns the validated slot + final value to write.
-   * No side-effects; safe to call before publish().
-   */
-  function prepareScalarWrite<K extends ScalarParamKeys<S>>(
-    key: K,
-    value: ParamValueFor<S, K>,
-  ): {
-    slot: ValidatedParamSlot & { length: 1 };
-    toWrite: number | boolean;
-  } {
-    const slot = validatedParams[key];
-    assertScalarParamSlot(slot, key, knownParamKeys);
-
-    const scalarSlot = slot;
-    const def: ParamDef | undefined = paramDefs[key];
-    const normalized = normalizeScalarValue(def, value, key);
-
-    // Apply range policy outside publish; throw → no bump.
-    const numeric = typeof normalized === 'boolean' ? (normalized ? 1 : 0) : normalized;
-    const range = scalarRangeFor(def);
-
-    if (range) {
-      if (numeric < range.min || numeric > range.max) {
-        if (policy === 'reject') {
-          throwParamRange(key, range.min, range.max, numeric);
-        }
-        // 'clamp' policy
-        return {
-          slot: scalarSlot,
-          toWrite: clamp(numeric, range.min, range.max),
-        };
-      }
-      return { slot: scalarSlot, toWrite: numeric };
-    }
-
-    return { slot: scalarSlot, toWrite: normalized };
+  if (exclusive) {
+    claimBinding(backing, 'controller');
+  } else {
+    noteBinding(backing, 'controller');
   }
+  try {
+    const mapped: MappedViews = mapViews(plan, backing);
 
-  const paramsSnapshot = createParamSnapshot<S>(
-    paramDefs,
-    validatedParams,
-    mapped.params,
-  );
-  const metersSnapshot = createMeterSnapshot<S>(validatedMeters, mapped.meters);
+    // PU seqlock pair for controller param writes (one bump per successful commit).
+    const pu = {
+      u32: mapped.locks.PU,
+      lockIndex: plan.locks.PU.lock,
+      seqIndex: plan.locks.PU.seq,
+    };
 
-  const params: ControllerParams<S> = {
-    set<K extends ScalarParamKeys<S>>(key: K, value: ParamValueFor<S, K>): void {
-      const { slot, toWrite } = prepareScalarWrite(key, value);
-      publish(pu, () => {
-        writeScalarUnchecked(mapped.params, slot, toWrite);
-      });
-    },
-
-    update(patch: ScalarParamPatch<S>): void {
-      const ops: { slot: ValidatedParamSlot & { length: 1 }; value: number | boolean }[] =
-        [];
-
-      // Narrow the keys once up-front
-      const keys = Object.keys(patch) as ScalarParamKeys<S>[];
-
-      for (const key of keys) {
-        const value = patch[key];
-
-        // runtime guard: skip missing keys in Partial<...>
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (value === undefined) {
-          continue;
-        }
-
-        // tie the value back to the concrete key for the generic
-        const prepared = prepareScalarWrite(key, value as ParamValueFor<S, typeof key>);
-        ops.push({ slot: prepared.slot, value: prepared.toWrite });
-      }
-
-      // No-op guard: do not bump PU when nothing is written.
-      if (ops.length === 0) {
-        return;
-      }
-
-      publish(pu, () => {
-        for (const op of ops) {
-          writeScalarUnchecked(mapped.params, op.slot, op.value);
-        }
-      });
-    },
-
-    stage<K extends ArrayParamKeys<S>>(
-      key: K,
-      cb: (view: Ephemeral<ArrayParamView<S, K>>) => void,
-    ): void {
-      const slot = validatedParams[key];
-      if (!slot || slot.length <= 1) {
-        throwUnknownKey('params', key, knownParamKeys);
-      }
-
-      publish(pu, () => {
-        const start = slot.index;
-        const end = start + slot.length;
-        let view: EphemeralTypedArray;
-        if (slot.plane === 'PF32') {
-          view = mapped.params.PF32.subarray(start, end) as Ephemeral<Float32Array>;
-        } else if (slot.plane === 'PI32') {
-          view = mapped.params.PI32.subarray(start, end) as Ephemeral<Int32Array>;
-        } else {
-          view = mapped.params.PB.subarray(start, end) as Ephemeral<Uint8Array>;
-        }
-        cb(view as Ephemeral<ArrayParamView<S, K>>);
-      });
-    },
-
-    snapshot: paramsSnapshot,
-
-    version(): PUSeq {
-      const u = mapped.locks.PU;
-      return Atomics.load(u, plan.locks.PU.seq) >>> 0;
-    },
-  };
-
-  const meters: ControllerMeters<S> = {
-    snapshot: metersSnapshot,
+    // Prevalidate & cache fast-path slots.
+    const validatedParams = validateParamSlots(
+      plan.params as Record<string, ParamSlot>,
+      mapped.params,
+    );
+    const validatedMeters = validateMeterSlots(
+      plan.meters as Record<string, MeterSlot>,
+      mapped.meters,
+    );
+    const knownParamKeys = Object.keys(validatedParams);
 
     /**
-     * Version (MU sequence number).
-     *
-     * Semantics:
-     * - Processor-side `publish(...)` commits exactly once per call by bumping MU.SEQ.
-     * - This reader observes that commit via an SC atomic load on the MU Int32Array.
-     * - The value is returned in the u32 domain (>>> 0) to model wraparound precisely.
-     * - No parity checks are needed for a version read: we only need the commit counter.
+     * Prepare a single scalar write:
+     * - validates key/shape,
+     * - normalizes public value,
+     * - applies range policy (throw for 'reject', clamp for 'clamp'),
+     * - returns the validated slot + final value to write.
+     * No side-effects; safe to call before publish().
      */
-    version(): MUSeq {
-      const u = mapped.locks.MU;
-      const seqIdx = plan.locks.MU.seq;
-      return Atomics.load(u, seqIdx) >>> 0;
-    },
-  };
+    function prepareScalarWrite<K extends ScalarParamKeys<S>>(
+      key: K,
+      value: ParamValueFor<S, K>,
+    ): {
+      slot: ValidatedParamSlot & { length: 1 };
+      toWrite: number | boolean;
+    } {
+      const slot = validatedParams[key];
+      assertScalarParamSlot(slot, key, knownParamKeys);
 
-  return {
-    params,
-    meters,
-    dispose(): void {
-      // reserved for future teardown
-    },
-  };
+      const scalarSlot = slot;
+      const def: ParamDef | undefined = paramDefs[key];
+      const normalized = normalizeScalarValue(def, value, key);
+
+      const numeric = typeof normalized === 'boolean' ? (normalized ? 1 : 0) : normalized;
+      const range = scalarRangeFor(def);
+
+      if (range) {
+        if (numeric < range.min || numeric > range.max) {
+          if (policy === 'reject') {
+            throwParamRange(key, range.min, range.max, numeric);
+          }
+          return {
+            slot: scalarSlot,
+            toWrite: clamp(numeric, range.min, range.max),
+          };
+        }
+        return { slot: scalarSlot, toWrite: numeric };
+      }
+
+      return { slot: scalarSlot, toWrite: normalized };
+    }
+
+    const paramsSnapshot = createParamSnapshot<S>(
+      paramDefs,
+      validatedParams,
+      mapped.params,
+    );
+    const metersSnapshot = createMeterSnapshot<S>(validatedMeters, mapped.meters);
+
+    const params: ControllerParams<S> = {
+      set<K extends ScalarParamKeys<S>>(key: K, value: ParamValueFor<S, K>): void {
+        const { slot, toWrite } = prepareScalarWrite(key, value);
+        publish(pu, () => {
+          writeScalarUnchecked(mapped.params, slot, toWrite);
+        });
+      },
+
+      update(patch: ScalarParamPatch<S>): void {
+        const ops: {
+          slot: ValidatedParamSlot & { length: 1 };
+          value: number | boolean;
+        }[] = [];
+
+        const keys = Object.keys(patch) as ScalarParamKeys<S>[];
+
+        for (const key of keys) {
+          const value = patch[key] as ParamValueFor<S, typeof key>;
+          // `ScalarParamPatch<S>` is effectively a Partial<...>.
+          // We treat explicit `undefined` as invalid and let normalize/prepare throw.
+          const prepared = prepareScalarWrite(key, value);
+          ops.push({ slot: prepared.slot, value: prepared.toWrite });
+        }
+
+        // No-op guard: do not bump PU when nothing is written.
+        if (ops.length === 0) {
+          return;
+        }
+
+        publish(pu, () => {
+          for (const op of ops) {
+            writeScalarUnchecked(mapped.params, op.slot, op.value);
+          }
+        });
+      },
+
+      hydrate(patch: HydratePatch<S>): void {
+        const scalarOps: {
+          readonly slot: ValidatedParamSlot & { readonly length: 1 };
+          readonly value: number | boolean;
+        }[] = [];
+        const arrayOps: ArrayOp[] = [];
+
+        const keys = Object.keys(patch) as ParamKeys<S>[];
+
+        for (const key of keys) {
+          const value = patch[key];
+
+          const slot = validatedParams[key];
+          if (!slot) {
+            throwUnknownKey('params', key, knownParamKeys);
+          }
+
+          if (slot.length === 1) {
+            const prepared = prepareScalarWrite(
+              key as ScalarParamKeys<S>,
+              value as ParamValueFor<S, ScalarParamKeys<S>>,
+            );
+            scalarOps.push({ slot: prepared.slot, value: prepared.toWrite });
+            continue;
+          }
+
+          const expectedLength = slot.length;
+          const v = value as unknown;
+
+          switch (slot.plane) {
+            case 'PF32': {
+              if (!(v instanceof Float32Array)) {
+                throwInvalidParamValue(key, 'Float32Array', v);
+              }
+              const src = v;
+              if (src.length !== expectedLength) {
+                throwInvalidParamValue(
+                  key,
+                  `Float32Array(length ${String(expectedLength)})`,
+                  src.length,
+                );
+              }
+              arrayOps.push({ plane: 'PF32', slot, src });
+              break;
+            }
+
+            case 'PI32': {
+              if (!(v instanceof Int32Array)) {
+                throwInvalidParamValue(key, 'Int32Array', v);
+              }
+              const src = v;
+              if (src.length !== expectedLength) {
+                throwInvalidParamValue(
+                  key,
+                  `Int32Array(length ${String(expectedLength)})`,
+                  src.length,
+                );
+              }
+              arrayOps.push({ plane: 'PI32', slot, src });
+              break;
+            }
+
+            case 'PB': {
+              if (!(v instanceof Uint8Array)) {
+                throwInvalidParamValue(key, 'Uint8Array', v);
+              }
+              const src = v;
+              if (src.length !== expectedLength) {
+                throwInvalidParamValue(
+                  key,
+                  `Uint8Array(length ${String(expectedLength)})`,
+                  src.length,
+                );
+              }
+              arrayOps.push({ plane: 'PB', slot, src });
+              break;
+            }
+
+            default: {
+              const _plane: never = slot.plane;
+              void _plane;
+            }
+          }
+        }
+
+        // No-op guard: do not bump PU when nothing is written.
+        if (scalarOps.length === 0 && arrayOps.length === 0) {
+          return;
+        }
+
+        publish(pu, () => {
+          for (const { slot, value } of scalarOps) {
+            writeScalarUnchecked(mapped.params, slot, value);
+          }
+
+          for (const op of arrayOps) {
+            const start = op.slot.index;
+
+            switch (op.plane) {
+              case 'PF32': {
+                mapped.params.PF32.set(op.src, start);
+                break;
+              }
+              case 'PI32': {
+                mapped.params.PI32.set(op.src, start);
+                break;
+              }
+              case 'PB': {
+                mapped.params.PB.set(op.src, start);
+                break;
+              }
+              default: {
+                // Compile-time exhaustiveness: if ArrayOp grows, this is a type error.
+                // noinspection UnnecessaryLocalVariableJS
+                const _exhaustive: never = op;
+                void _exhaustive;
+
+                invariant(
+                  false,
+                  'internal.assertionFailed',
+                  'Param hydrate() reached unsupported plane',
+                  { detail: 'param.hydrate:unknownPlane' },
+                );
+              }
+            }
+          }
+        });
+      },
+
+      stage<K extends ArrayParamKeys<S>>(
+        key: K,
+        cb: (view: Ephemeral<ArrayParamView<S, K>>) => void,
+      ): void {
+        const slot = validatedParams[key];
+        if (!slot || slot.length <= 1) {
+          throwUnknownKey('params', key, knownParamKeys);
+        }
+
+        publish(pu, () => {
+          const start = slot.index;
+          const end = start + slot.length;
+          let view: EphemeralTypedArray;
+          if (slot.plane === 'PF32') {
+            view = mapped.params.PF32.subarray(start, end);
+          } else if (slot.plane === 'PI32') {
+            view = mapped.params.PI32.subarray(start, end);
+          } else {
+            view = mapped.params.PB.subarray(start, end);
+          }
+          cb(view as Ephemeral<ArrayParamView<S, K>>);
+        });
+      },
+
+      snapshot: paramsSnapshot,
+
+      version(): PUSeq {
+        const u = mapped.locks.PU;
+        return Atomics.load(u, plan.locks.PU.seq) >>> 0;
+      },
+    };
+
+    const meters: ControllerMeters<S> = {
+      snapshot: metersSnapshot,
+
+      /**
+       * Version (MU sequence number).
+       *
+       * Semantics:
+       * - Processor-side `publish(...)` commits exactly once per call by bumping MU.SEQ.
+       * - This reader observes that commit via an SC atomic load on the MU Int32Array.
+       * - The value is returned in the u32 domain (>>> 0) to model wraparound precisely.
+       * - No parity checks are needed for a version read: we only need the commit counter.
+       */
+      version(): MUSeq {
+        const u = mapped.locks.MU;
+        const seqIdx = plan.locks.MU.seq;
+        return Atomics.load(u, seqIdx) >>> 0;
+      },
+    };
+
+    let disposed = false;
+
+    const dispose = (): void => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      releaseBinding(backing, 'controller');
+    };
+
+    return {
+      params,
+      meters,
+      dispose,
+    };
+  } catch (error) {
+    releaseBinding(backing, 'controller');
+    throw error;
+  }
 }

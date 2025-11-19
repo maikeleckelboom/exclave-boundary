@@ -123,7 +123,7 @@ export function interpretHealth(meta: ErrorMeta): HealthInterpretation {
  * This is a thin alias over `meta.boundarySafe` to keep call sites
  * expressive.
  */
-export function isSafeToExpose(meta: ErrorMeta): boolean {
+export function isBoundarySafe(meta: ErrorMeta): boolean {
   return meta.boundarySafe;
 }
 

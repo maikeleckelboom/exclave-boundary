@@ -58,7 +58,12 @@ import {
   type PlanFailedDetails,
   type PlanOverflowRiskDetails,
 } from './codes/plan';
-import { PRIMITIVES_ERRORS, type PrimitivesErrorCode } from './codes/primitives';
+import {
+  PRIMITIVES_ERRORS,
+  type PrimitivesErrorCode,
+  type PrimitivesSeqlockTimeoutDetails,
+  type PrimitivesSwsrRingInvalidLayoutDetails,
+} from './codes/primitives';
 import {
   SPEC_ERRORS,
   type SpecErrorCode,
@@ -124,10 +129,11 @@ export type ErrorCode =
  */
 export interface CodeToPayload {
   // primitives.*
-  'primitives.seqlockTimeout': ErrorDetails;
+  'primitives.seqlockTimeout': PrimitivesSeqlockTimeoutDetails;
   'primitives.planeUnaligned': ErrorDetails;
   'primitives.atomicsFailed': ErrorDetails;
   'primitives.invalidSpinBudget': ErrorDetails;
+  'primitives.swsrRingInvalidLayout': PrimitivesSwsrRingInvalidLayoutDetails;
 
   // internal.*
   'internal.assertionFailed': InternalAssertionDetails;
@@ -200,6 +206,8 @@ const RAW_META = {
   [PRIMITIVES_ERRORS.planeUnaligned.code]: PRIMITIVES_ERRORS.planeUnaligned.meta,
   [PRIMITIVES_ERRORS.atomicsFailed.code]: PRIMITIVES_ERRORS.atomicsFailed.meta,
   [PRIMITIVES_ERRORS.invalidSpinBudget.code]: PRIMITIVES_ERRORS.invalidSpinBudget.meta,
+  [PRIMITIVES_ERRORS.swsrRingInvalidLayout.code]:
+    PRIMITIVES_ERRORS.swsrRingInvalidLayout.meta,
 
   // backing.*
   [BACKING_ERRORS.allocFailed.code]: BACKING_ERRORS.allocFailed.meta,
@@ -265,6 +273,9 @@ const RAW_MESSAGES = {
   [PRIMITIVES_ERRORS.planeUnaligned.code]: PRIMITIVES_ERRORS.planeUnaligned.message,
   [PRIMITIVES_ERRORS.atomicsFailed.code]: PRIMITIVES_ERRORS.atomicsFailed.message,
   [PRIMITIVES_ERRORS.invalidSpinBudget.code]: PRIMITIVES_ERRORS.invalidSpinBudget.message,
+  [PRIMITIVES_ERRORS.swsrRingInvalidLayout.code]:
+    PRIMITIVES_ERRORS.swsrRingInvalidLayout.message,
+
   // backing.*
   [BACKING_ERRORS.allocFailed.code]: BACKING_ERRORS.allocFailed.message,
   [BACKING_ERRORS.allocUndersized.code]: BACKING_ERRORS.allocUndersized.message,

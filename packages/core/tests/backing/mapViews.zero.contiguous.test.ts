@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { mapViews } from '../../src/backing/map-views';
 import { planLayout } from '../../src/plan/layout';
-import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';
+import { specFromPlaneBytes } from '../helpers/spec-from-bytes';
 
 const B4 = 4;
 

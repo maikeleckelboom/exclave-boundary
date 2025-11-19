@@ -17,7 +17,8 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vitepress": "catalog:"
   },
   "scripts": {
     "format": "prettier --write packages/**/* examples/**/*",
@@ -31,9 +32,9 @@
     "bench": "pnpm -w -F \"@seqlok/core\" run bench",
     "test:types": "pnpm -w -F \"@seqlok/core\" run test:types",
     "test:watch": "pnpm run test --watch",
+    "test:cov": "pnpm -w -F \"@seqlok/core\" run test:cov",
     "commitlint": "commitlint --color",
-    "example:01": "pnpm --filter @seqlok/core build && pnpm --filter ./examples/01-atomics-clock-offscreen-particles dev",
-    "example:02": "pnpm --filter @seqlok/core build && pnpm --filter ./examples/02-organic-swarm-particle-animation dev"
+    "example:01": "pnpm --filter @seqlok/core build && pnpm --filter ./examples/01-example dev"
   },
   "simple-git-hooks": {
     "commit-msg": "pnpm commitlint --edit $1"

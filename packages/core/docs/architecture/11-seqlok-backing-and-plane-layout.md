@@ -3,7 +3,7 @@
 Deterministic, allocation-free memory mapping for Seqlok.
 
 This doc explains how a validated **Plan** turns into concrete shared memory **Backings** and **TypedArray views**,
-including plane layout, alignment, and packing rules.
+including plane layout, packing rules, and how `mapViews` ties it together.
 
 It's written for people working _inside_ Seqlok (or doing advanced diagnostics), not for everyday users of
 `@seqlok/core`.
@@ -12,19 +12,26 @@ It's written for people working _inside_ Seqlok (or doing advanced diagnostics),
 
 ## 1. Mental Model: From Spec to Views
 
-There are two parallel ways to think about the pipeline:
+There are two parallel ways to think about the pipeline.
 
 ### 1.1 User-facing pipeline (golden path)
 
 ```ts
 const spec = defineSpec(/* ... */);
-const plan = planLayout(spec);
+
+// Layout planner: spec → Plan
+const plan = planSpec(spec);
+
+// Backing allocation: Plan → memory
 const backing = allocateShared(plan);
 
+// Envelope for cross-agent handoff
 const handoff = buildHandoff(plan, backing);
 // send `handoff` to another agent...
 
 const received = receiveHandoff(handoff);
+
+// Agent-local bindings
 const controller = bindController(spec, backing);
 const processor = bindProcessor(spec, received);
 ```
@@ -35,32 +42,32 @@ From the user's point of view:
 - `buildHandoff(plan, backing)` gives you "the envelope".
 - `bindController` / `bindProcessor` give you "the APIs".
 
-The _views_ and seqlocks are internal concerns of the backing + bindings code.
+The actual **plane layout** and **seqlock wiring** are internal concerns of the backing + bindings code.
 
 ---
 
 ### 1.2 Internal mental model
 
-Internally, we still reason in terms of:
+Internally we still reason in terms of:
 
 [
-\text{Spec} \xrightarrow{\text{planLayout}} \text{Plan}
-\xrightarrow{\text{allocate}}\text{Backing}
-\xrightarrow{\text{mapViews}}\text{Views}
+\text{Spec} \xrightarrow{\text{planSpec}} \text{Plan}
+\xrightarrow{\text{allocate*}} \text{Backing}
+\xrightarrow{\text{mapViews}} \text{Views}
 ]
 
 | Component   | Role                                       | Output / contents                                             |
 | :---------- | :----------------------------------------- | :------------------------------------------------------------ |
 | **Spec**    | User-defined param/meter structure         | —                                                             |
-| **Plan**    | Blueprint (plane sizes, offsets, slots)    | Total bytes, per-plane byte lengths, slot tables, hashes      |
+| **Plan**    | Blueprint (plane sizes, offsets, slots)    | Per-plane byte lengths, total bytes, slot tables, hashes      |
 | **Backing** | Concrete shared storage shaped by the plan | Contiguous SAB / per-plane SABs / shared `WebAssembly.Memory` |
-| **Views**   | TypedArray accessors per plane + seqlock   | `PF32`, `PI32`, `PB`, `PU`, `MF32`, `MF64`, `MU32`, `MU`      |
+| **Views**   | TypedArray accessors + seqlock control     | `PF32`, `PI32`, `PB`, `PU`, `MF32`, `MF64`, `MU32`, `MU`      |
 
 > **Indexing rule:** slot tables use **byte** `offset` and **element** `length`.
 > TypedArray index is always `elemIndex = byteOffset / BYTES_PER_ELEM[plane]`.
 
 `mapViews(plan, backing)` is the internal/advanced helper that does the offset math and produces the plane-level
-TypedArrays and `SeqPair`s for bindings. It is **not** part of the golden public flow and is never used from the
+TypedArrays and `SeqPair`s for bindings. It is **not** part of the normal public flow and is never called from the
 processor side.
 
 ---
@@ -69,7 +76,7 @@ processor side.
 
 ### 2.1 Canonical planes & element sizes
 
-These match the primitives doc and are the only planes used in ABI v1:
+These match the primitives doc and the `BYTES_PER_ELEM` constants; they are the only planes in ABI v1:
 
 | Plane  | Purpose       | Data stored                                       | Elem size |
 | :----- | :------------ | :------------------------------------------------ | :-------- |
@@ -84,8 +91,8 @@ These match the primitives doc and are the only planes used in ABI v1:
 
 Conventions:
 
-- Bool **params**: `PB` (0/1 bytes).
-- Bool **meters**: `MU32` (0/1 u32).
+- Bool **params** live in `PB` (0/1 bytes).
+- Bool **meters** live in `MU32` (0/1 u32).
 - Seqlock control is always `Uint32Array` (`PU` and `MU`).
 
 > **No DSL leakage.** Planes contain **raw numeric payload only** (floats, ints, counters, indices, flags).
@@ -93,46 +100,58 @@ Conventions:
 
 ---
 
-### 2.2 Alignment & packing rules
+### 2.2 Packing order & alignment invariants
 
-The planner enforces simple, predictable rules:
-
-1. **Plane alignment**
-
-   Each plane's base offset must be aligned to its element size:
-
-- `PF32`, `PI32`, `PU`, `MF32`, `MU32`, `MU` → 4-byte alignment
-- `MF64` → 8-byte alignment
-- `PB` → 1-byte alignment (trivially satisfied)
-
-2. **Packing order (stable)**
-
-   Global packing order is fixed and deterministic:
-
-   ```text
-   PF32 → PI32 → PB → PU → MF32 → MF64 → MU32 → MU
-   ```
-
-   That order is part of the ABI; changing it would be a breaking change.
-
-3. **Packing loop**
-
-   For each plane in that order:
-
-- Align the cursor to `BYTES_PER_ELEM[plane]` using `roundUpTo`.
-- Record `planeBaseOffset[plane] = cursor`.
-- Advance `cursor += planeByteLength[plane]`.
-
-The final cursor value is `bytesTotal` for `allocateShared(plan)`.
-
-We rely on helpers from the primitives module:
+Contiguous and wasm-shared backings use a single ABI-controlled packing order, exposed as:
 
 ```ts
-roundUpTo(offset, BYTES_PER_ELEM[plane]);
-isAligned(offset, plane); // invariant checks
+export const BACKING_PLANE_PACK_ORDER_V1: readonly PlaneKey[] = [
+  'MF64',
+  'PF32',
+  'PI32',
+  'PU',
+  'MF32',
+  'MU32',
+  'MU',
+  'PB',
+];
 ```
 
-If `isAligned` ever fails for a planned offset, that's a _plan bug_ and triggers an internal assertion.
+The planner guarantees that each entry in `plan.planes[plane]` is a whole-number multiple of `BYTES_PER_ELEM[plane]`.
+Given that, `computeBackingPlaneBases` just packs the planes back-to-back in that order:
+
+```ts
+export function computeBackingPlaneBases(planes: PlaneByteLengths): PlaneBases {
+  const bases = createZeroPlaneBases();
+  let cursor = 0;
+
+  for (const plane of BACKING_PLANE_PACK_ORDER_V1) {
+    bases[plane] = cursor;
+    cursor += planes[plane];
+  }
+
+  return bases;
+}
+```
+
+This ordering gives us:
+
+- `MF64` first → all subsequent planes start on an 8-byte multiple, so all 4-byte planes are naturally aligned.
+- `PB` last → 1-byte plane; alignment is trivial.
+
+Effective alignment rules:
+
+- `PF32`, `PI32`, `PU`, `MF32`, `MU32`, `MU` are **4-byte aligned**.
+- `MF64` is **8-byte aligned**.
+- `PB` is at least 1-byte aligned (and often 4-byte by construction).
+
+We don't need an extra `roundUpTo` at this layer; alignment is encoded into:
+
+- the `BACKING_PLANE_PACK_ORDER_V1` ABI, and
+- the requirement that `plan.planes[plane]` respects `BYTES_PER_ELEM[plane]`.
+
+If any of that is violated, it's treated as a planner/backing bug and caught by assertions/tests rather than
+“best-effort” packing.
 
 ---
 
@@ -145,79 +164,78 @@ Control planes `PU` and `MU` hold exactly the seqlock words for their domain:
 | `0`   | `LOCK`  | Odd during write, even when quiescent                      |
 | `1`   | `SEQ`   | Increments exactly once per successful commit (“one bump”) |
 
-The planner guarantees:
+The Plan guarantees:
 
-- There is exactly **one** param seqlock pair (`PU`) per backing.
-- There is exactly **one** meter seqlock pair (`MU`) per backing.
+- Exactly **one** param seqlock pair (`PU`) per backing.
+- Exactly **one** meter seqlock pair (`MU`) per backing.
 
 Bindings then wrap these via `createSeqPair`:
 
 ```ts
-const paramSeq = createSeqPair(PU, lockIndexP, seqIndexP);
-const meterSeq = createSeqPair(MU, lockIndexM, seqIndexM);
+const paramSeq = createSeqPair(views.PU, lockIndexP, seqIndexP);
+const meterSeq = createSeqPair(views.MU, lockIndexM, seqIndexM);
 ```
 
-> **Implementation note (optional):**
-> Internally we _may_ pad these control planes out to a cache-line size (e.g. 64 B) to reduce false sharing.
-> This is an implementation detail, not a public ABI guarantee.
+> **Implementation detail:** we _may_ over-allocate control planes to cache-line multiples (e.g. 64B) to reduce false
+> sharing. That's not part of the public ABI; it's just a backing implementation choice as long as the Plan is coherent.
 
 ---
 
 ## 3. Backing Flavors
 
-Backings are "how a Plan becomes actual memory". All flavors respect the same plan; bindings see the same logical layout
-and offsets regardless of backing flavor.
+Backings are "how a Plan becomes actual memory". All flavors respect the **same Plan**; bindings see the same logical
+layout and slot tables regardless of backing flavor.
 
 The three main strategies:
 
-| Flavor        | Container                                     | Mapping                                  | Use case                                     |
-| :------------ | :-------------------------------------------- | :--------------------------------------- | :------------------------------------------- |
-| `Shared`      | **One** `SharedArrayBuffer`                   | All planes slice the same SAB            | Golden path: best locality, simplest handoff |
-| `SharedSplit` | **One SAB per plane**                         | Each plane has its own SAB               | Advanced: isolation, tooling, debugging      |
-| `WasmShared`  | **One** `WebAssembly.Memory` (`shared: true`) | All views map over `memory.buffer` (SAB) | Advanced: WASM DSP engine owns the memory    |
+| Flavor             | `Backing.kind`         | Container                                    | Mapping                                  | Typical use case                               |
+| :----------------- | :--------------------- | :------------------------------------------- | :--------------------------------------- | :--------------------------------------------- |
+| Contiguous SAB     | `'shared'`             | **One** `SharedArrayBuffer`                  | All planes slice the same SAB            | Golden path: best locality, simplest handoff   |
+| Per-plane SAB      | `'shared-partitioned'` | **One SAB per plane**                        | Each plane has its own SAB               | Debugging, tooling, exotic memory governance   |
+| Shared Wasm memory | `'wasm-shared'`        | **One** `WebAssembly.Memory` (`shared:true`) | All views map over `memory.buffer` (SAB) | WASM DSP engines that own the main memory pool |
 
 ### 3.1 Public backing entry points
 
-Backings are created/attached via the backing layer:
+Backings are created via the backing layer:
 
 ```ts
 // Contiguous SAB (golden path)
-export function allocateShared(plan: Plan): SharedBacking;
+export function allocateShared<S extends SpecInput>(plan: Plan<S>): SharedBacking;
 
-// Separate SAB per plane (advanced)
-export function allocateSharedSplit(plan: Plan): SplitBacking;
+// Separate SAB per plane (advanced / tooling)
+export function allocateSharedPartitioned<S extends SpecInput>(
+  plan: Plan<S>,
+): SharedPartitionedBacking;
 
 // Shared WebAssembly.Memory (advanced)
-export function allocateWasmShared(plan: Plan, memory: WebAssembly.Memory): WasmBacking;
+export function allocateWasmShared<S extends SpecInput>(plan: Plan<S>): WasmSharedBacking;
 ```
 
-Characteristics:
+Common properties:
 
-- All three expect a **validated Plan**.
-- All enforce **bytesTotal** and per-plane byte-length invariants.
-- All throw typed `SeqlokError`s from the backing or env domains on failure.
+- All expect a **validated Plan**.
+- All enforce `bytesTotal` and per-plane byte-length invariants.
+- All throw typed `SeqlokError`s from the `backing.*` or `env.*` domains on failure.
 
-Bindings (`bindController`, `bindProcessor`) work against a normalized `Backing` abstraction; they do not care which
-flavor produced it.
+Bindings work against the union `Backing` abstraction; they do not care which flavor produced it.
 
 ---
 
-### 3.2 Shared (contiguous) – golden path
+### 3.2 `kind: 'shared'` – contiguous SAB (golden path)
 
 `allocateShared(plan)`:
 
-- Allocates a single `SharedArrayBuffer(bytesTotal)`.
-- Computes per-plane base offsets per the packing rules.
-- Records the SAB and the per-plane slices in the backing structure.
+- Allocates a single `SharedArrayBuffer(plan.bytesTotal)`.
+- Uses `computeBackingPlaneBases(plan.planes)` + `BACKING_PLANE_PACK_ORDER_V1` to establish per-plane base offsets.
+- Returns a `SharedBacking` the rest of the stack can use.
 
 Benefits:
 
 - Best cache locality.
-
 - Simple `buildHandoff(plan, backing)` envelope:
 
-  - One SAB reference.
-  - Plan metadata (hash, bytesTotal, per-plane lengths).
+  - Single SAB reference.
+  - Plan metadata (hash, `bytesTotal`, per-plane lengths).
 
 - Easiest to reason about for both JS and WASM consumers.
 
@@ -225,56 +243,57 @@ This is the **default** path used by examples and recommended for most use cases
 
 ---
 
-### 3.3 SharedSplit – one SAB per plane
+### 3.3 `kind: 'shared-partitioned'` – one SAB per plane
 
-`allocateSharedSplit(plan)`:
+`allocateSharedPartitioned(plan)`:
 
-- Allocates one SAB per plane:
+- Allocates one `SharedArrayBuffer` **per plane**:
 
   ```ts
-  PF32: new SharedArrayBuffer(bytes.PF32)
-  PI32: new SharedArrayBuffer(bytes.PI32)
-  ...
+  PF32: new SharedArrayBuffer(plan.planes.PF32);
+  PI32: new SharedArrayBuffer(plan.planes.PI32);
+  // ...
   ```
 
-- Still uses the same per-plane lengths as the plan; base offsets are implicitly `0` for each plane.
+- Each plane's base offset is implicitly `0` in its own SAB.
 
-- Returns a backing that implements the same logical `Backing` interface as `allocateShared`.
+- Returns a `SharedPartitionedBacking` that still implements the `Backing` union.
 
-Reasons you might want this:
+Reasons to use this:
 
-- Debugging / instrumentation tooling that needs to observe/replace planes individually.
-- Exotic memory governance setups where different planes have different lifetimes or budgets.
+- Debugging / diagnostics / tooling that wants to observe or swap planes individually.
+- Exotic memory governance where different planes have different budgets or lifetimes.
 
-Drawbacks:
+Tradeoffs:
 
-- Slightly worse locality (more dispersed memory).
-- Handoff becomes more complex if exposed across agents (more SAB links).
+- Worse locality than a single-SAB backing.
+- Handoffs involve more references if you surface all planes across agents.
+
+Internally, `mapViews` treats this variant specially:
+
+- It does **not** call `computeBackingPlaneBases`.
+- It validates each per-plane SAB has at least `plan.planes[plane]` bytes.
+- It constructs a per-plane TypedArray from offset `0` in each SAB.
 
 ---
 
-### 3.4 WasmShared – shared WebAssembly.Memory
+### 3.4 `kind: 'wasm-shared'` – shared WebAssembly.Memory
 
-`allocateWasmShared(plan, memory)`:
+`allocateWasmShared(plan)`:
 
-- Ensures `memory.buffer` is:
+- Allocates a `WebAssembly.Memory` with `{ shared: true }`.
+- Verifies its `buffer` is a `SharedArrayBuffer` and large enough for `plan.bytesTotal`.
+- Uses the same `BACKING_PLANE_PACK_ORDER_V1` + `computeBackingPlaneBases(plan.planes)` scheme as the contiguous SAB.
 
-  - A `SharedArrayBuffer`.
-  - Large enough to hold the planned layout at the chosen base offset.
+Typical deployment:
 
-- Computes plane base offsets inside `memory.buffer` using the same packing rules as `allocateShared`.
-
-- Returns a backing whose planes are just slices/views into `memory.buffer`.
-
-This is intended for:
-
-- Architectures where a WASM DSP engine (Rust/C/C++) owns a shared `WebAssembly.Memory`.
-- JS is "binding into" that memory rather than owning it.
+- A WASM DSP engine (Rust/C/C++) owns a shared `WebAssembly.Memory`.
+- JS bindings treat it as a backing and map Seqlok's views into that memory.
 
 Constraints:
 
-- Growth of `memory` **after** binding is allowed as long as the original layout remains valid (no shrink).
-- Shrinking or reusing `memory` for a different plan breaks invariants and is considered undefined behavior.
+- Growing `memory` **after** binding is allowed as long as the original layout stays valid.
+- Shrinking `memory` or reusing it for a different Plan is undefined behavior from Seqlok's POV.
 
 ---
 
@@ -282,59 +301,85 @@ Constraints:
 
 ### 4.1 `mapViews(plan, backing)` (internal / advanced)
 
-`mapViews` is the function that turns:
+`mapViews` turns:
 
-- `Plan` (byte lengths, base offsets, slot tables)
-- `Backing` (SABs or `WebAssembly.Memory.buffer`)
+- a `Plan` (plane byte lengths + slot tables), and
+- a `Backing` (SAB(s) or shared `WebAssembly.Memory`)
 
-into a bundle of concrete TypedArrays and seqlock pairs:
+into concrete TypedArrays and locks:
 
-- `Float32Array` / `Float64Array` / `Int32Array` / `Uint8Array` / `Uint32Array` instance per plane.
-- `SeqPair` for params (`PU`) and meters (`MU`).
+- `Float32Array` / `Float64Array` / `Int32Array` / `Uint8Array` / `Uint32Array` per plane.
+- `Uint32Array` views that hold the seqlock words for params (`PU`) and meters (`MU`).
 
 Conceptually:
 
 ```ts
 const views = mapViews(plan, backing);
 
-// example bits inside:
-views.PF32 = new Float32Array(sab, base.PF32, bytes.PF32 / 4);
-views.MF64 = new Float64Array(sab, base.MF64, bytes.MF64 / 8);
-// ...
-views.paramSeq = createSeqPair(views.PU, lockIndexP, seqIndexP);
-views.meterSeq = createSeqPair(views.MU, lockIndexM, seqIndexM);
+// examples:
+views.params.PF32; // Float32Array over PF32 plane
+views.params.PI32; // Int32Array over PI32 plane
+views.params.PB; // Uint8Array over PB plane
+views.params.PU; // Uint32Array over PU (control)
+
+views.meters.MF32; // Float32Array over MF32 plane
+views.meters.MF64; // Float64Array over MF64 plane
+views.meters.MU32; // Uint32Array over MU32 plane
+views.meters.MU; // Uint32Array over MU (control)
+
+// Seqlock integration
+views.locks.PU; // same underlying view as params.PU
+views.locks.MU; // same underlying view as meters.MU
 ```
+
+Internally:
+
+- For `kind: 'shared' | 'wasm-shared'`:
+
+  - Grab a single SAB via `getSharedBuffer(backing)`.
+  - Use `computeBackingPlaneBases(plan.planes)` to compute per-plane bases.
+  - Slice TypedArrays using those bases and `plan.planes[plane] / BYTES_PER_ELEM[plane]`.
+
+- For `kind: 'shared-partitioned'`:
+
+  - Each plane uses its own SAB.
+  - All bases are implicitly `0` for that plane.
+  - Per-plane SABs are checked against `plan.planes[plane]`.
 
 **Invariants:**
 
-- Each view's `byteOffset` equals the planned base offset for that plane.
-- `views[plane].byteLength` exactly matches `plan.bytes[plane]`.
-- `isAligned(baseOffset, plane)` holds for all planes.
-- `paramSeq` and `meterSeq` line up with the intended seqlock slots.
+- `views.bases[plane]` matches whatever `computeBackingPlaneBases(plan.planes)` returns for that flavor.
+- Each view's `byteLength` is exactly `plan.planes[plane]`.
+- For packed backings, `buf.byteLength >= plan.bytesTotal`; otherwise `backing.allocUndersized`.
+- Seqlock views (`locks.PU`, `locks.MU`) line up with the slots the bindings expect.
 
-> **Policy:** `mapViews` is **never** called from the processor side in normal usage.
-> Processor gets a `ReceivedHandoff` and `bindProcessor` builds its views entirely from that.
+> **Policy:** `mapViews` is an internal/advanced helper. In the canonical flow, the processor only sees a
+> `ReceivedHandoff` and `bindProcessor` builds its views from that; it does **not** call `mapViews` directly.
 
 ---
 
-### 4.2 Bindings and seqlock integration
+### 4.2 Bindings + seqlock integration (context)
 
-Bindings consume `mapViews` output and primitives:
+Bindings consume `mapViews` output:
 
-- Controller binding:
+- **Controller binding**:
 
-  - Uses param views + param `SeqPair` → `params.set` / `params.update`.
-  - Uses meter views + meter `SeqPair` → `meters.snapshot` / `meters.version`.
+  - Param views + param `SeqPair` → `params.set`, `params.update`, `params.stage`.
+  - Meter views + meter `SeqPair` → `meters.snapshot`, `meters.version`.
 
-- Processor binding:
+- **Processor binding**:
 
-  - Uses param views + param `SeqPair` → `params.within`.
-  - Uses meter views + meter `SeqPair` → `meters.publish` / `meters.stage`.
+  - Param views + param `SeqPair` → `params.within`.
+  - Meter views + meter `SeqPair` → `meters.publish`, `meters.stage`.
 
-Crucially:
+The backing layer:
 
-- The backing layer never embeds spec semantics.
-- The bindings layer never makes assumptions about physical layout beyond what the plan gives it.
+- Never embeds spec semantics ("this float is a filter cutoff").
+- Only knows: planes, bytes, and seqlock words.
+
+The bindings layer:
+
+- Never assumes more about physical layout than what Plan + backing expose.
 
 ---
 
@@ -342,16 +387,15 @@ Crucially:
 
 ### 5.1 Backing & mapping errors
 
-Typical backing-domain errors:
+Representative backing-domain errors:
 
-| Condition                         | Error code                 | Notes                                             |
-| :-------------------------------- | :------------------------- | :------------------------------------------------ |
-| Buffer too small for `bytesTotal` | `backing.undersized`       | Indicates a broken allocator or mismatched plan   |
-| WASM memory not shared            | `backing.wasmNotShared`    | `memory.buffer` must be a `SharedArrayBuffer`     |
-| Misaligned offset (internal bug)  | `internal.assertionFailed` | Indicates a broken planner or backing layout code |
+| Condition                         | Error code                    | Notes                                                    |
+| :-------------------------------- | :---------------------------- | :------------------------------------------------------- |
+| Buffer too small for `bytesTotal` | `backing.allocUndersized`     | Broken allocator or mismatched Plan                      |
+| Wasm memory not shared            | `backing.wasmMemoryNotShared` | `WebAssembly.Memory` wasn't created with `shared:true`   |
+| Misuse of partitioned backing     | `internal.assertionFailed`    | e.g. calling `getSharedBuffer` on `'shared-partitioned'` |
 
-None of these errors are "recoverable" in a meaningful way; they should be treated as configuration / programming
-faults.
+These are treated as configuration/programming faults, not runtime "soft failures".
 
 ### 5.2 Environment constraints
 
@@ -359,37 +403,43 @@ Environment-domain preconditions (roughly):
 
 - Browsers:
 
-  - `SharedArrayBuffer` requires **cross-origin isolation** (COOP/COEP headers).
-  - Workers / AudioWorklets must have access to the same agent cluster.
+  - `SharedArrayBuffer` requires cross-origin isolation (COOP/COEP).
+  - Workers / AudioWorklets must live in the same agent cluster.
 
-- Node / runtime:
+- Node / other runtimes:
 
-  - Requires support for shared memory (e.g. `worker_threads`).
-  - `SharedArrayBuffer` / `Atomics` must not be disabled.
+  - Need `SharedArrayBuffer` + `Atomics` support.
+  - Worker model must allow sharing SAB between threads.
 
-Typical strategy:
+Allocators check these once and throw `env.*` codes if shared memory is unavailable. Callers are expected to fail fast
+and either:
 
-- Backing allocators check these conditions once and throw an `env.*` error domain code if shared memory is unavailable.
-- Callers are expected to _fail fast_ and either:
+- disable Seqlok-backed features, or
+- refuse configurations that claim to be "real-time" without SAB support.
 
-  - Disable Seqlok-backed features, or
-  - Refuse to start a configuration that claims to be "real-time" but lacks SAB.
-
-There is **no** postMessage/clone "fallback" mode; emulating shared memory with copies would violate Seqlok's
-guarantees.
+There is **no** postMessage/clone "fallback mode"; copying would violate Seqlok's core guarantees.
 
 ---
 
 ## 6. Backing Variants & ABI Stability
 
-Although backing implementations can evolve internally (extra padding, different SAB allocation strategies, etc.), the
-ABI constraints for v1 are:
+Backing implementations can evolve internally (padding, different SAB allocation strategies, diagnostics helpers), but
+ABI v1 constrains:
 
 - Plane set is fixed: `PF32`, `PI32`, `PB`, `PU`, `MF32`, `MF64`, `MU32`, `MU`.
-- Packing order is fixed and deterministic.
-- Plane byte lengths and base offsets are determined **only by** the Plan.
-- Control planes `PU`/`MU` always contain a single seqlock pair `[LOCK, SEQ]`.
-- Backing flavor is not observable through the binding APIs – only performance and debug tooling may care.
+
+- Packing order for contiguous / wasm backings is fixed by `BACKING_PLANE_PACK_ORDER_V1`:
+
+  ```text
+  MF64 → PF32 → PI32 → PU → MF32 → MU32 → MU → PB
+  ```
+
+- Plane byte lengths and bases are determined **only** by the Plan.
+
+- Control planes `PU` and `MU` always contain a single seqlock pair `[LOCK, SEQ]`.
+
+- Backing flavor (`'shared'` vs `'shared-partitioned'` vs `'wasm-shared'`) is not observable through the binding APIs;
+  only performance/tooling might care.
 
 As long as those invariants hold, backings are interchangeable from the perspective of:
 
@@ -405,23 +455,23 @@ Backing & plane layout code has a very specific personality:
 
 - **Backings are dumb.**
 
-  - They know about bytes, SABs, and TypedArray views.
-  - They do **not** know about "filters", "meters", "params", or any domain semantics.
+  - They know bytes, SABs, TypedArrays, and seqlock words.
+  - They do **not** know about "filters", "meters", or any domain semantics.
 
 - **All cleverness lives in Plan + bindings.**
 
-  - Plan decides how bytes are carved up.
+  - The planner decides how bytes are carved up.
   - Bindings decide how to _use_ them (seqlock protocol, type-safe views, APIs).
 
 - **Zero allocations in the hot path.**
 
-  - `allocateShared*` / `allocateWasmShared` / `mapViews` are setup-time only.
+  - `allocateShared*`, `allocateWasmShared`, `allocateSharedPartitioned`, and `mapViews` are setup-time only.
   - `params.within`, `meters.publish`, `meters.snapshot` never allocate backing or views.
 
 - **Strong invariants, loud failures.**
 
-  - Misaligned offsets, undersized buffers, and non-shared WASM memory are all treated as hard errors.
-  - There is no silent "best effort" layout – the planner + backing pair must be correct.
+  - Undersized buffers, non-shared WASM memory, and layout mismatches are hard errors.
+  - There is no "best effort" layout; the planner + backing pair must be correct.
 
-If you're working on this layer, the goal is not to be clever; it's to be boring, predictable, and brutally clear about
-where every byte lives. Everything above you depends on that.
+If you're working on this layer, the goal is not to be clever. The goal is to be boring, predictable, and painfully
+explicit about where every byte lives. Everything above you depends on that staying true.

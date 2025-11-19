@@ -1,13 +1,12 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 interface BenchSample {
   readonly name: string;
   readonly hz: number;
   readonly min: number;
   readonly max: number;
-  readonly mean: number;
+  readonly mean: number; // milliseconds
   readonly p75: number;
   readonly p99: number;
   readonly p995: number;
@@ -28,249 +27,242 @@ interface BenchReport {
   readonly files: readonly BenchFile[];
 }
 
-interface MicroOpRow {
-  readonly operation: string;
-  readonly meanUs: number;
-  readonly hz: number;
-}
-
-interface SetupRow {
+interface OpRef {
   readonly label: string;
-  readonly meanMs: number;
-  readonly hz: number;
+  readonly fileSuffix: string;
+  readonly groupMatch: string;
+  readonly benchName: string;
+}
+
+interface ChartRow {
+  readonly label: string;
+  readonly valueUs: number;
 }
 
 /**
- * Locate a bench file by suffix.
+ * Load bench-results.json as a typed report.
  */
-function findFile(report: BenchReport, needle: string): BenchFile {
-  const file = report.files.find((f) => f.filepath.endsWith(needle));
+function loadReport(path: string): BenchReport {
+  const raw = readFileSync(path, 'utf8');
+  const parsed = JSON.parse(raw) as BenchReport;
+  return parsed;
+}
+
+/**
+ * Look up a single benchmark mean in µs.
+ */
+function findMeanUs(report: BenchReport, ref: OpRef): number {
+  const file = report.files.find((f) => f.filepath.endsWith(ref.fileSuffix));
   if (!file) {
-    throw new Error(
-      `Benchmark file ending with "${needle}" not found in bench-results.json`,
-    );
+    throw new Error(`Bench file not found for suffix "${ref.fileSuffix}"`);
   }
-  return file;
-}
 
-/**
- * In all current benches, each file has exactly one group.
- * Keep this simple but explicit.
- */
-function getSingleGroup(file: BenchFile): BenchGroup {
-  if (file.groups.length !== 1) {
-    throw new Error(
-      `Expected exactly one group in "${file.filepath}", found ${String(file.groups.length)}`,
-    );
+  const group = file.groups.find((g) => g.fullName.includes(ref.groupMatch));
+  if (!group) {
+    throw new Error(`Group "${ref.groupMatch}" not found in file "${file.filepath}"`);
   }
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  return file.groups[0]!;
-}
 
-/**
- * Find a benchmark by its name within a group.
- */
-function findBench(group: BenchGroup, name: string): BenchSample {
-  const bench = group.benchmarks.find((b) => b.name === name);
+  const bench = group.benchmarks.find((b) => b.name === ref.benchName);
   if (!bench) {
-    throw new Error(`Benchmark "${name}" not found in group "${group.fullName}"`);
+    throw new Error(
+      `Benchmark "${ref.benchName}" not found in group "${group.fullName}"`,
+    );
   }
-  return bench;
+
+  // JSON uses milliseconds; we want microseconds.
+  return bench.mean * 1000;
 }
 
 /**
- * Convert throughput to mean time per operation.
+ * Render a compact left-aligned ASCII bar chart with nicely aligned numbers.
  */
-function meanMicrosFromHz(hz: number): number {
-  if (hz <= 0) {
-    throw new Error(`Invalid hz value: ${String(hz)}`);
-  }
-  // 1 / hz seconds per op → µs
-  return 1_000_000 / hz;
-}
-
-function meanMillisFromHz(hz: number): number {
-  if (hz <= 0) {
-    throw new Error(`Invalid hz value: ${String(hz)}`);
-  }
-  // 1 / hz seconds per op → ms
-  return 1_000 / hz;
-}
-
-/**
- * Collect hot-path micro operations into a flat list.
- */
-function collectMicroOps(report: BenchReport): MicroOpRow[] {
-  const rows: MicroOpRow[] = [];
-
-  const seqlockFile = findFile(report, 'seqlock.bench.ts');
-  const seqlockGroup = getSingleGroup(seqlockFile);
-
-  const paramFile = findFile(report, 'param-operations.bench.ts');
-  const paramGroup = getSingleGroup(paramFile);
-
-  const metersFile = findFile(report, 'array-vs-stage-and-meters.bench.ts');
-  const metersGroup = getSingleGroup(metersFile);
-
-  const push = (operation: string, bench: BenchSample): void => {
-    rows.push({
-      operation,
-      meanUs: meanMicrosFromHz(bench.hz),
-      hz: bench.hz,
-    });
-  };
-
-  // Seqlock primitives
-  push(
-    'Seqlock tryRead uncontended',
-    findBench(seqlockGroup, 'tryRead uncontended (spin=0, retry=0)'),
+function renderAsciiChart(title: string, rows: readonly ChartRow[]): string {
+  const maxLabelLen = rows.reduce(
+    (acc, row) => (row.label.length > acc ? row.label.length : acc),
+    0,
   );
-  push('Seqlock publish uncontended', findBench(seqlockGroup, 'publish uncontended'));
+  const maxValue = rows.reduce((acc, row) => (row.valueUs > acc ? row.valueUs : acc), 0);
 
-  // Controller / processor param ops
-  push(
-    'controller.params.set (two scalars)',
-    findBench(paramGroup, 'controller.params.set (two scalars)'),
-  );
-  push(
-    'controller.params.update (3 scalars)',
-    findBench(paramGroup, 'controller.params.update (3 scalars)'),
-  );
-  push(
-    'controller.params.update (3 scalars + f32[8])',
-    findBench(paramGroup, 'controller.params.update (3 scalars + f32[8])'),
-  );
-  push(
-    'controller.params.stage (eqBands f32[8])',
-    findBench(paramGroup, 'controller.params.stage (eqBands f32[8])'),
-  );
-  push(
-    'processor.params.within (scalars only)',
-    findBench(paramGroup, 'processor.params.within (scalars only)'),
-  );
-  push(
-    'processor.params.within (scalars + eqBands f32[8])',
-    findBench(paramGroup, 'processor.params.within (scalars + eqBands f32[8])'),
-  );
-  push(
-    'interleaved controller.update + processor.within',
-    findBench(paramGroup, 'interleaved controller.update + processor.within'),
-  );
+  const maxBarWidth = 10;
 
-  // MeterWriter sugar
-  push(
-    'meter scalar: writer.level(0.75)',
-    findBench(metersGroup, 'meter scalar: writer.level(0.75)'),
-  );
-  push(
-    "meter scalar: writer.set('level', 0.75)",
-    findBench(metersGroup, "meter scalar: writer.set('level', 0.75)"),
-  );
-  push(
-    "meter array: writer.stage('spectrum', cb)",
-    findBench(metersGroup, "meter array: writer.stage('spectrum', cb)"),
-  );
-
-  // Sort by mean ascending for nicer tables.
-  return [...rows].sort((a, b) => a.meanUs - b.meanUs);
-}
-
-/**
- * Collect end-to-end setup benchmarks.
- */
-function collectSetup(report: BenchReport): SetupRow[] {
-  const file = findFile(report, 'e2e-pipeline.bench.ts');
-  const group = getSingleGroup(file);
-
-  const mkRow = (label: string, benchName: string): SetupRow => {
-    const bench = findBench(group, benchName);
-    return {
-      label,
-      meanMs: meanMillisFromHz(bench.hz),
-      hz: bench.hz,
-    };
-  };
-
-  return [
-    mkRow('Small spec', 'small spec: full setup'),
-    mkRow('Medium spec', 'medium spec: full setup'),
-    mkRow('Large spec', 'large spec: full setup'),
-  ];
-}
-
-/**
- * Render a simple markdown performance summary.
- * This intentionally covers the "hot micro" and "E2E" parts;
- * higher-level narrative stays hand-written.
- */
-function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
   const lines: string[] = [];
+  lines.push(title);
+  lines.push('');
 
-  const runIso = new Date().toISOString();
-
-  lines.push('<!-- GENERATED FILE: do not edit by hand.');
-  lines.push('     Regenerate via: pnpm bench:report -->');
-  lines.push('');
-  lines.push('# Bench Results');
-  lines.push('');
-  lines.push(
-    '> Generated from `bench-results.json` by `scripts/format-bench.ts`.' +
-      ' Re-run `pnpm bench:report` after changing benchmarks.',
-  );
-  lines.push('');
-  lines.push(`_Bench run: ${runIso}_`);
-  lines.push('');
-  lines.push('## Hot path micro-operations');
-  lines.push('');
-  lines.push('| Operation | Mean time (µs) | Throughput (M ops/s) |');
-  lines.push('| --- | ---: | ---: |');
-
-  for (const row of micro) {
-    const meanUs = row.meanUs.toFixed(3);
-    const mhz = (row.hz / 1_000_000).toFixed(2);
-    lines.push(`| ${row.operation} | ${meanUs} | ${mhz} |`);
+  for (const row of rows) {
+    const barLength =
+      maxValue > 0 ? Math.max(1, Math.round((row.valueUs / maxValue) * maxBarWidth)) : 1;
+    const bar = '█'.repeat(barLength).padEnd(maxBarWidth, ' ');
+    const labelPadded = row.label.padEnd(maxLabelLen, ' ');
+    const valueStr = row.valueUs.toFixed(3).padStart(7, ' ');
+    lines.push(`${labelPadded}  ${bar}  ${valueStr}`);
   }
-
-  lines.push('');
-  lines.push('## E2E setup: `spec → plan → backing → handoff → bindings`');
-  lines.push('');
-  lines.push('| Spec size | Mean setup time (ms) | Setups per second |');
-  lines.push('| --- | ---: | ---: |');
-
-  for (const row of setup) {
-    const meanMs = row.meanMs.toFixed(3);
-    const setupsPerSec = Math.round(row.hz).toString();
-    lines.push(`| ${row.label} | ${meanMs} | ${setupsPerSec} |`);
-  }
-
-  lines.push('');
-  lines.push(
-    '_Note:_ numbers are from a single Node 20 + Vitest bench run and are meant for relative comparison, not absolute tuning.',
-  );
-  lines.push('');
 
   return lines.join('\n');
 }
 
+/**
+ * Define the dataset for the cost ladder chart.
+ */
+function buildCostLadder(report: BenchReport): ChartRow[] {
+  const refs: readonly OpRef[] = [
+    {
+      label: 'Seqlock publish',
+      fileSuffix: 'seqlock.bench.ts',
+      groupMatch: 'seqlock (micro)',
+      benchName: 'publish uncontended',
+    },
+    {
+      label: 'params.stage',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.stage (eqBands f32[8])',
+    },
+    {
+      label: 'writer.set',
+      fileSuffix: 'array-vs-stage-and-meters.bench.ts',
+      groupMatch: 'MeterWriter sugar',
+      benchName: "meter scalar: writer.set('level', 0.75)",
+    },
+    {
+      label: 'writer.level',
+      fileSuffix: 'array-vs-stage-and-meters.bench.ts',
+      groupMatch: 'MeterWriter sugar',
+      benchName: 'meter scalar: writer.level(0.75)',
+    },
+    {
+      label: 'Seqlock tryRead',
+      fileSuffix: 'seqlock.bench.ts',
+      groupMatch: 'seqlock (micro)',
+      benchName: 'tryRead uncontended (spin=0, retry=0)',
+    },
+    {
+      label: 'params.update',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.update (3 scalars)',
+    },
+    {
+      label: 'params.set',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.set (two scalars)',
+    },
+    {
+      label: 'params.hydrate',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.hydrate (3 scalars + f32[8])',
+    },
+    {
+      label: 'params.update+array',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.update (3 scalars + f32[8])',
+    },
+    {
+      label: 'processor.within',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'processor.params.within (scalars only)',
+    },
+    {
+      label: 'processor.within+arr',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'processor.params.within (scalars + eqBands f32[8])',
+    },
+    {
+      label: 'writer.stage',
+      fileSuffix: 'array-vs-stage-and-meters.bench.ts',
+      groupMatch: 'MeterWriter sugar',
+      benchName: "meter array: writer.stage('spectrum', cb)",
+    },
+    {
+      label: 'interleaved',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'interleaved controller.update + processor.within',
+    },
+  ];
+
+  return refs.map((ref) => ({
+    label: ref.label,
+    valueUs: findMeanUs(report, ref),
+  }));
+}
+
+/**
+ * Define the dataset for the param write strategies chart.
+ */
+function buildParamWriteChart(report: BenchReport): ChartRow[] {
+  const refs: readonly OpRef[] = [
+    {
+      label: 'stage (array only)',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.stage (eqBands f32[8])',
+    },
+    {
+      label: 'update (scalars)',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.update (3 scalars)',
+    },
+    {
+      label: 'set (scalars)',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.set (two scalars)',
+    },
+    {
+      label: 'hydrate (mixed)',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.hydrate (3 scalars + f32[8])',
+    },
+    {
+      label: 'update+array',
+      fileSuffix: 'param-operations.bench.ts',
+      groupMatch: 'Parameter operations',
+      benchName: 'controller.params.update (3 scalars + f32[8])',
+    },
+  ];
+
+  return refs.map((ref) => ({
+    label: ref.label,
+    valueUs: findMeanUs(report, ref),
+  }));
+}
+
 function main(): void {
-  const scriptDir = dirname(fileURLToPath(import.meta.url));
+  // Run from packages/core; bench-results.json is written there by pnpm bench:report
+  const reportPath = resolve(process.cwd(), 'bench-results.json');
+  const report = loadReport(reportPath);
 
-  const jsonPath = process.argv[2] ?? join(scriptDir, '..', 'bench-results.json');
+  const costLadder = buildCostLadder(report);
+  const paramWrites = buildParamWriteChart(report);
 
-  const outPath =
-    process.argv[3] ??
-    join(scriptDir, '..', 'docs', 'performance', 'bench-results.generated.md');
+  const costChart = renderAsciiChart(
+    'Hot Path Operations (µs) – lower is better',
+    costLadder,
+  );
+  const paramChart = renderAsciiChart(
+    'Parameter Writes (µs) – lower is better',
+    paramWrites,
+  );
 
-  const raw = readFileSync(jsonPath, 'utf8');
-  const report = JSON.parse(raw) as BenchReport;
-
-  const micro = collectMicroOps(report);
-  const setup = collectSetup(report);
-  const markdown = renderMarkdown(micro, setup);
-
-  writeFileSync(outPath, markdown, 'utf8');
+  // Single Markdown block, easy to paste into docs.
   // eslint-disable-next-line no-console
-  console.log(`Bench summary written to ${outPath}`);
+  console.log('```');
+  // eslint-disable-next-line no-console
+  console.log(costChart);
+  // eslint-disable-next-line no-console
+  console.log();
+  // eslint-disable-next-line no-console
+  console.log(paramChart);
+  // eslint-disable-next-line no-console
+  console.log('```');
 }
 
 main();

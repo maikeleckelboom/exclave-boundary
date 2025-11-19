@@ -115,7 +115,7 @@ export type ProcessorMeterView<S extends SpecInput> = MeterShape<S>;
  * type Spec = typeof spec;
  *
  * // Full snapshot (all params):
- * type FullParamsSnapshot = SnapshotOf<Spec>;
+ * type ParamsSnapshot = SnapshotOf<Spec>;
  *
  * // Partial snapshot for specific params:
  * type GainAndModeSnapshot = SnapshotOf<Spec, ['gain', 'mode']>;
@@ -151,7 +151,7 @@ export type SnapshotOf<
  * type Spec = typeof spec;
  *
  * // Full meter snapshot (all meters):
- * type FullMetersSnapshot = SnapshotMetersOf<Spec>;
+ * type MetersSnapshot = SnapshotMetersOf<Spec>;
  *
  * // Partial snapshot for a HUD:
  * type HudMetersSnapshot = SnapshotMetersOf<Spec, ['engineFps', 'workMs']>;

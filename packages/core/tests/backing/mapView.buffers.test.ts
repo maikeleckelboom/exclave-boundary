@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { mapViews } from '../../src/backing/map-views';
 import { planLayout } from '../../src/plan/layout';
-import { specFromPlaneBytes } from '../__helpers__/spec-from-bytes';
+import { specFromPlaneBytes } from '../helpers/spec-from-bytes';
 
 import type { SharedBacking, WasmSharedBacking } from '../../src/backing/types';
 import type { PlaneByteLengths } from '../../src/plan/types';
