@@ -1,5 +1,3 @@
-// File: packages/core/bench/observer-reads.bench.ts
-
 /**
  * @fileoverview
  * Observer read-path micro benchmarks.

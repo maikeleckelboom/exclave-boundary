@@ -43,18 +43,13 @@ export function getBackingBuffer(backing: Backing): SharedArrayBuffer {
   switch (backing.kind) {
     case "shared":
       return backing.sab;
-
     case "wasm-shared":
       // `allocateWasmShared` ensures this is a SharedArrayBuffer.
-      // We rely on that invariant here to keep this helper hot-path friendly.
+      // We rely on that invariant to keep this helper hot-path friendly.
       return backing.memory.buffer as unknown as SharedArrayBuffer;
-
     case "shared-partitioned":
       break;
-
     default: {
-      // Exhaustiveness guard in case BackingKind ever grows.
-      // noinspection UnnecessaryLocalVariableJS
       const _exhaustive: never = backing;
       void _exhaustive;
     }

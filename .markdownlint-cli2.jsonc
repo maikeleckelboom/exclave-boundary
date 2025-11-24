@@ -7,7 +7,7 @@
     "**/dist/**",
     "**/coverage/**",
     "**/bench-results.generated.md",
-    "**/bench-results.json",
+    "**/bench-results.json"
   ],
   "config": {
     "extends": "markdownlint/style/prettier",
@@ -28,7 +28,7 @@
     // allow duplicate headings in different sections
     // JetBrains-style table layout
     "MD060": {
-      "style": "leading_and_trailing",
-    },
-  },
+      "style": "leading_and_trailing"
+    }
+  }
 }

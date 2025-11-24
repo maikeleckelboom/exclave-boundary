@@ -1,6 +1,4 @@
-// File: packages/core/scripts/format-bench.ts
-
-import { copyFileSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { copyFileSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -239,7 +237,10 @@ function collectSetup(report: BenchReport): SetupRow[] {
 
   const patterns = [
     { label: "Small spec", pattern: /small spec: full setup/i },
-    { label: "Medium spec", pattern: /medium spec: full setup/i },
+    {
+      label: "Medium spec",
+      pattern: /medium spec: full setup/i,
+    },
     { label: "Large spec", pattern: /large spec: full setup/i },
   ];
 
@@ -427,19 +428,22 @@ function renderAsciiChart(title: string, rows: readonly ChartRow[]): string {
     return `${title}\n\n(no data)`;
   }
 
-  const maxLabelLen = rows.reduce(
+  // Sort by ascending time (fastest first)
+  const sorted = [...rows].sort((a, b) => a.valueUs - b.valueUs);
+
+  const maxLabelLen = sorted.reduce(
     (acc, row) => (row.label.length > acc ? row.label.length : acc),
     0,
   );
-  const maxValue = rows.reduce(
+  const maxValue = sorted.reduce(
     (acc, row) => (row.valueUs > acc ? row.valueUs : acc),
     0,
   );
 
-  const maxBarWidth = 10;
+  const maxBarWidth = 20;
   const lines: string[] = [title, ""];
 
-  for (const row of rows) {
+  for (const row of sorted) {
     const barLength =
       maxValue > 0
         ? Math.max(1, Math.round((row.valueUs / maxValue) * maxBarWidth))
@@ -528,15 +532,10 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
 
   if (micro.length > 0) {
     lines.push(
-      `| ${opHeader.padEnd(operationWidth, " ")} | ${meanHeader.padStart(
-        meanWidth,
-        " ",
-      )} | ${thrHeader.padStart(throughputWidth, " ")} |`,
+      `| ${opHeader.padEnd(operationWidth, " ")} | ${meanHeader.padStart(meanWidth, " ")} | ${thrHeader.padStart(throughputWidth, " ")} |`,
     );
     lines.push(
-      `|${"-".repeat(operationWidth + 2)}|${"-".repeat(
-        meanWidth + 1,
-      )}:|${"-".repeat(throughputWidth + 1)}:|`,
+      `|${"-".repeat(operationWidth + 2)}|${"-".repeat(meanWidth + 1)}:|${"-".repeat(throughputWidth + 1)}:|`,
     );
 
     for (let i = 0; i < micro.length; i += 1) {
@@ -551,10 +550,7 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
       }
 
       lines.push(
-        `| ${row.operation.padEnd(operationWidth, " ")} | ${meanStr.padStart(
-          meanWidth,
-          " ",
-        )} | ${thrStr.padStart(throughputWidth, " ")} |`,
+        `| ${row.operation.padEnd(operationWidth, " ")} | ${meanStr.padStart(meanWidth, " ")} | ${thrStr.padStart(throughputWidth, " ")} |`,
       );
     }
   } else {
@@ -567,15 +563,10 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
 
   if (setup.length > 0) {
     lines.push(
-      `| ${specHeader.padEnd(specWidth, " ")} | ${setupHeader.padStart(
-        setupWidth,
-        " ",
-      )} | ${setupsPerSecHeader.padStart(setupsPerSecWidth, " ")} |`,
+      `| ${specHeader.padEnd(specWidth, " ")} | ${setupHeader.padStart(setupWidth, " ")} | ${setupsPerSecHeader.padStart(setupsPerSecWidth, " ")} |`,
     );
     lines.push(
-      `|${"-".repeat(specWidth + 2)}|${"-".repeat(
-        setupWidth + 1,
-      )}:|${"-".repeat(setupsPerSecWidth + 1)}:|`,
+      `|${"-".repeat(specWidth + 2)}|${"-".repeat(setupWidth + 1)}:|${"-".repeat(setupsPerSecWidth + 1)}:|`,
     );
 
     for (let i = 0; i < setup.length; i += 1) {
@@ -594,10 +585,7 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
       }
 
       lines.push(
-        `| ${row.label.padEnd(specWidth, " ")} | ${meanStr.padStart(
-          setupWidth,
-          " ",
-        )} | ${perSecStr.padStart(setupsPerSecWidth, " ")} |`,
+        `| ${row.label.padEnd(specWidth, " ")} | ${meanStr.padStart(setupWidth, " ")} | ${perSecStr.padStart(setupsPerSecWidth, " ")} |`,
       );
     }
   } else {

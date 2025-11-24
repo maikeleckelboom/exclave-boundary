@@ -204,8 +204,6 @@ export interface MeterBuilders {
  *     const spec = defineSpec({ id: 'foo', params: { ... } });
  *   here we enforce `S extends SpecInput`.
  */
-
-// Builder form: unconstrained, `const S` for maximal literal preservation.
 export function defineSpec<const S>(
   build: (api: {
     readonly param: ParamBuilders;
@@ -213,10 +211,8 @@ export function defineSpec<const S>(
   }) => S,
 ): S;
 
-// Plain-object form: must already be a SpecInput.
 export function defineSpec<S extends SpecInput>(spec: S): S;
 
-// Implementation shared by both overloads.
 export function defineSpec<S>(
   arg:
     | S

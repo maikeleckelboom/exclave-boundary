@@ -23,7 +23,7 @@
   ],
   "scripts": {
     "bench": "vitest bench --reporter=verbose --run",
-    "bench:format": "tsx scripts/format-bench.ts --clean",
+    "bench:format": "tsx scripts/format-bench.ts",
     "bench:report": "pnpm run bench && pnpm run bench:format",
     "lint": "eslint src tests bench scripts",
     "lint:fix": "eslint src tests bench scripts --fix",

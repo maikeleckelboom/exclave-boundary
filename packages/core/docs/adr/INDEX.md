@@ -195,6 +195,7 @@ This turns the ADR folder into a map of "why" instead of a graveyard of forgotte
 - [ADR-00X-introduce-seqlok-compose-for-system-level-composition.md](./ADR-00X-introduce-seqlok-compose-for-system-level-composition.md)
 - [ADR-00Y-mwmr-architecture.md](./ADR-00Y-mwmr-architecture.md)
 - [ADR-00Z-observer-binding-role.md](./ADR-00Z-observer-binding-role.md)
+- [ADR-012-bind-observer-telemetry-and-multi-reader-rationale.md](ADR-012-bind-observer-telemetry-and-multi-reader-rationale.md)
 
 Each ADR file documents one decision, its context, the chosen option, and consequences.
 

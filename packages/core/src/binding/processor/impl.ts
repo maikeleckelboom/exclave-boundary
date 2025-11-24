@@ -205,7 +205,6 @@ function readParamScalar(
     }
     case "PI32": {
       const at = ensurePlane(views.PI32, "param.scalar", "PI32");
-      // Signed 32-bit coercion
       return readNumberAt(at, i, "param.scalar") | 0;
     }
     case "PB": {
