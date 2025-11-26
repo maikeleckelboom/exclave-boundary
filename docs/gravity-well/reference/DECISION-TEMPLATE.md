@@ -324,36 +324,6 @@ Ask:
 
 ---
 
-## Using This Template
-
-### In VS Code
-1. Copy template from above
-2. Create new file: `DECISION-XXX-brief-title.md`
-3. Fill out sections
-4. Save to `/docs/adr/` if significant, or package root if local
-
-### From Command Line
-```bash
-# Quick decision
-cat > DECISION-042.md << 'EOF'
-# [DECISION-042] Brief Title
-**Date**: $(date +%Y-%m-%d)
-**Status**: Proposed
-
-## Context
-...
-
-## Decision
-**We will**: ...
-EOF
-
-# Then edit and commit
-git add DECISION-042.md
-git commit -m "docs: decision on X"
-```
-
----
-
 ## Review Cadence
 
 - **Weekly**: Review recent decisions, ensure alignment

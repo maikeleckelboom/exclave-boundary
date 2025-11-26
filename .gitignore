@@ -45,12 +45,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 Thumbs.db
 
-# Benchmark files
+# benchmark results
 packages/**/bench-results.json
 
-# Temporary
+# temporary
 seqlok-*.md
 seqlok-*.txt
-
-# TLA+ CLI jar
-tools/tla/tla2tools.jar
+docs/REPO_RULE_BOOK.md

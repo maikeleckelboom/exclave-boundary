@@ -299,23 +299,4 @@ You can evolve this at any pace; it should not block Seqlok v1.0.
 
 ---
 
-## Weekly Package Review Snippet
-
-Use this as a quick manual ritual:
-
-```bash
-# 1. Run tests and typecheck across the monorepo
-pnpm test
-pnpm tsc -b
-
-# 2. Check for any in src (public-ish code)
-grep -R ": any" packages/*/src --include="*.ts" | grep -v ".test.ts" || echo "No explicit any types found."
-
-# 3. Scan package READMEs (presence only)
-for pkg in packages/*; do
-  echo "Package: $pkg"
-  ls "$pkg/README.md" 2>/dev/null || echo "  -> README.md missing"
-done
-```
-
 Update this file when a package changes phase (e.g. from 🔴 to 🟡 or 🟡 to ✅).
