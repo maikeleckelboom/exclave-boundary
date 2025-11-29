@@ -1,7 +1,10 @@
 /**
- * @fileoverview
- * Build JSON exports of the Seqlok error registry that conform to
- * `error-registry.schema.json`.
+ * JSON schema export utilities.
+ *
+ * @remarks
+ * Post-v1.0 candidate for extraction to `@seqlok/schema` when:
+ * - Cross-language ports (Rust/C++) need formal ABI contracts
+ * - Schema versioning must evolve independently of introspect
  */
 
 import { ALL_DOMAINS } from "./all-domains";

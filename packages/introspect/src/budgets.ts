@@ -10,7 +10,7 @@
 import {
   createIntrospectError,
   type IntrospectCounterDetails,
-} from "./errors/error";
+} from "./errors/introspect";
 
 /**
  * Introspect budgets for various introspection limits.

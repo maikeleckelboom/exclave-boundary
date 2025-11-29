@@ -47,6 +47,7 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "rollup": "catalog:",
-    "rollup-plugin-dts": "catalog:"
+    "rollup-plugin-dts": "catalog:",
+    "vitest": "catalog:"
   }
 }

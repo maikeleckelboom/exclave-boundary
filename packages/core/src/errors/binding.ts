@@ -94,19 +94,14 @@ export interface BindingCoherentRetryDetails extends ErrorDetails {
   readonly spins?: number;
 }
 
-export interface SnapshotRetryDetails extends BindingCoherentRetryDetails {
-  readonly section: "params" | "meters";
-}
-
 /**
  * Details for snapshot/coherent retry exhaustion.
  *
  * Binding adds section information on top of generic retry metrics.
  */
-export interface BindingSnapshotRetryDetails extends ErrorDetails {
+export interface BindingSnapshotRetryDetails
+  extends BindingCoherentRetryDetails {
   readonly section: "params" | "meters";
-  readonly spins?: number;
-  readonly retries?: number;
 }
 
 interface BindingDetailsByKey {

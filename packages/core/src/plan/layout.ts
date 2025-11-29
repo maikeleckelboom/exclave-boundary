@@ -19,8 +19,8 @@ import {
   withAlignedSeqlockForMeters,
   withAlignedSeqlockForParams,
 } from "./validate";
-import { createPlanError } from "../errors/codes/plan";
-import { createSpecError } from "../errors/codes/spec";
+import { createPlanError } from "../errors/plan";
+import { createSpecError } from "../errors/spec";
 import { hashSpec } from "../spec/hash";
 
 import type { EntrySlot, LockStrideBytes, Plan, PlanOptions } from "./types";

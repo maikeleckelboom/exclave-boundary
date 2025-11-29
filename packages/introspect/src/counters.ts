@@ -14,7 +14,7 @@
 import {
   createIntrospectError,
   type IntrospectCounterDetails,
-} from "./errors/error";
+} from "./errors/introspect";
 
 /**
  * Names for introspect counters maintained by Seqlok's introspection layer.

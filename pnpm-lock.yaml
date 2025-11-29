@@ -185,6 +185,9 @@ importers:
       typescript-eslint:
         specifier: 'catalog:'
         version: 8.48.0(eslint@9.38.0(jiti@2.6.1))(typescript@5.9.3)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.0.13(@types/debug@4.1.12)(@types/node@24.10.1)(happy-dom@20.0.11)(jiti@2.6.1)(tsx@4.20.6)
 
   packages/commands:
     dependencies:
@@ -338,6 +341,9 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(tsx@4.20.6)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.0.13(@types/debug@4.1.12)(@types/node@24.10.1)(happy-dom@20.0.11)(jiti@2.6.1)(tsx@4.20.6)
 
   packages/integration:
     dependencies:
@@ -500,6 +506,9 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 6.1.2
+      tsx:
+        specifier: 'catalog:'
+        version: 4.20.6
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

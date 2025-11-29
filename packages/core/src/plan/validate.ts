@@ -10,8 +10,8 @@
 
 import { BYTES_PER_ELEM, type PlaneKey } from "@seqlok/primitives";
 
-import { createPlanError } from "../errors/codes/plan";
-import { createSpecError } from "../errors/codes/spec";
+import { createPlanError } from "../errors/plan";
+import { createSpecError } from "../errors/spec";
 
 import type { EntrySlot, LockStrideBytes, PlaneByteLengths } from "./types";
 import type {

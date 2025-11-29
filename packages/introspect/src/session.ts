@@ -11,7 +11,7 @@
 import {
   createIntrospectError,
   type IntrospectCounterDetails,
-} from "./errors/error";
+} from "./errors/introspect";
 
 /**
  * Metadata for a introspect session.
@@ -137,7 +137,7 @@ export function getActiveIntrospectSession(): IntrospectSession | null {
 }
 
 /**
- * Compute the duration (ms) of a introspect session.
+ * Compute the duration (ms) of an introspect session.
  *
  * @remarks
  * For active sessions, uses `Date.now()` as the end.

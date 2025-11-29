@@ -19,13 +19,13 @@ export type {
   PrimitivesInvalidSpinBudgetDetails,
   PrimitivesDomain,
   PrimitivesErrorsMap,
-} from "./errors/error";
+} from "./errors/primitives";
 
 export {
   PRIMITIVES_ERRORS,
   PRIMITIVES_DOMAIN,
   createPrimitivesError,
-} from "./errors/error";
+} from "./errors/primitives";
 
 export type {
   SeqPair,

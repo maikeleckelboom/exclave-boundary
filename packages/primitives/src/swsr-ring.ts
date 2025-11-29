@@ -1,6 +1,6 @@
 import { invariant } from "@seqlok/base";
 
-import { createPrimitivesError } from "./errors/error";
+import { createPrimitivesError } from "./errors/primitives";
 
 /**
  * Number of 32-bit header words reserved for a SWSR ring.

@@ -1,5 +1,3 @@
-// File: src/errors/all-domains.ts
-
 /**
  * @fileoverview
  * Global aggregation of all error domains.
@@ -17,6 +15,7 @@ import {
   type DomainDescriptor,
   type DomainEntry,
   type ErrorNumericCode,
+  type DomainId,
 } from "@seqlok/base";
 
 import { getRegistryForDomain, type DomainRegistry } from "./registry-map";
@@ -66,7 +65,7 @@ function entriesFromRegistry(
  */
 function buildDomainDescriptor(
   prefix: DomainName,
-  domainId: number,
+  domainId: DomainId,
 ): DomainDescriptor {
   const registry = getRegistryForDomain(prefix);
   return {

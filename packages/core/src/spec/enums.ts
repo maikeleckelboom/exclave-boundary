@@ -8,7 +8,7 @@
  * - Offers UI-friendly helpers for dropdowns, cycling, and palette generation.
  */
 
-import { createSpecError, type SpecEnumDetails } from "../errors/codes/spec";
+import { createSpecError, type SpecEnumDetails } from "../errors/spec";
 
 import type { SpecInput } from "./types";
 

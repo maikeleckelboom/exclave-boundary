@@ -18,7 +18,7 @@
 
 import { ALL_PLANES, type PlaneKey } from "@seqlok/primitives";
 
-import { createHandoffError } from "../errors/codes/handoff";
+import { createHandoffError } from "../errors/handoff";
 
 import type { Handoff, ReceivedHandoff } from "./types";
 import type { Backing } from "../backing/types";

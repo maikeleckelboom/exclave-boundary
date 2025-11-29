@@ -279,9 +279,9 @@ export interface RunWithDiagnosticsResult<T> {
   readonly boundarySafe: boolean;
   readonly docsUrl: string | undefined;
 
-  readonly diagnosticsSession: DiagnosticsSession;
-  readonly diagnosticsCounters: IntrospectCountersSnapshot;
-  readonly diagnosticsExportJson: string;
+  readonly introspectSession: DiagnosticsSession;
+  readonly introspectCounters: IntrospectCountersSnapshot;
+  readonly introspectExportJson: string;
   readonly thresholdViolations: readonly ThresholdViolation[];
 }
 

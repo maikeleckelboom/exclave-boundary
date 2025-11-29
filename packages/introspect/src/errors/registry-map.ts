@@ -8,21 +8,21 @@
  */
 
 import {
-  INTERNAL_ERRORS,
   type ErrorDescriptor as BaseErrorDescriptor,
   type ErrorRegistry as BaseErrorRegistry,
+  INTERNAL_ERRORS,
 } from "@seqlok/base";
 import {
-  ENV_ERRORS,
   BACKING_ERRORS,
-  SPEC_ERRORS,
-  PLAN_ERRORS,
   BINDING_ERRORS,
+  ENV_ERRORS,
   HANDOFF_ERRORS,
+  PLAN_ERRORS,
+  SPEC_ERRORS,
 } from "@seqlok/core";
 import { PRIMITIVES_ERRORS } from "@seqlok/primitives";
 
-import { INTROSPECT_ERRORS } from "./error";
+import { INTROSPECT_ERRORS } from "./introspect";
 
 import type { DomainName } from "./all-domains";
 

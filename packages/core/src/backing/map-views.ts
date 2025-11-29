@@ -14,7 +14,7 @@ import { invariant } from "@seqlok/base";
 import { ALL_PLANES, BYTES_PER_ELEM, type PlaneKey } from "@seqlok/primitives";
 
 import { getBackingBuffer } from "./buffers";
-import { createBackingError } from "../errors/codes/backing";
+import { createBackingError } from "../errors/backing";
 
 import type { Backing, SharedBacking, WasmSharedBacking } from "./types";
 import type { Plan, PlaneByteLengths } from "../plan/types";

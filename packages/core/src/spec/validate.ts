@@ -8,7 +8,7 @@
  * - Used during spec definition to ensure correctness before binding.
  */
 
-import { createSpecError } from "../errors/codes/spec";
+import { createSpecError } from "../errors/spec";
 
 export interface ScalarRangeInput {
   readonly min?: number;

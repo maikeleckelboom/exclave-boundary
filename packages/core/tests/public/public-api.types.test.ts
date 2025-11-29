@@ -21,6 +21,7 @@ describe("Public API Surface (Runtime Exports)", () => {
       "allocateShared",
       "allocateSharedPartitioned",
       "allocateWasmShared",
+      "describeViews",
 
       // BINDING
       "bindController",
@@ -47,6 +48,12 @@ describe("Public API Surface (Runtime Exports)", () => {
       "enumValues",
       "enumLabelsToArray",
       "enumPaletteFor",
+
+      // ENV
+      "probeEnv",
+      "summarizeEnv",
+      "assertSabSupportFromSummary",
+      "assertSabSupport",
 
       // CONTEXT
       "createSharedContext",

@@ -11,7 +11,7 @@
 import {
   createIntrospectError,
   type IntrospectCounterDetails,
-} from "./errors/error";
+} from "./errors/introspect";
 
 import type {
   IntrospectCounterName,

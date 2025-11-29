@@ -11,15 +11,15 @@
 import {
   createIntrospectError,
   type IntrospectFeatureDetails,
-} from "./errors/error";
+} from "./errors/introspect";
 
 /**
  * Known introspect / debug feature flags.
  *
  * @remarks
- * These control optional introspection behaviour such as:
+ * These control optional introspection behavior such as:
  * - seqlock timeline tracing
- * - swap / memory watermarks visualisation
+ * - swap / memory watermarks visualization
  * - high-volume logging of certain paths
  *
  * They are intentionally separate from any user-facing feature flags.
@@ -59,7 +59,7 @@ function isKnownIntrospectFeature(
 }
 
 /**
- * Enable a introspect feature by its string name.
+ * Enable an introspect feature by its string name.
  *
  * @remarks
  * Primary entrypoint for CLI flags, env vars, config files.
@@ -91,7 +91,7 @@ export function enableIntrospectFeature(feature: IntrospectFeatureName): void {
 }
 
 /**
- * Check whether a introspect feature is currently enabled.
+ * Check whether an introspect feature is currently enabled.
  */
 export function isIntrospectFeatureEnabled(
   feature: IntrospectFeatureName,

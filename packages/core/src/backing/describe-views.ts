@@ -12,8 +12,7 @@ import { BACKING_PLANE_PACK_ORDER_V1 } from "./map-views";
 
 import type { Plan } from "../plan/types";
 import type { SpecInput } from "../spec/types";
-
-type PlaneKey = (typeof BACKING_PLANE_PACK_ORDER_V1)[number];
+import type { PlaneKey } from "@seqlok/primitives";
 
 function label(key: PlaneKey) {
   switch (key) {

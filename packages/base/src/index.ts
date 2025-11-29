@@ -38,8 +38,20 @@ export type {
 export { encodeNumeric, decodeNumeric } from "./errors/numeric";
 export type { ErrorNumericCode, ErrorNumericParts } from "./errors/numeric";
 
-export { DOMAIN_IDS } from "./errors/domains";
-export type { DomainEntry, DomainDescriptor } from "./errors/domains";
+export {
+  DOMAIN_IDS,
+  DOMAIN_RANGES,
+  isBuiltinDomainId,
+  isUserDomainId,
+} from "./errors/domains";
+export type {
+  DomainEntry,
+  DomainDescriptor,
+  DomainId,
+  DomainName,
+  DomainRange,
+  DomainIdName,
+} from "./errors/domains";
 
 export { buildErrorDomain } from "./errors/build-domain";
 export type { BuiltErrorDomain } from "./errors/build-domain";
@@ -53,8 +65,11 @@ export type {
   InternalErrorFactory,
   InternalErrorKey,
 } from "./errors/internal";
-
 export { panic } from "./errors/panic";
+
+// HEALTH INTERPRETATION
+export { interpretHealth, isBoundarySafe, getDocsUrl } from "./errors/health";
+export type { HealthInterpretation, HealthStatus } from "./errors/health";
 
 // JSON & TYPE HELPERS
 export type { JsonPrimitive, JsonValue } from "./errors/json";

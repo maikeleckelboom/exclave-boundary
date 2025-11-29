@@ -16,10 +16,17 @@
  * Core primitives/bindings/backing do not depend on this module.
  */
 
-import { type ErrorMeta, isSeqlokError, type SeqlokError } from "@seqlok/base";
+import {
+  type ErrorMeta,
+  type HealthInterpretation,
+  interpretHealth,
+  getDocsUrl,
+  isBoundarySafe,
+  isSeqlokError,
+  type SeqlokError,
+} from "@seqlok/base";
 
 import { resetCounters, snapshotCounters } from "./counters";
-import { getDocsUrl, interpretHealth, isBoundarySafe } from "./errors/health";
 import { exportIntrospectCounters } from "./export";
 import { endIntrospectSession, startIntrospectSession } from "./session";
 
@@ -27,7 +34,6 @@ import type {
   IntrospectCounterName,
   IntrospectCountersSnapshot,
 } from "./counters";
-import type { HealthInterpretation } from "./errors/health";
 import type { IntrospectSession } from "./session";
 
 /**
@@ -98,12 +104,12 @@ export interface RunWithIntrospectResult<T> {
   /**
    * Introspect session that covered the scenario.
    */
-  readonly diagnosticsSession: IntrospectSession;
+  readonly introspectSession: IntrospectSession;
 
   /**
    * Snapshot of introspect counters at the end of the scenario.
    */
-  readonly diagnosticsCounters: IntrospectCountersSnapshot;
+  readonly introspectCounters: IntrospectCountersSnapshot;
 
   /**
    * Introspect counters exported as JSON (with timestamp).
@@ -113,7 +119,7 @@ export interface RunWithIntrospectResult<T> {
    * different format is needed (Prometheus, CSV), use
    * `exportIntrospectCounters` directly.
    */
-  readonly diagnosticsExportJson: string;
+  readonly introspectExportJson: string;
 
   /**
    * Threshold violations for introspect counters, if thresholds were
@@ -299,15 +305,15 @@ function buildRunResult<T>(
     health,
   } = args;
 
-  const diagnosticsCounters = snapshotCounters();
-  const diagnosticsExportJson = exportIntrospectCounters(diagnosticsCounters, {
+  const introspectCounters = snapshotCounters();
+  const introspectExportJson = exportIntrospectCounters(introspectCounters, {
     format: "json",
     includeTimestamp: true,
   });
 
-  const diagnosticsSession = completedSession ?? startedSession;
+  const introspectSession = completedSession ?? startedSession;
   const thresholdViolations = checkIntrospectThresholds(
-    diagnosticsCounters,
+    introspectCounters,
     thresholds,
   );
 
@@ -319,9 +325,9 @@ function buildRunResult<T>(
     health,
     boundarySafe: meta ? isBoundarySafe(meta) : false,
     docsUrl: meta ? getDocsUrl(meta) : undefined,
-    diagnosticsSession,
-    diagnosticsCounters,
-    diagnosticsExportJson,
+    introspectSession: introspectSession,
+    introspectCounters: introspectCounters,
+    introspectExportJson: introspectExportJson,
     thresholdViolations,
   };
 }

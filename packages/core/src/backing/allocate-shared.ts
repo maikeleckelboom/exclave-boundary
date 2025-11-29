@@ -12,8 +12,8 @@
  * @internal
  */
 
-import { createBackingError } from "../errors/codes/backing";
-import { createEnvError } from "../errors/codes/env";
+import { createBackingError } from "../errors/backing";
+import { createEnvError } from "../errors/env";
 
 import type { SharedBacking } from "./types";
 import type { Plan } from "../plan/types";

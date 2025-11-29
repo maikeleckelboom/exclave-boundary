@@ -10,7 +10,7 @@
 import {
   createPrimitivesError,
   type PrimitivesAtomicsFailedDetails,
-} from "./errors/error";
+} from "./errors/primitives";
 
 function atomicsFailed(
   where: string,

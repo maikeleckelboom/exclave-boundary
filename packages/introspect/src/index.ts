@@ -64,3 +64,14 @@ export {
   type IntrospectThresholds,
   type RunWithIntrospectResult,
 } from "./run-with-health";
+
+export {
+  type ErrorRegistrySchema,
+  exportErrorRegistryJsonSchema,
+  ERROR_REGISTRY_JSON_SCHEMA,
+  type ErrorCodeSchema,
+  type ErrorMetaSchema,
+  type JsonSchemaDocument,
+  type DomainSchema,
+  type RegistryStats,
+} from "./errors/registry";

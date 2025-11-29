@@ -19,7 +19,7 @@ import {
   type BindingSnapshotIntoTypeMismatchDetails,
   type BindingUnknownKeyDetails,
   createBindingError,
-} from "../../errors/codes/binding";
+} from "../../errors/binding";
 
 import type { MeterPlaneViews, ParamPlaneViews } from "../../backing/map-views";
 

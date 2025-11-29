@@ -13,10 +13,7 @@
 import { tryRead, type SeqPair } from "@seqlok/primitives";
 
 import { recordIntrospectCounter } from "./coherent-introspect";
-import {
-  createBindingError,
-  type SnapshotRetryDetails,
-} from "../../errors/codes/binding";
+import { createBindingError } from "../../errors/binding";
 
 import type { MeterDegradePolicy } from "./types";
 
@@ -93,7 +90,7 @@ export function snapshotWithPolicy<T>(
     section,
     spins: status.spins,
     retries: status.retries,
-  } satisfies SnapshotRetryDetails);
+  });
 }
 
 /**

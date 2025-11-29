@@ -12,7 +12,7 @@ import {
   createEnvError,
   type EnvCoopCoepDetails,
   type EnvUnsupportedDetails,
-} from "../errors/codes/env";
+} from "../errors/env";
 
 /**
  * High-level classification of the current runtime.

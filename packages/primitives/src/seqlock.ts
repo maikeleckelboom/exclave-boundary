@@ -29,7 +29,7 @@ import {
   createPrimitivesError,
   type PrimitivesInvalidSpinBudgetDetails,
   type PrimitivesSeqlockTimeoutDetails,
-} from "./errors/error";
+} from "./errors/primitives";
 
 /**
  * Pair of indices into a `Uint32Array` forming a seqlock.

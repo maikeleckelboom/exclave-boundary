@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createBackingError } from "../../src/errors/codes/backing";
-import { createEnvError } from "../../src/errors/codes/env";
+import { createBackingError } from "../../src/errors/backing";
+import { createEnvError } from "../../src/errors/env";
 
 describe("Domain error factories", () => {
   it("creates backing.wasmMemoryNotShared errors and preserves the underlying cause", () => {
