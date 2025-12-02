@@ -31,7 +31,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:types": "tsc -p ../../tsconfig.workspace.json --noEmit --pretty",
+    "test:types": "pnpm --filter seqlok test:types",
     "build": "pnpm run clean && vite build && rollup -c rollup.dts.config.mts",
     "dev": "pnpm run test:watch"
   },

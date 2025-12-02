@@ -40,9 +40,6 @@ Each package is a node in a strict one-way dependency graph.
   System observatory  
   Error registry, counters, environment probing, view describers and health lenses
 
-- `@seqlok/docs`  
-  Documentation site and examples that sit on top of the public API
-
 ## Dependency graph
 
 Arrows show allowed imports between packages.  
@@ -50,8 +47,7 @@ Arrows show allowed imports between packages.
 
 ```mermaid
 flowchart LR
-  %% Layering left → right: Base → Runtime → Tooling → Host
-
+%% Layering left → right: Base → Runtime → Tooling → Host
   subgraph Base
     base
   end
@@ -67,7 +63,6 @@ flowchart LR
   subgraph Tooling
     direction TB
     introspect
-    docs
   end
 
   subgraph Host
@@ -76,7 +71,7 @@ flowchart LR
     playground
   end
 
-  %% Runtime
+%% Runtime
   primitives --> base
   core --> primitives
   core --> base
@@ -84,25 +79,19 @@ flowchart LR
   commands --> primitives
   hotswap --> commands
   hotswap --> core
-
-  %% Host
+%% Host
   integration --> hotswap
   integration --> commands
   integration --> core
   integration --> introspect
-
   playground --> integration
   playground --> introspect
-
-  %% Tooling (observatory above Runtime)
+%% Tooling (observatory above Runtime)
   introspect --> base
   introspect --> primitives
   introspect --> core
   introspect --> commands
   introspect --> hotswap
-
-  docs --> introspect
-  docs --> core
 ```
 
 ## Rules

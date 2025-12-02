@@ -4,6 +4,7 @@
     "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo/solution.tsbuildinfo",
     "noEmit": true
   },
+  "exclude": ["docs", "tools", "scripts/**/*.md"],
   "files": [],
   "references": [
     { "path": "./packages/base" },

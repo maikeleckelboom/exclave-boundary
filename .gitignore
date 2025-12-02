@@ -54,5 +54,3 @@ packages/**/charts/
 # temporary
 seqlok-*.md
 seqlok-*.txt
-docs/REPO_RULE_BOOK.md
-

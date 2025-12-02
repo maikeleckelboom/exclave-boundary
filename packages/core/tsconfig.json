@@ -4,7 +4,7 @@
     "composite": true,
     "rootDir": "./src",
     "outDir": "./dist",
-    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/hotswap.tsbuildinfo",
+    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/core.tsbuildinfo",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -12,5 +12,13 @@
     "paths": {}
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    "tests",
+    "bench",
+    "scripts",
+    "*.config.ts",
+    "vitest.config.ts"
+  ]
 }

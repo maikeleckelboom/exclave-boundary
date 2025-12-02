@@ -12,5 +12,13 @@
     "paths": {}
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    "tests",
+    "bench",
+    "scripts",
+    "*.config.ts",
+    "vitest.config.ts"
+  ]
 }

@@ -22,17 +22,17 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && rollup -c rollup.dts.config.mts",
-    "clean": "rimraf dist .eslintcache node_modules/.vite node_modules/.cache pnpm-debug.log",
+    "clean": "rimraf dist .eslintcache pnpm-debug.log",
     "purge": "pnpm run clean && rimraf node_modules",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
     "format": "prettier --ignore-path ../../.prettierignore --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "bench": "vitest bench --run",
     "bench:watch": "vitest bench",
-    "test:types": "tsc -p ../../tsconfig.workspace.json --noEmit --pretty",
+    "test:types": "pnpm --filter seqlok test:types",
     "dev": "pnpm run test:watch"
   },
   "devDependencies": {
