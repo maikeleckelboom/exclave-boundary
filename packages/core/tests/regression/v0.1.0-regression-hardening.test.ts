@@ -1,10 +1,10 @@
+import { createSeqPair, publish } from "@seqlok/primitives";
 import { describe, it, expect } from "vitest";
 
 import { allocateShared } from "../../src/backing/allocate-shared";
 import { snapshotWithPolicy } from "../../src/binding/common/coherent";
 import { buildHandoff, receiveHandoff } from "../../src/handoff/handoff";
 import { planLayout } from "../../src/plan/layout";
-import { createSeqPair, publish } from "../../src/primitives/seqlock";
 import { defineSpec } from "../../src/spec/define";
 import { hashSpec } from "../../src/spec/hash";
 

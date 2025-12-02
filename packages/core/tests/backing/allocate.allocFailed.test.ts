@@ -1,37 +1,44 @@
+// File: packages/core/tests/backing/allocate.allocFailed.test.ts
+
 import { describe, expect, it } from "vitest";
 
-import { createError } from "../../src/errors/error";
+import { createBackingError } from "../../src/errors/backing";
+import { createEnvError } from "../../src/errors/env";
 
-describe("SeqlokError Factory: Runtime Composition", () => {
-  it("correctly composes error messages and preserves the underlying cause", () => {
+describe("Domain error factories", () => {
+  it("creates backing.wasmMemoryNotShared errors and preserves the underlying cause", () => {
     const cause = new TypeError("shared memory not supported");
 
-    const se = createError(
-      "backing.wasmMemoryNotShared",
-      "Allocated WebAssembly.Memory is not shared",
+    const error = createBackingError(
+      "wasmMemoryNotShared",
       {
-        detail: "memory.buffer is not a SharedArrayBuffer",
         plane: "wasm",
-        shared: false,
+        requestedBytes: 0,
+        allocatedBytes: 0,
+        detail: "memory.buffer is not a SharedArrayBuffer",
       },
       cause,
     );
 
-    expect(se.code).toBe("backing.wasmMemoryNotShared");
-    expect(se.message).toMatch(/not shared/i);
-    expect(se.details.detail).toMatch(/SharedArrayBuffer/i);
-    expect(se.cause).toBe(cause);
+    expect(error.code).toBe("backing.wasmMemoryNotShared");
+    expect(error.message).toMatch(/WebAssembly\.Memory is not shared/i);
+    expect(error.details.plane).toBe("wasm");
+    expect(error.details.detail).toMatch(/SharedArrayBuffer/i);
+    expect((error as Error).cause).toBe(cause);
   });
 
   it('constructs "env.unsupported" errors with structured feature details', () => {
-    const se = createError("env.unsupported", "Feature unavailable", {
+    const error = createEnvError("unsupported", {
+      where: "test.env.unsupported",
       feature: "SharedArrayBuffer",
       reason: "Missing COOP/COEP",
     });
 
-    expect(se.code).toBe("env.unsupported");
-    expect(se.message).toMatch(/Feature unavailable/i);
-    expect(se.details.feature).toBe("SharedArrayBuffer");
-    expect(se.details.reason).toMatch(/COOP\/COEP/i);
+    expect(error.code).toBe("env.unsupported");
+    expect(error.message).toMatch(/Required env feature unavailable/i);
+    expect(error.message).toMatch(/SharedArrayBuffer/i);
+    expect(error.details.feature).toBe("SharedArrayBuffer");
+    expect(error.details.where).toBe("test.env.unsupported");
+    expect(error.details.reason).toMatch(/COOP\/COEP/i);
   });
 });

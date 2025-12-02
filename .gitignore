@@ -48,7 +48,9 @@ Thumbs.db
 # benchmark results
 packages/**/bench-results.json
 
+# benchmark charts
+packages/**/charts/
+
 # temporary
 seqlok-*.md
 seqlok-*.txt
-docs/REPO_RULE_BOOK.md

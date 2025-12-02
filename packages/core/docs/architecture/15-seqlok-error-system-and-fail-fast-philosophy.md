@@ -59,15 +59,23 @@ Conceptually, the error system is shaped like this:
 
 ```ts
 import {
-  type ErrorCode,
-  type ErrorPayload,
-  type ErrorMeta,
   SeqlokError,
   isSeqlokError,
-  getErrorMeta,
   interpretHealth,
-} from "@seqlok/core";
+  type ErrorMeta,
+} from "@seqlok/base";
+import {
+  getErrorMeta,
+  type ErrorCode,
+  type ErrorPayload,
+} from "@seqlok/introspect";
 ```
+
+In the package layout:
+
+- `@seqlok/base` hosts the portable error primitives and health interpretation.
+- `@seqlok/introspect` hosts the aggregated registry and lookup helpers (`getErrorMeta`, JSON export, subset selection).
+- Runtime packages (`@seqlok/core`, `@seqlok/primitives`, etc.) only define domain-local registries and never own the global registry.
 
 - `ErrorCode` – finite union of string codes (`'env.unsupported'`, `'backing.allocUndersized'`, …).
 - `ErrorPayload<C>` – details payload type for code `C`.
@@ -118,7 +126,12 @@ Design constraints:
 Consumers never need to parse error messages. Instead, they use:
 
 ```ts
-import { isSeqlokError, getErrorMeta, interpretHealth } from "@seqlok/core";
+import {
+  SeqlokError,
+  isSeqlokError,
+  interpretHealth,
+} from "@seqlok/base";
+import { getErrorMeta } from "@seqlok/introspect";
 
 try {
   // … Seqlok operations …
@@ -251,11 +264,11 @@ The primitives layer is allowed to fail when its own low-level assumptions are b
 
 These often surface as the cause behind binding-level timeouts or retries.
 
-### 3.7 Diagnostics & internal (`diagnostics.*`, `internal.*`)
+### 3.7 Introspect & internal (`introspect.*`, `internal.*`)
 
 Auxiliary domains:
 
-- `diagnostics.*` – counters/metrics that should “never happen” (NaN, Infinity, negative counts, etc.).
+- `introspect.*` – counters/metrics and observability plumbing that should "never happen" (NaN, Infinity, negative counts, etc.).
 - `internal.assertionFailed`, `internal.unreachable`, `internal.exhaustiveness` – hard kernel bugs / missing `switch` branches.
 
 These are treated as **fatal** and point at problems in Seqlok itself, not user code.
@@ -428,10 +441,13 @@ import {
   planLayout,
   allocateShared,
   bindController,
+} from "@seqlok/core";
+import {
+  SeqlokError,
   isSeqlokError,
   interpretHealth,
-  getErrorMeta,
-} from "@seqlok/core";
+} from "@seqlok/base";
+import { getErrorMeta } from "@seqlok/introspect";
 
 function createSeqlokDevice() {
   try {
@@ -574,7 +590,7 @@ it("throws backing.allocUndersized for too-small buffer", () => {
 
 - Seqlok is a **low-level shared-memory kernel**; silent failure is unacceptable.
 - All kernel-originated failures are surfaced as **`SeqlokError`** with a small, structured set of codes and typed payloads.
-- Error **domains** (`spec.*`, `plan.*`, `backing.*`, `handoff.*`, `binding.*`, `primitives.*`, `env.*`, `diagnostics.*`, `internal.*`) mirror the architectural layers.
+- Error **domains** (`spec.*`, `plan.*`, `backing.*`, `handoff.*`, `binding.*`, `primitives.*`, `env.*`, `introspect.*`, `internal.*`) mirror the architectural layers.
 - The library chooses **fail-fast** over "best-effort recovery" when core invariants are violated.
 - Users should handle errors primarily at **initialization time**, using `isSeqlokError`, `getErrorMeta`, and `interpretHealth` to decide on recovery.
 - Contributors must:

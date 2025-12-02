@@ -842,7 +842,7 @@ export interface ControllerOptions {
 
   /**
    * Hint that this binding should be considered the exclusive owner
-   * of the backing (used for diagnostics and future safety checks).
+   * of the backing (used for introspect and future safety checks).
    *
    * Defaults to `true`.
    */

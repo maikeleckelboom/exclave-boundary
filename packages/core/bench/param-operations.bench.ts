@@ -1,5 +1,6 @@
 import { bench, describe } from "vitest";
 
+import { MICRO_BENCH_OPTS } from "../../../scripts/vitest/bench-presets";
 import {
   allocateShared,
   bindController,
@@ -9,7 +10,6 @@ import {
   planLayout,
   receiveHandoff,
 } from "../src";
-import { MICRO_BENCH_OPTS } from "../vitest.config";
 
 /**
  * @fileoverview
@@ -23,8 +23,6 @@ import { MICRO_BENCH_OPTS } from "../vitest.config";
  * These benches document relative hot-path costs on the controller side,
  * not micro-optimizations of individual branches.
  */
-
-let _blackhole = 0;
 
 const spec = defineSpec(({ param, meter }) => ({
   id: "bench/param-operations",
@@ -57,7 +55,6 @@ for (let i = 0; i < eqWriteBuffer.length; i++) {
 function paramsSetTwoScalars(): void {
   controller.params.set("gain", 1.0);
   controller.params.set("cutoffHz", 4_000);
-  _blackhole ^= 1;
 }
 
 /** Batch update of three scalar params via update(). */
@@ -67,7 +64,6 @@ function paramsUpdateThreeScalars(): void {
     cutoffHz: 4_000,
     drive: 3.5,
   });
-  _blackhole ^= 2;
 }
 
 /**
@@ -90,8 +86,6 @@ function paramsUpdateScalarsAndStageArray(): void {
       view[i] = eqWriteBuffer[i] ?? 0;
     }
   });
-
-  _blackhole ^= 4;
 }
 
 /** Bulk hydrate of three scalars + eqBands f32[8] via params.hydrate(), mirroring paramsUpdateScalarsAndStageArray(). */
@@ -102,7 +96,6 @@ function paramsHydrateScalarsAndArray(): void {
     drive: 5.0,
     eqBands: eqWriteBuffer,
   });
-  _blackhole ^= 1024;
 }
 
 /** Array-only write of eqBands via stage(). */
@@ -114,35 +107,31 @@ function paramsStageArrayOnly(): void {
       view[i] = eqWriteBuffer[i] ?? 0;
     }
   });
-  _blackhole ^= 8;
 }
 
 /** Processor-side coherent read of scalar params only. */
 function processorWithinScalarsOnly(): void {
   processor.params.within((view) => {
-    const g = view.gain;
-    const c = view.cutoffHz;
-    const d = view.drive;
-    _blackhole ^= g > 0 && c > 0 && d >= 0 ? 16 : 32;
+    const _g = view.gain;
+    const _c = view.cutoffHz;
+    const _d = view.drive;
   });
 }
 
 /** Processor-side coherent read of scalar params and the eqBands array. */
 function processorWithinScalarsAndArray(): void {
   processor.params.within((view) => {
-    const g = view.gain;
-    const c = view.cutoffHz;
+    const _g = view.gain;
+    const _c = view.cutoffHz;
     const bands = view.eqBands;
 
-    let acc = 0;
+    let _acc = 0;
     const len = bands.length;
 
     for (let i = 0; i < len; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      acc += bands[i]! * (i + 1);
+      _acc += bands[i]! * (i + 1);
     }
-
-    _blackhole ^= g > 0 && c > 0 && acc > 0 ? 64 : 128;
   });
 }
 
@@ -155,8 +144,7 @@ function interleavedControllerUpdateAndProcessorWithin(): void {
   });
 
   processor.params.within((view) => {
-    const sum = view.gain + view.cutoffHz * 1e-4 + view.drive;
-    _blackhole ^= sum > 0 ? 256 : 512;
+    const _sum = view.gain + view.cutoffHz * 1e-4 + view.drive;
   });
 }
 

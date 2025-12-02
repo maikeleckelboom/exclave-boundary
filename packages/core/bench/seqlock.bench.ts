@@ -1,7 +1,7 @@
+import { createSeqPair, publish, tryRead } from "@seqlok/primitives";
 import { bench, describe } from "vitest";
 
-import { createSeqPair, publish, tryRead } from "../src/primitives/seqlock";
-import { MICRO_BENCH_OPTS } from "../vitest.config";
+import { MICRO_BENCH_OPTS } from "../../../scripts/vitest/bench-presets";
 
 /**
  * @fileoverview
@@ -20,14 +20,11 @@ const u32 = new Uint32Array(sab);
 const pair = createSeqPair(u32, 0, 1);
 const payloadIndex = 2;
 
-// Keep the JIT from optimizing everything away.
-let _blackhole = 0;
-
 describe("Seqlock (micro): tryRead vs publish (uncontended)", () => {
   bench(
     "tryRead uncontended (spin=0, retry=0)",
     () => {
-      const result = tryRead(
+      const _result = tryRead(
         pair,
         () => {
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -38,12 +35,7 @@ describe("Seqlock (micro): tryRead vs publish (uncontended)", () => {
           retryBudget: 0,
         },
       );
-
-      if (result.ok) {
-        _blackhole ^= result.value;
-      } else {
-        _blackhole ^= 1;
-      }
+      void _result;
     },
     MICRO_BENCH_OPTS,
   );
@@ -53,9 +45,7 @@ describe("Seqlock (micro): tryRead vs publish (uncontended)", () => {
     () => {
       publish(pair, () => {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const next = (u32[payloadIndex]! + 1) >>> 0;
-        u32[payloadIndex] = next;
-        _blackhole ^= next;
+        u32[payloadIndex] = (u32[payloadIndex]! + 1) >>> 0;
       });
     },
     MICRO_BENCH_OPTS,

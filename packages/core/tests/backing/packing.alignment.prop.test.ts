@@ -7,7 +7,7 @@ import {
 } from "../../src/backing/map-views";
 
 import type { PlaneByteLengths } from "../../src/plan/types";
-import type { PlaneKey } from "../../src/primitives/planes";
+import type { PlaneKey } from "@seqlok/primitives";
 
 const align4 = [
   "PF32",

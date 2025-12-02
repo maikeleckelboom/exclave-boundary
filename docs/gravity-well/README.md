@@ -1,267 +1,194 @@
 # Seqlok v1.0 Gravity Well Documentation
 
-This directory contains the complete "gravity well" documentation suite for Seqlok v1.0 — designed to keep every decision aligned with shipping a stable, minimal, production-ready real-time control fabric.
+This directory contains the “gravity well” documentation suite for Seqlok v1.0 – it exists to keep every decision
+aligned
+with shipping a stable, minimal, production-ready real-time control fabric.
 
 ---
 
-## 🎯 Purpose
+## Purpose
 
-These documents transform the Definition of Done from "big vibe" into a clear, actionable roadmap. They provide:
-- **Clarity**: What's done, what's blocked, what's next
-- **Focus**: One primary goal at a time
-- **Momentum**: Weekly sprints that ship something
-- **Accountability**: Clear success criteria, no ambiguity
+These documents turn the Definition of Done into a concrete roadmap. They provide:
 
----
+- Clarity – what is done, what is blocked, what is next
+- Focus – one primary goal at a time
+- Momentum – small chunks that actually ship
+- Accountability – clear success criteria, not vibes
 
-## 📁 Document Structure
-
-### Master Index
-- **[00-GRAVITY-WELL.md](00-GRAVITY-WELL.md)** – Start here. The single source of truth for v1.0 completion status, critical path, and decision framework.
-
-### Completion Tracking
-- **[completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)** – Detailed DoD completion grid with evidence links for all 9 DoD sections (89 line items tracked).
-
-### Planning & Execution
-- **[planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)** – The shortest path to v1.0 (6-8 weeks), broken into 4 phases with specific tasks, dependencies, and time estimates.
-- **[planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md)** – Per-package checklists showing what each of the 8 packages needs to hit v1.0.
-
-### Reference & Templates
-- **[reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md)** – Quick capture template for architectural decisions with examples.
-- **[reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md)** – How to plan focused 1-2 week work chunks with clear success criteria.
+The gravity-well suite is about how work progresses, not about API usage. It complements (not replaces) the architecture
+docs.
 
 ---
 
-## 🚀 Quick Start
+## Document Structure
 
-### First Time Here?
-1. Read [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md) (5 min) – Get the big picture
-2. Review [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) (10 min) – See current state
-3. Scan [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md) (15 min) – Understand the roadmap
-4. Pick a task and start working
+### Master index
 
-### Starting a New Work Session?
-1. Check [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) for blockers
-2. Review current sprint in [reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md)
-3. Use [reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md) if you hit a decision point
-4. Update status when you're done
+- **[00-GRAVITY-WELL.md](00-GRAVITY-WELL.md)** – Start here. High-level v1.0 intent, critical path, and decision
+  framework.
+  Treat this as the narrative overview, not the raw status grid.
 
-### Made a Big Decision?
-1. Use [reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md) to document
-2. Review against the Decision Framework in [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md)
-3. File as ADR in `/docs/adr/` if significant
-4. Update affected sections in the gravity well
+### Completion tracking
 
----
+- **[completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)** – Detailed Definition-of-Done completion grid for all
+  sections.  
+  This is the single source of truth for “how far along is v1.0?”.
+- **[planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md)** – Per-package readiness and checklists
+  for each `@seqlok/*` package.
 
-## 📊 Current Status Snapshot
+### Planning and execution
 
-**Overall Progress**: 73% complete (65/89 DoD items)
+- **[planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)** – The minimal sequence of phases from “monolith”
+  to “v1.0-ready”, broken into phases with dependencies and example tasks.
+- **[reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md)** – Template for planning 1–2 week work blocks with
+  clear success criteria.
 
-| DoD Section | Status | Completion | Next Action |
-|-------------|--------|------------|-------------|
-| DOD-ARCH | 🟢 | 90% | Rename/document host vs integration |
-| DOD-API | 🟡 | 70% | Implement commands + hotswap |
-| DOD-CONC | 🟢 | 85% | Add SPARBB harness |
-| DOD-ERR | 🟢 | 95% | Generate JSON schema |
-| DOD-PERF | 🟢 | 90% | Add CI perf gate |
-| DOD-DOCS | 🟡 | 60% | Build reference integrations |
-| DOD-TEST | 🟢 | 85% | Expand cross-env matrix |
-| DOD-XLANG | 🔴 | 30% | Build Rust/C++ prototypes |
-| DOD-GOV | 🟡 | 50% | Enforce changelog discipline |
+### Reference and templates
 
-**Critical Path Blockers**:
-1. Commands package (not implemented)
-2. Hotswap package (not implemented)
-3. Reference integrations (not built)
+- **[reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md)** – Short template for architectural decisions
+  that affect public API, error semantics, or concurrency.
 
 ---
 
-## 🧭 Navigation Guide
+## Quick Start
 
-### By Role
+### First time here
 
-#### Solo Developer (Current: Maikel)
-- Start: [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md)
-- Track: [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)
-- Plan: [reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md)
-- Decide: [reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md)
+1. Read **[00-GRAVITY-WELL.md](00-GRAVITY-WELL.md)** – get the big picture and phases.
+2. Open **[completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)** – see current reality.
+3. Skim **[planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md)** – understand package boundaries.
+4. Check **[planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)** – find where you are in the sequence.
+5. Use **[reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md)** to carve out the next small chunk.
 
-#### Technical Lead (Planning)
-- Roadmap: [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)
-- Packages: [planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md)
-- Status: [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)
+### Starting a work session
 
-#### External Contributor (Future)
-- Start: [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md)
-- Understand: [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)
-- Pick Task: [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)
+1. Check **STATUS-MATRIX** for red / yellow cells you care about.
+2. Look at the current sprint in **WEEKLY-SPRINT**.
+3. Pick the smallest task that moves a Definition-of-Done cell toward “done”.
+4. When you finish a chunk, update **STATUS-MATRIX** (and, if relevant, **PACKAGE-READINESS**).
 
-### By Task Type
+### Making a non-trivial decision
 
-#### Implementation
-- Critical Path: [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)
-- Package Scope: [planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md)
+1. If it touches public API, error semantics, or concurrency:
 
-#### Testing
-- Test Status: [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) (DOD-TEST section)
-- Test Plan: [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md) (Phase 2)
+- Capture it with **DECISION-TEMPLATE**.
+- Sanity-check it against the decision framework in **00-GRAVITY-WELL**.
 
-#### Documentation
-- Doc Status: [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) (DOD-DOCS section)
-- Doc Plan: [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md) (throughout)
+2. If it changes priorities or phases:
 
-#### Architecture
-- Decisions: [reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md)
-- Principles: [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md) (Decision Framework)
+- Update **STATUS-MATRIX** and, if needed, **CRITICAL-PATH**.
 
 ---
 
-## 🔄 Update Cadence
+## Current Status (How to Read It)
+
+This file does not hard-code percentages or per-section progress.
+
+- The live state lives in **[completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)**.
+- Package-specific reality lives in **[planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md)**.
+
+As of the latest updates:
+
+- The layered monorepo exists (`base`, `primitives`, `introspect`, `core`, `commands`, `hotswap`, `integration`,
+  `playground`).
+- `@seqlok/core` is solid and split from primitives/introspect.
+- `@seqlok/base`, `@seqlok/primitives`, and `@seqlok/introspect` exist and are wired into the build.
+- The error system has been split into package-owned domains with numeric codes and central aggregation in
+  `@seqlok/introspect`.
+- `@seqlok/commands`, `@seqlok/hotswap`, and `@seqlok/integration` are still early: API shape plus some scaffolding, but
+  not
+  v1.0-ready.
+
+For exact statuses (per Definition-of-Done section, per package), always consult `STATUS-MATRIX` and
+`PACKAGE-READINESS`.
+
+---
+
+## Navigation Guide
+
+### By “role” (even if it is all you)
+
+**Solo developer (current reality)**
+
+- Overview and intent: **00-GRAVITY-WELL**
+- Hard status: **completion/STATUS-MATRIX**
+- Package scope: **planning/PACKAGE-READINESS**
+- Sprint focus: **reference/WEEKLY-SPRINT**
+- Decisions: **reference/DECISION-TEMPLATE**
+
+**Future technical lead / collaborator**
+
+- Roadmap: **planning/CRITICAL-PATH**
+- Package status: **planning/PACKAGE-READINESS**
+- Global health: **completion/STATUS-MATRIX**
+
+**External contributor (future)**
+
+- Orientation: **00-GRAVITY-WELL**
+- What matters now: **CRITICAL-PATH**
+- Where help fits: **STATUS-MATRIX** and **PACKAGE-READINESS**
+
+---
+
+## Update Cadence
 
 ### Daily
-- Update task status in current sprint ([reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md))
-- Log blockers as they emerge
+
+- Update the current sprint in **WEEKLY-SPRINT**.
+- If you finish or unblock something substantial, update **STATUS-MATRIX**.
 
 ### Weekly
-- Update [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) (Friday)
-- Plan next sprint using [reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md) (Monday)
-- Review critical path in [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)
+
+- End of week: scan **STATUS-MATRIX**, mark progress, and note blockers.
+- Start of week: use **CRITICAL-PATH** plus **STATUS-MATRIX** to define a new sprint in **WEEKLY-SPRINT**.
 
 ### Monthly
-- Full DoD audit in [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)
-- Review [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md) for needed updates
-- Validate [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md) against reality
 
-### On Major Changes
-- Update all affected sections immediately
-- Document decisions in [reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md)
-- Propagate changes to dependent documents
+- Do a light Definition-of-Done audit using **STATUS-MATRIX**.
+- Check whether **00-GRAVITY-WELL** and **CRITICAL-PATH** still match reality.
+- Adjust phases or priorities if needed.
 
----
+### On major changes
 
-## 🎯 Success Indicators
-
-### You're On Track When
-- ✅ [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) shows steady progress
-- ✅ Critical path tasks are shipping weekly
-- ✅ Decisions are documented and aligned
-- ✅ Sprints have clear demos
-
-### You're Drifting When
-- ⚠️ Same blockers appear week after week
-- ⚠️ Scope creeps without updating documents
-- ⚠️ Decisions aren't captured
-- ⚠️ Completion percentage stagnates
-
-### You're Blocked When
-- 🛑 Multiple critical path tasks stuck
-- 🛑 No clear next action
-- 🛑 Success criteria are ambiguous
-- 🛑 Sprints extend beyond 2 weeks
+- Record an ADR with **DECISION-TEMPLATE** if public API, error semantics, or concurrency change.
+- Update any affected parts of **00-GRAVITY-WELL**, **STATUS-MATRIX**, and **PACKAGE-READINESS**.
 
 ---
 
-## 💡 Pro Tips
+## Success Signals
 
-### For Maximum Efficiency
-1. **Start every session** by checking [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)
-2. **End every session** by updating your progress
-3. **Use the Decision Framework** from [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md) when stuck
-4. **Review the critical path** weekly to stay aligned
+You are using the gravity well correctly when:
 
-### For Maintaining Focus
-1. **One sprint, one goal** – resist the temptation to multitask
-2. **Ship weekly** – even if incomplete, demo something working
-3. **Defer aggressively** – use the v1.1+ backlog liberally
-4. **Document as you go** – don't leave it until the end
+- `STATUS-MATRIX` changes visibly over time (cells move from “not implemented” toward “complete”).
+- Sprints in **WEEKLY-SPRINT** have clear, testable outcomes.
+- Big shifts in direction show up as ADRs and CRITICAL-PATH edits, not just code.
 
-### For Dealing With Blockers
-1. **Log it immediately** in [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md)
-2. **Find parallel work** using [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md)
-3. **Timebox investigation** – 1 day max, then escalate or pivot
-4. **Update the roadmap** if blocker changes timeline
+You know it is drifting when:
+
+- The same red or yellow cells stay unchanged over several weeks.
+- You routinely do work that does not connect to any Definition-of-Done or critical-path item.
+- Docs say one thing, and the code clearly says another.
 
 ---
 
-## 📞 When to Use Each Document
+## Related Documentation
 
-### Use [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md) when
-- You need to see the big picture
-- You're making a decision
-- You're unsure what to work on next
-- You want to check overall status
-
-### Use [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) when
-- You need detailed DoD status
-- You're looking for blockers
-- You want to see what's complete
-- You're doing a weekly review
-
-### Use [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md) when
-- You need the detailed roadmap
-- You're planning work beyond this week
-- You need time estimates
-- You want to understand dependencies
-
-### Use [planning/PACKAGE-READINESS.md](planning/PACKAGE-READINESS.md) when
-- You're working on a specific package
-- You need a package-level checklist
-- You want to see inter-package dependencies
-- You're auditing package completeness
-
-### Use [reference/DECISION-TEMPLATE.md](reference/DECISION-TEMPLATE.md) when
-- You hit a decision point
-- Multiple options exist
-- The decision affects public API
-- You need to document rationale
-
-### Use [reference/WEEKLY-SPRINT.md](reference/WEEKLY-SPRINT.md) when
-- You're planning a sprint
-- You need focused work chunks
-- You want to maintain velocity
-- You're doing sprint retrospectives
+- Definition of Done: `../architecture/00-definition-of-done.md`
+- Architecture docs: `../architecture/`
+- ADRs: `../adr/`
+- Guides: `../guides/`
+- Internals: `../internals/`
 
 ---
 
-## 🚨 Important Reminders
+## Maintenance
 
-1. **This is a living system** – Update it as reality changes
-2. **Accuracy > Perfection** – Better to have accurate status than pretty docs
-3. **Alignment > Speed** – These docs exist to keep us aligned, not slow us down
-4. **Ship > Polish** – Done and imperfect beats perfect and never shipping
+- Keep this index high-level and relatively stable.
+- Put detailed status and evidence in:
+  - `completion/STATUS-MATRIX.md`
+  - `planning/PACKAGE-READINESS.md`
 
----
-
-## 📚 Related Documentation
-
-- **Definition of Done**: `/docs/architecture/00-definition-of-done.md`
-- **Architecture Docs**: `/docs/architecture/`
-- **ADRs**: `/docs/adr/`
-- **Guides**: `/docs/guides/`
-- **Internals**: `/docs/internals/`
-
----
-
-## 🎬 Getting Started Checklist
-
-If this is your first time using the gravity well:
-
-- [ ] Read [00-GRAVITY-WELL.md](00-GRAVITY-WELL.md) top to bottom
-- [ ] Review [completion/STATUS-MATRIX.md](completion/STATUS-MATRIX.md) to understand current state
-- [ ] Scan [planning/CRITICAL-PATH.md](planning/CRITICAL-PATH.md) to see the roadmap
-- [ ] Bookmark these docs for daily reference
-- [ ] Set up weekly review reminder (Friday)
-- [ ] Set up sprint planning reminder (Monday)
-
-Once you've done this, you're ready to start shipping toward v1.0.
-
----
-
-**Remember**: This gravity well exists to keep you moving toward **production-ready, minimal, correct**. If any document stops serving that purpose, update it or remove it. The goal is not documentation for its own sake—it's shipping Seqlok v1.0.
-
----
+If the gravity-well docs stop helping you ship v1.0, simplify them until they do.
 
 **Created**: 2025-11-24  
-**Maintained By**: Maikel  
-**Last Major Update**: 2025-11-24
+**Last Major Update**: 2025-11-29

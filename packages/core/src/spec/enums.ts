@@ -8,10 +8,9 @@
  * - Offers UI-friendly helpers for dropdowns, cycling, and palette generation.
  */
 
-import { createError } from "../errors/error";
+import { createSpecError, type SpecEnumDetails } from "../errors/spec";
 
 import type { SpecInput } from "./types";
-import type { SpecEnumDetails } from "../errors/codes/spec";
 
 /**
  * Keys that can meaningfully refer to params or meters.
@@ -47,6 +46,16 @@ export type EnumLabel<
         : never
       : never
     : never;
+
+/**
+ * Optional enum label (used for out-of-range index lookups).
+ *
+ * eslint currently mis-detects this generic union as "redundant", so we
+ * locally disable the rule here instead of weakening the return types.
+ */
+export type EnumLabelMaybe<S extends SpecInput, K extends EnumKeyOf<S>> =
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  EnumLabel<S, K> | undefined;
 
 /**
  * Internal structural shape we expect for enum / enum.array defs.
@@ -135,7 +144,7 @@ export function enumLabelFromIndex<S extends SpecInput, K extends EnumKeyOf<S>>(
   spec: S,
   key: K,
   index: number,
-): EnumLabel<S, K> | undefined {
+): EnumLabelMaybe<S, K> {
   const values = enumValues<S, K>(spec, key);
   return values[index];
 }
@@ -160,9 +169,7 @@ export function enumArrayToLabels<S extends SpecInput, K extends EnumKeyOf<S>>(
     const label = values[idx];
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (label === undefined) {
-      // Detail type matches SpecEnumDetails (alias of EnumDetails):
-      // { key, values, invalidIndex?: number, received?: string|number, duplicate?: string }
-      throw createError("spec.enumInvalid", `Enum index invalid for "${key}"`, {
+      throw createSpecError("enumInvalid", {
         key,
         values,
         invalidIndex: idx,
@@ -193,7 +200,7 @@ export function enumLabelsToArray<S extends SpecInput, K extends EnumKeyOf<S>>(
   labels.forEach((label, i) => {
     const idx = values.indexOf(label);
     if (idx === -1) {
-      throw createError("spec.enumInvalid", `Enum label invalid for "${key}"`, {
+      throw createSpecError("enumInvalid", {
         key,
         values,
         received: label,
@@ -226,7 +233,7 @@ export function enumPaletteFor<S extends SpecInput, K extends EnumKeyOf<S>>(
 ): {
   values: readonly EnumLabel<S, K>[];
   indexFrom(label: EnumLabel<S, K>): number;
-  labelFrom(index: number): EnumLabel<S, K> | undefined;
+  labelFrom(index: number): EnumLabelMaybe<S, K>;
 } {
   const values = enumValues<S, K>(spec, key);
 
@@ -235,7 +242,7 @@ export function enumPaletteFor<S extends SpecInput, K extends EnumKeyOf<S>>(
     indexFrom(label: EnumLabel<S, K>): number {
       return values.indexOf(label);
     },
-    labelFrom(index: number): EnumLabel<S, K> | undefined {
+    labelFrom(index: number): EnumLabelMaybe<S, K> {
       return values[index];
     },
   };

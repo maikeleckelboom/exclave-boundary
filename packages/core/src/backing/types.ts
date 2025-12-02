@@ -4,13 +4,13 @@
  *
  * @remarks
  * - Describes backing kinds (shared SAB, partitioned SAB, shared WASM).
- * - Defines the `MappedViews` structure used by bindings and diagnostics.
+ * - Defines the `MappedViews` structure used by bindings and introspect.
  * - Centralises typed views for param, meter and lock planes.
  *
  * @internal
  */
 
-import type { PlaneKey } from "../primitives/planes";
+import type { PlaneKey } from "@seqlok/primitives";
 
 /**
  * Supported memory backing strategies for Seqlok's shared memory planes.

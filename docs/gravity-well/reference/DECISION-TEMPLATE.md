@@ -304,10 +304,10 @@ Ask:
 
 **NOTE**: This section should be updated as decisions are made. For full history, see `/docs/adr/`.
 
-### 2025-11-24: Package Naming (host vs integration)
+### 2025-11-24: Package Naming (integration vs integration)
 **Status**: Proposed  
-**Decision**: Keep `@seqlok/host` name, add alias in docs to `integration`  
-**Rationale**: Existing code uses `host`, renaming is disruptive  
+**Decision**: Keep `@seqlok/integration` name, add alias in docs to `integration`  
+**Rationale**: Existing code uses `integration`, renaming is disruptive  
 **DoD Impact**: Minimal (docs update only)
 
 ### 2025-11-24: SPARBB Harness Scope

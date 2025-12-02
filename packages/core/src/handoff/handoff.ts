@@ -16,9 +16,9 @@
  * - Consumers bind from `ReceivedHandoff<S>`, never raw `(Plan<S>, Backing)`.
  */
 
-import { createError } from "../errors/error";
-import { isObject } from "../internal/is-object";
-import { ALL_PLANES, type PlaneKey } from "../primitives/planes";
+import { ALL_PLANES, type PlaneKey } from "@seqlok/primitives";
+
+import { createHandoffError } from "../errors/handoff";
 
 import type { Handoff, ReceivedHandoff } from "./types";
 import type { Backing } from "../backing/types";
@@ -92,12 +92,16 @@ function isPlanLike<S extends SpecInput>(plan: unknown): plan is Plan<S> {
   return true;
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
 /**
  * Construct a {@link Handoff} from a context, plan, and backing.
  *
  * @typeParam S - Spec type (inferred from `plan` or `context.plan`).
  *
- * @throws {@link import('../errors').SeqlokError}
+ * @throws {@link import('../errors/domains').SeqlokError}
  * - `handoff.invalidArtifact` if the backing is incompatible with the plan,
  *   or an unsupported backing kind is provided.
  *
@@ -146,29 +150,22 @@ export function buildHandoff<S extends SpecInput>(
 
   if (backing.kind === "shared") {
     if (!isSharedArrayBuffer(backing.sab)) {
-      throw createError(
-        "handoff.invalidArtifact",
-        'Handoff requires a SharedArrayBuffer backing for kind="shared"',
-        {
-          where: "handoff.buildHandoff",
-          detail: "backing.sab",
-        },
-      );
+      throw createHandoffError("invalidArtifact", {
+        where: "handoff.buildHandoff",
+        detail: "backing.sab",
+      });
     }
 
     const requiredBytes = plan.bytesTotal >>> 0;
     const actualBytes = backing.sab.byteLength >>> 0;
 
     if (actualBytes < requiredBytes) {
-      throw createError(
-        "handoff.invalidArtifact",
-        "Backing SharedArrayBuffer undersized for plan",
-        {
-          where: "handoff.buildHandoff",
-          expectedBytes: requiredBytes,
-          receivedBytes: actualBytes,
-        },
-      );
+      throw createHandoffError("invalidArtifact", {
+        where: "handoff.buildHandoff",
+        detail: "shared.undersized",
+        expectedBytes: requiredBytes,
+        receivedBytes: actualBytes,
+      });
     }
 
     // Brand on the way out.
@@ -189,30 +186,22 @@ export function buildHandoff<S extends SpecInput>(
       const sab = planes[plane];
 
       if (!isSharedArrayBuffer(sab)) {
-        throw createError(
-          "handoff.invalidArtifact",
-          "Plane backing is not a SharedArrayBuffer",
-          {
-            where: "handoff.buildHandoff",
-            detail: `plane=${plane}`,
-          },
-        );
+        throw createHandoffError("invalidArtifact", {
+          where: "handoff.buildHandoff",
+          detail: `plane=${plane}`,
+        });
       }
 
       const requiredBytes = planeLengths[plane] >>> 0;
       const actualBytes = sab.byteLength >>> 0;
 
       if (actualBytes < requiredBytes) {
-        throw createError(
-          "handoff.invalidArtifact",
-          "Plane backing undersized for plan",
-          {
-            where: "handoff.buildHandoff",
-            detail: `plane=${plane}`,
-            expectedBytes: requiredBytes,
-            receivedBytes: actualBytes,
-          },
-        );
+        throw createHandoffError("invalidArtifact", {
+          where: "handoff.buildHandoff",
+          detail: `plane=${plane}`,
+          expectedBytes: requiredBytes,
+          receivedBytes: actualBytes,
+        });
       }
     }
 
@@ -226,26 +215,18 @@ export function buildHandoff<S extends SpecInput>(
 
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (backing.kind === "wasm-shared") {
-    throw createError(
-      "handoff.invalidArtifact",
-      "wasm-shared backing is not yet supported by the handoff protocol",
-      {
-        where: "handoff.buildHandoff",
-        detail: "kind=wasm-shared",
-      },
-    );
+    throw createHandoffError("invalidArtifact", {
+      where: "handoff.buildHandoff",
+      detail: "kind=wasm-shared",
+    });
   }
 
   const kind = (backing as { kind?: unknown }).kind;
 
-  throw createError(
-    "handoff.invalidArtifact",
-    "Unsupported backing kind for handoff",
-    {
-      where: "handoff.buildHandoff",
-      detail: `kind=${String(kind)}`,
-    },
-  );
+  throw createHandoffError("invalidArtifact", {
+    where: "handoff.buildHandoff",
+    detail: `kind=${String(kind)}`,
+  });
 }
 
 /**
@@ -271,18 +252,15 @@ export function receiveHandoff(handoff: unknown): ReceivedHandoff;
  *
  * @internal
  */
-export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+export function receiveHandoff<S extends SpecInput>(
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   handoff: Handoff<S> | unknown,
 ): ReceivedHandoff<S> {
   if (!isObject(handoff)) {
-    throw createError(
-      "handoff.invalidArtifact",
-      "Handoff artifact must be an object",
-      {
-        where: "handoff.receiveHandoff",
-        detail: "non-object",
-      },
-    );
+    throw createHandoffError("invalidArtifact", {
+      where: "handoff.receiveHandoff",
+      detail: "non-object",
+    });
   }
 
   const hx = handoff as {
@@ -295,7 +273,7 @@ export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line
 
   // Validate protocol version.
   if (hx.version !== SUPPORTED_HANDOFF_VERSION) {
-    throw createError("handoff.versionMismatch", "Unexpected handoff version", {
+    throw createHandoffError("versionMismatch", {
       where: "handoff.receiveHandoff",
       expectedVersion: SUPPORTED_HANDOFF_VERSION,
       receivedVersion: typeof hx.version === "number" ? hx.version : Number.NaN,
@@ -304,28 +282,20 @@ export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line
 
   // Validate plan structure (metadata source).
   if (!isPlanLike<S>(hx.plan)) {
-    throw createError(
-      "handoff.invalidArtifact",
-      "Missing or invalid plan in handoff",
-      {
-        where: "handoff.receiveHandoff",
-        detail: "plan",
-      },
-    );
+    throw createHandoffError("invalidArtifact", {
+      where: "handoff.receiveHandoff",
+      detail: "plan",
+    });
   }
 
   const plan = hx.plan;
 
   if (hx.packing === "shared") {
     if (!isSharedArrayBuffer(hx.sab)) {
-      throw createError(
-        "handoff.invalidArtifact",
-        "Handoff buffer is not SharedArrayBuffer",
-        {
-          where: "handoff.receiveHandoff",
-          detail: "sab",
-        },
-      );
+      throw createHandoffError("invalidArtifact", {
+        where: "handoff.receiveHandoff",
+        detail: "sab",
+      });
     }
 
     return {
@@ -337,14 +307,10 @@ export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line
 
   if (hx.packing === "shared-partitioned") {
     if (!isObject(hx.planes)) {
-      throw createError(
-        "handoff.invalidArtifact",
-        "Handoff planes map must be an object",
-        {
-          where: "handoff.receiveHandoff",
-          detail: "planes",
-        },
-      );
+      throw createHandoffError("invalidArtifact", {
+        where: "handoff.receiveHandoff",
+        detail: "planes",
+      });
     }
 
     const planesObject = hx.planes;
@@ -352,14 +318,10 @@ export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line
 
     for (const [key, value] of Object.entries(planesObject)) {
       if (!isSharedArrayBuffer(value)) {
-        throw createError(
-          "handoff.invalidArtifact",
-          "Plane backing is not a SharedArrayBuffer",
-          {
-            where: "handoff.receiveHandoff",
-            detail: `plane=${key}`,
-          },
-        );
+        throw createHandoffError("invalidArtifact", {
+          where: "handoff.receiveHandoff",
+          detail: `plane=${key}`,
+        });
       }
 
       planeSabMap[key] = value;
@@ -372,7 +334,7 @@ export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line
     } as ReceivedHandoff<S>;
   }
 
-  throw createError("handoff.invalidArtifact", "Unsupported handoff packing", {
+  throw createHandoffError("invalidArtifact", {
     where: "handoff.receiveHandoff",
     detail: `packing=${String(hx.packing)}`,
   });
@@ -381,7 +343,7 @@ export function receiveHandoff<S extends SpecInput>( // eslint-disable-next-line
 /**
  * Compare two plans for compatibility.
  *
- * @throws {@link import('../errors').SeqlokError}
+ * @throws {@link import('../errors/domains').SeqlokError}
  * - `handoff.specHashMismatch` if `hash` values differ.
  * - `handoff.backingMismatch` if `bytesTotal` differ.
  */
@@ -390,7 +352,7 @@ export function verifyHandoff<S extends SpecInput>(
   remotePlan: Plan<S>,
 ): void {
   if (localPlan.hash !== remotePlan.hash) {
-    throw createError("handoff.specHashMismatch", "Spec hash mismatch", {
+    throw createHandoffError("specHashMismatch", {
       where: "handoff.verifyHandoff",
       expectedHash: localPlan.hash,
       receivedHash: remotePlan.hash,
@@ -401,17 +363,13 @@ export function verifyHandoff<S extends SpecInput>(
   }
 
   if (localPlan.bytesTotal !== remotePlan.bytesTotal) {
-    throw createError(
-      "handoff.backingMismatch",
-      "Backing byteLength mismatch",
-      {
-        where: "handoff.verifyHandoff",
-        expectedBytes: localPlan.bytesTotal,
-        receivedBytes: remotePlan.bytesTotal,
-        local: localPlan.bytesTotal,
-        remote: remotePlan.bytesTotal,
-      },
-    );
+    throw createHandoffError("backingMismatch", {
+      where: "handoff.verifyHandoff",
+      expectedBytes: localPlan.bytesTotal,
+      receivedBytes: remotePlan.bytesTotal,
+      local: localPlan.bytesTotal,
+      remote: remotePlan.bytesTotal,
+    });
   }
 }
 

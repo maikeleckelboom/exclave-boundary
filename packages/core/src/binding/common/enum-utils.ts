@@ -7,7 +7,9 @@
  *   controller/observer bindings and other modules.
  */
 
-import { isObject } from "../../internal/is-object";
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
 
 import type { ParamDef } from "../../spec/types";
 

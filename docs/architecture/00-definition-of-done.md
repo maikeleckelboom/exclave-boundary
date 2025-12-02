@@ -1,6 +1,6 @@
 # Seqlok: Definition of Done (Gravity Well)
 
-Seqlok is "done" when it is a stable, language agnostic control fabric for real time systems with:
+Seqlok is "done" when it is a stable, language-agnostic control fabric for real-time systems with:
 
 - a locked and minimal API surface
 - proven concurrency semantics
@@ -9,30 +9,52 @@ Seqlok is "done" when it is a stable, language agnostic control fabric for real 
 
 The sections below describe that target.
 
+---
+
 ## DOD-ARCH: Architecture and packages
 
 ### ARCH-1: Layered monorepo is stable and enforced
 
-- Packages and dependency flow:
+- Packages and dependency flow (runtime spine + sidecars):
 
-  - `@seqlok/foundation`: axioms (no dependencies)
-  - `@seqlok/primitives`: concurrency and memory (depends on `@seqlok/foundation`)
-  - `@seqlok/diagnostics`: diagnostics and environment probing (depends on `@seqlok/foundation`)
-  - `@seqlok/core`: spec, plan, backing, handoff and bindings (depends on `@seqlok/foundation`, `@seqlok/primitives`,
-    `@seqlok/diagnostics`)
-  - `@seqlok/commands`: command transport (depends on `@seqlok/foundation`, `@seqlok/primitives`)
-  - `@seqlok/hotswap`: engine lifecycle and swap protocol (depends on `@seqlok/foundation`, `@seqlok/commands`,
-    `@seqlok/core`)
-  - `@seqlok/integration`: host wiring and topologies (depends on all `@seqlok/*` packages)
+  - `@seqlok/base`: axioms, base error algebra, cross-cutting protocol types  
+    → **no dependencies**
+
+  - `@seqlok/primitives`: concurrency and memory (atomics, seqlock, SWSR rings)  
+    → depends on `@seqlok/base`
+
+  - `@seqlok/core`: spec, plan, backing, handoff and bindings  
+    → depends on `@seqlok/base`, `@seqlok/primitives`
+
+  - `@seqlok/commands`: command transport protocol (rings, op codes)  
+    → depends on `@seqlok/base`, `@seqlok/primitives`, `@seqlok/core`
+
+  - `@seqlok/hotswap`: engine lifecycle and swap protocol  
+    → depends on `@seqlok/base`, `@seqlok/primitives`, `@seqlok/core`, `@seqlok/commands`
+
+  - `@seqlok/integration`: host wiring and topologies (workers, audio/compute hosts)  
+    → depends on `@seqlok/base`, `@seqlok/primitives`, `@seqlok/core`, `@seqlok/commands`, `@seqlok/hotswap`
+
+  - `@seqlok/introspect`: error registry, health interpretation, environment probing  
+    → depends on `@seqlok/base`, `@seqlok/primitives`, `@seqlok/core`, `@seqlok/commands`, `@seqlok/hotswap`  
+    → **does not** depend on `@seqlok/integration`
+
+  - `@seqlok/docs` (or equivalent): documentation site  
+    → may depend on all packages
+
+  - `@seqlok/playground` (or equivalent): interactive demo app  
+    → depends on `@seqlok/integration`, `@seqlok/introspect`
 
 - Dependency rules are expressed in tooling (ESLint, dependency graph checks, TypeScript references) and CI fails on
   violations.
 
 ### ARCH-2: Ownership of concepts is unambiguous
 
-- Each concern (errors, seqlock, command ring, hotswap protocol, host wiring) has exactly one owning package.
-- Public types are exported from that package root barrel. Internal modules are not re exported across package
+- Each concern (errors, seqlock, command ring, hotswap protocol, host wiring, introspection) has exactly one owning
+  package.
+- Public types are exported from that package root barrel. Internal modules are not re-exported across package
   boundaries.
+- Introspect aggregates runtime information but does not "own" runtime domains; it owns introspection-only domains.
 
 ### ARCH-3: Memory and layout model is frozen
 
@@ -40,21 +62,25 @@ The sections below describe that target.
 - A minimal layout spec document exists that is enough for a Rust or C++ implementation to interoperate without reading
   the TypeScript source.
 
+---
+
 ## DOD-API: Public surface and semantics
 
-### API-1: Golden flow is final and documented
+### API-1: Canonical flow is final and documented
 
 - Public API centers on:
 
   ```text
   defineSpec
-  -> planLayout
-  -> allocateShared | allocateSharedSplit | allocateWasmShared
-  -> buildHandoff
-  -> receiveHandoff
-  -> bindController / bindProcessor / bindObserver
+  → planLayout
+  → allocateShared | allocateSharedSplit | allocateWasmShared
+  → buildHandoff
+  → receiveHandoff
+  → bindController / bindProcessor
   ```
 
+- Observer bindings (read-only views) are allowed, but they follow the same handoff and binding model and do not need a
+  separate "canonical flow".
 - No alternative experimental flows are required for normal usage.
 
 ### API-2: Param and meter interfaces are stable
@@ -69,29 +95,41 @@ The sections below describe that target.
 - Processor:
 
   - `params.within(cb)` for coherent param read windows
-  - `meters.publish(cb)` for coherent meter writes (`writer.scalar(value)`, `writer.stage('arrayKey', cb(view))`)
+  - `meters.publish(cb)` for coherent meter writes:
 
-- DSL ranges are range only (`{min, max}`). There is no `step`, `origin` or `default` in the DSL itself.
+    - scalar meters via writer functions (e.g. `writer.level(value)`)
+    - array meters via `writer.stage('arrayKey', cb(view))`
+
+- Observer (when present):
+
+  - `snapshot(...)` API equivalent to controller meters, but read-only
+  - never owns params or meters; it only reads coherent views
+
+- DSL ranges are range-only (`{min, max}`). There is no `step`, `origin` or `default` in the DSL itself; snapping and
+  defaults are handled by hosts.
 
 ### API-3: No legacy names or aliases remain
 
-- No `setMany`, no `adoptHandoff`, no `meters.sample`, no old DSL options.
+- No `setMany`, no `adoptHandoff`, no `meters.sample`, no legacy DSL options.
 - Deprecated symbols, if they exist at all, are marked and scheduled for removal with a clear policy.
 
 ### API-4: TypeScript experience is first class
 
 - All public APIs are generically typed end to end, with no `any`.
-- `defineSpec` to `Plan<S>` to `Handoff<S>` to `ReceivedHandoff<S>` to bindings preserves type information without
-  manual casts.
+- `defineSpec` → `Plan<S>` → `Handoff<S>` → `ReceivedHandoff<S>` → bindings preserves type information without manual
+  casts.
 - Example projects build without needing `as never` or `@ts-expect-error` outside of tests.
+
+---
 
 ## DOD-CONC: Concurrency and correctness
 
 ### CONC-1: Concurrency model is explicit and documented
 
-- Seqlok documents which data paths are SWMR (params and meters) and which are MWSR or MWMR (command ring, hotswap
+- Seqlok documents which data paths are SWMR (params and meters) and which are SWSR/MWSR/MWMR (command rings, hotswap
   orchestration).
 - The seqlock protocol used for params and meters is described in plain language with diagrams.
+- The command-ring protocol is documented (producer/consumer roles, wraparound, ABA considerations).
 
 ### CONC-2: Hot paths are property tested
 
@@ -105,11 +143,13 @@ The sections below describe that target.
 
 - Node and browser worker tests exist for:
 
-  - cross thread seqlock behavior under load
+  - cross-thread seqlock behavior under load
   - command ring under bursty producers and consumers
   - hotswap transitions while commands are in flight
 
-- A simulated SPARBB style harness runs randomized scenarios (start, stop, swap, abort) and is part of CI.
+- A simulated SPARBB-style harness runs randomized scenarios (start, pause, abort, resume, blend) and is part of CI.
+
+---
 
 ## DOD-ERR: Errors, diagnostics, health
 
@@ -117,26 +157,38 @@ The sections below describe that target.
 
 - Error codes are partitioned by package:
 
-  - `internal.*`: foundation
-  - `primitives.*`: primitives
-  - `diagnostics.*`, `env.*`: diagnostics
-  - `spec.*`, `plan.*`, `backing.*`, `binding.*`, `handoff.*`: core
+  - `internal.*`: base (internal invariants, unreachable states, programmer errors)
+  - `primitives.*`: primitives (seqlock, rings, planes)
+  - `env.*`, `backing.*`, `binding.*`, `spec.*`, `plan.*`, `handoff.*`: core
   - `commands.*`: commands
   - `hotswap.*`: hotswap
-  - `integration.*`: integration
+  - `integration.*`: integration (host-specific; not required for cross-language consumers)
+  - `introspect.*`: introspect (observability and instrumentation sidecar)
 
 - Each code lives in exactly one `codes/*.ts` file under its owning package.
 
-### ERR-2: Global registry in core aggregates, does not own
+- Runtime packages construct errors via their domain-local factories (e.g. `createBackingError`, `createPrimitivesError`), all built on top of the shared error primitives in `@seqlok/base`. They do not know or care about global registries.
 
-- `@seqlok/core` exposes a global registry view:
+### ERR-2: Global registry in the introspect package aggregates, does not own
 
-  - `ErrorCode`, `CodeToPayload`
-  - `ERROR_META`, `ERROR_MESSAGES`
-  - helpers such as `getErrorMeta`, `getErrorMessage`, `isErrorCode`, `SeqlokError`
+- `@seqlok/introspect` exposes the global registry view:
 
-- The registry imports domain maps from foundation, primitives, diagnostics and core. It does not know about the
-  internals of commands, hotswap or integration.
+  - type unions such as `ErrorCode`, `ErrorDomain`, `CodeToPayload`
+  - maps such as `ERROR_META`, `ERROR_MESSAGES`
+  - helpers such as `getErrorMeta`, `getErrorMessage`, `isErrorCode`, `interpretHealth`
+
+- The registry imports domain maps and detail types from:
+
+  - base (`internal.*`, env protocol types)
+  - primitives (`primitives.*`)
+  - core (`spec.*`, `plan.*`, `backing.*`, `binding.*`, `handoff.*`)
+  - commands (`commands.*`)
+  - hotswap (`hotswap.*`)
+
+- Integration-specific codes (`integration.*`) may expose their own maps but are not required to be part of the global,
+  cross-language registry.
+
+- Runtime packages never depend on `@seqlok/introspect`; introspect is a sidecar that depends on the runtime spine.
 
 ### ERR-3: Invariants are formalized and enforced
 
@@ -151,16 +203,20 @@ The sections below describe that target.
 
 ### ERR-4: JSON schema or IDL exists
 
-- A generated JSON or similar schema describes all error codes, fields and severities.
+- A generated JSON (or similar) schema describes all **registry** error codes, fields and severities.
+- The schema is generated from `@seqlok/introspect` and reflects the aggregated registry view.
 - Rust or C++ code can be generated from this schema to mirror the TypeScript error surface.
 
 ### ERR-5: Diagnostics are structured and documented
 
-- `@seqlok/diagnostics` provides:
+- `@seqlok/introspect` provides:
 
-  - environment probes for Atomics, shared array buffers, WebAssembly and related features
-  - result types that carry structured errors
+  - environment probes for `Atomics`, `SharedArrayBuffer`, `WebAssembly` and related features
+  - result types that carry structured errors and health interpretations
   - guidance on how hosts should degrade when capabilities are missing
+  - utilities to route `SeqlokError` + `ErrorCode` into host logging and observability systems
+
+---
 
 ## DOD-PERF: Performance
 
@@ -176,8 +232,8 @@ The sections below describe that target.
 
 ### PERF-2: Benchmarks are reproducible and tracked
 
-- `pnpm bench` produces machine readable output and a generated markdown summary.
-- There is a visible history of benchmark runs, for example checked in JSON or markdown files, so regressions can be
+- `pnpm bench` (or equivalent) produces machine-readable output and a generated markdown summary.
+- There is a visible history of benchmark runs, for example checked-in JSON or markdown files, so regressions can be
   tracked.
 
 ### PERF-3: Performance is part of correctness
@@ -185,33 +241,43 @@ The sections below describe that target.
 - CI includes at least one performance smoke step on a standard machine profile that fails if hot path timings grow
   beyond a reasonable factor.
 
+---
+
 ## DOD-DOCS: Documentation and examples
 
 ### DOCS-1: Architecture docs match reality
 
-- The VitePress site includes:
+- The VitePress (or equivalent) site includes:
 
-  - an overview of the layer stack (
-    `foundation -> primitives and diagnostics -> core -> commands and hotswap -> integration`)
-  - a golden flow walkthrough with diagrams
-  - the error and diagnostics story, including domain ownership
-  - concurrency model diagrams for params and meters and for the command ring
+  - an overview of the layer stack:
+
+    - runtime spine:
+      `base → primitives → core → commands → hotswap → integration`
+    - introspect as a sidecar that depends on the runtime spine
+
+  - a canonical flow walkthrough with diagrams
+
+  - the error and diagnostics story, including domain ownership and the role of `@seqlok/introspect`
+
+  - concurrency model diagrams for params/meters (seqlock) and for the command ring
 
 - Docs are kept current enough that a new engineer can implement a small host without reading the entire source tree.
 
 ### DOCS-2: API reference is discoverable
 
-- Public exports of each package are documented, at least by hand curated sections rather than only raw generated dumps.
-- Each major function has at least one non trivial example.
+- Public exports of each package are documented, at least by hand-curated sections rather than only raw generated dumps.
+- Each major function has at least one non-trivial example.
 
 ### DOCS-3: Reference integrations exist
 
 - At least two real examples exist:
 
-  1. a minimal audio adjacent host, such as a simple DSP worker with UI controls, using core bindings
-  2. a non audio simulation, such as a WebGPU boids demo, using params and meters and optionally hotswap
+  1. a minimal audio-adjacent host, such as a simple DSP worker with UI controls, using core bindings
+  2. a non-audio simulation, such as a WebGPU boids demo, using params and meters and optionally hotswap
 
 - Both live in the repo or in a sibling repo and compile and run against current Seqlok versions.
+
+---
 
 ## DOD-TEST: Testing and CI
 
@@ -219,15 +285,15 @@ The sections below describe that target.
 
 - All critical modules, such as spec validation, plan layout, backing allocation, bindings, command ring and hotswap,
   have focused tests.
-- Property based tests exist for spec, layout and hotswap invariants.
+- Property-based tests exist for spec, layout and hotswap invariants.
 
 ### TEST-2: Cross environment tests
 
 - The test matrix includes:
 
   - Node, including worker threads
-  - browser equivalent tests, for example Happy DOM with workers or Playwright
-  - runs with and without shared array buffers, Atomics and WebAssembly when that is possible
+  - browser-equivalent tests, for example Happy DOM with workers or Playwright
+  - runs with and without `SharedArrayBuffer`, `Atomics` and `WebAssembly` when that is possible
 
 ### TEST-3: CI pipeline is canonical
 
@@ -237,7 +303,9 @@ The sections below describe that target.
   - type checking with `tsc -b` across the monorepo
   - unit and integration tests
   - benchmarks or at least a smoke run, optionally gated
-  - docs build with VitePress
+  - docs build with VitePress (or equivalent)
+
+---
 
 ## DOD-XLANG and HOST: Cross language and integration
 
@@ -245,19 +313,21 @@ The sections below describe that target.
 
 - A small Rust or C++ prototype exists that:
 
-  - consumes the error schema
+  - consumes the error schema from `@seqlok/introspect`
   - implements the memory layout spec
-  - successfully exchanges params and meters with a JavaScript host that uses a Seqlok style shared memory layout
+  - successfully exchanges params and meters with a JavaScript host that uses a Seqlok-style shared memory layout
 
 ### XLANG-2: Integration patterns are documented
 
 - `@seqlok/integration` provides patterns or utilities for:
 
-  - worker wiring, including controller, processor and observer topology
+  - worker wiring, including controller, processor (and optional observer) topology
   - transport of handoffs and command rings
   - host lifecycle, including start, stop and teardown, with clear error surfaces
 
-- Docs include at least one end to end host wiring chapter.
+- Docs include at least one end-to-end host wiring chapter.
+
+---
 
 ## DOD-GOV: Versioning and evolution
 

@@ -8,14 +8,15 @@
  * - Enforces binding lifetime and basic invariants.
  */
 
+import { createInternalError, invariant } from "@seqlok/base";
+import { publish } from "@seqlok/primitives";
+
 import {
   type MappedViews,
   mapViews,
   type MeterPlaneViews,
   type ParamPlaneViews,
 } from "../../backing/map-views";
-import { invariant } from "../../errors/invariant";
-import { publish } from "../../primitives/seqlock";
 import { makeWithin } from "../common/coherent";
 import { claimBinding, releaseBinding } from "../common/registry";
 import { throwUnknownKey } from "../common/validate";
@@ -92,14 +93,11 @@ function isMeterDataPlane(p: MeterSlot["plane"]): p is MeterPlane {
  * - Throws `internal.assertionFailed` when the view is `undefined`.
  */
 function ensurePlane<T>(v: T | undefined, where: string, detail: string): T {
-  invariant(
-    v !== undefined,
-    "internal.assertionFailed",
-    "expected defined plane view",
-    {
+  invariant(v !== undefined, () =>
+    createInternalError("assertionFailed", {
       where,
-      detail,
-    },
+      detail: `missing plane view: ${detail}`,
+    }),
   );
   return v;
 }
@@ -116,25 +114,22 @@ function readNumberAt(
   index: number,
   where: string,
 ): number {
-  invariant(
-    index >= 0 && index < values.length,
-    "internal.assertionFailed",
-    "offset out of range",
-    {
+  invariant(index >= 0 && index < values.length, () =>
+    createInternalError("assertionFailed", {
       where,
-      detail: `${String(index)}/${String(values.length)}`,
-    },
+      detail: `offset out of range: ${String(index)}/${String(values.length)}`,
+    }),
   );
+
   const v = values[index];
-  invariant(
-    typeof v === "number",
-    "internal.assertionFailed",
-    "expected numeric element",
-    {
+
+  invariant(typeof v === "number", () =>
+    createInternalError("assertionFailed", {
       where,
-      detail: String(index),
-    },
+      detail: `expected numeric element at index ${String(index)}`,
+    }),
   );
+
   return v;
 }
 
@@ -152,17 +147,16 @@ function paramArrayViewFor(
     length: number;
   },
 ): Ephemeral<Float32Array> | Ephemeral<Int32Array> | Ephemeral<Uint8Array> {
-  invariant(
-    slot.length > 1,
-    "internal.assertionFailed",
-    "array param expected",
-    {
+  invariant(slot.length > 1, () =>
+    createInternalError("assertionFailed", {
       where: "param.array",
-      detail: slot.plane,
-    },
+      detail: `array param expected for plane=${slot.plane}`,
+    }),
   );
+
   const start = (slot.offset / slot.bytesPerElement) | 0;
   const end = start + slot.length;
+
   switch (slot.plane) {
     case "PF32":
       return ensurePlane(views.PF32, "param.array", "PF32").subarray(
@@ -198,6 +192,7 @@ function readParamScalar(
   },
 ): number | boolean {
   const i = (slot.offset / slot.bytesPerElement) | 0;
+
   switch (slot.plane) {
     case "PF32": {
       const at = ensurePlane(views.PF32, "param.scalar", "PF32");
@@ -229,17 +224,16 @@ function meterArrayViewFor(
     length: number;
   },
 ): Ephemeral<Float32Array> | Ephemeral<Float64Array> | Ephemeral<Uint32Array> {
-  invariant(
-    slot.length > 1,
-    "internal.assertionFailed",
-    "array meter expected",
-    {
+  invariant(slot.length > 1, () =>
+    createInternalError("assertionFailed", {
       where: "meter.array",
-      detail: slot.plane,
-    },
+      detail: `array meter expected for plane=${slot.plane}`,
+    }),
   );
+
   const start = (slot.offset / slot.bytesPerElement) | 0;
   const end = start + slot.length;
+
   switch (slot.plane) {
     case "MF32":
       return ensurePlane(views.MF32, "meter.array", "MF32").subarray(
@@ -282,15 +276,13 @@ function makeScalarWriter(
   coerce: (v: number) => number,
   where: string,
 ): (value: number) => void {
-  invariant(
-    index >= 0 && index < values.length,
-    "internal.assertionFailed",
-    "offset out of range",
-    {
+  invariant(index >= 0 && index < values.length, () =>
+    createInternalError("assertionFailed", {
       where,
-      detail: `${String(index)}/${String(values.length)}`,
-    },
+      detail: `offset out of range: ${String(index)}/${String(values.length)}`,
+    }),
   );
+
   return (value: number) => {
     values[index] = coerce(value);
   };
@@ -300,13 +292,11 @@ function makeScalarWriter(
  * Assert that the processor binding has not been disposed.
  */
 function assertNotDisposed(disposed: boolean, where: string): void {
-  invariant(
-    !disposed,
-    "internal.assertionFailed",
-    "processor binding disposed",
-    {
+  invariant(!disposed, () =>
+    createInternalError("assertionFailed", {
       where,
-    },
+      detail: "processor binding disposed",
+    }),
   );
 }
 
@@ -350,20 +340,18 @@ export function processorImpl<const S extends SpecInput>(
       assertNotDisposed(disposed, "processor.params.within");
 
       const view: Record<string, unknown> = {};
+
       for (const key of Object.keys(paramSlots)) {
         const slot0 = paramSlots[key];
 
-        invariant(
-          !!slot0 && isParamDataPlane(slot0.plane),
-          "internal.assertionFailed",
-          "unexpected param plane",
-          {
+        invariant(!!slot0 && isParamDataPlane(slot0.plane), () =>
+          createInternalError("assertionFailed", {
             where:
               slot0?.length && slot0.length > 1
                 ? "param.array"
                 : "param.scalar",
-            detail: slot0?.plane ?? "unknown",
-          },
+            detail: `unexpected param plane ${slot0?.plane ?? "unknown"}`,
+          }),
         );
 
         if (slot0.length > 1) {
@@ -379,6 +367,7 @@ export function processorImpl<const S extends SpecInput>(
           });
         }
       }
+
       return view as WithinView<S>;
     };
 
@@ -415,6 +404,7 @@ export function processorImpl<const S extends SpecInput>(
     };
 
     const scalarWriters: Record<string, (value: number) => void> = {};
+
     for (const key of Object.keys(meterSlots)) {
       const slot0 = meterSlots[key];
       if (slot0?.length !== 1) {
@@ -422,6 +412,7 @@ export function processorImpl<const S extends SpecInput>(
       }
 
       const elIndex = elementIndex(slot0);
+
       switch (slot0.plane) {
         case "MF32": {
           const a = ensurePlane(mapped.meters.MF32, "meter.scalar", "MF32");
@@ -484,45 +475,47 @@ export function processorImpl<const S extends SpecInput>(
         assertNotDisposed(disposed, "processor.meters.publish");
 
         const w: Record<string, unknown> = {};
+
         for (const key of Object.keys(scalarWriters)) {
           w[key] = scalarWriters[key];
         }
 
         function stage(key: string, cb2: (dst: EM) => void): void {
           const slot0 = meterSlots[key];
+
           if (!slot0) {
             throwUnknownKey("meters", key, Object.keys(meterSlots));
           }
-          invariant(
-            slot0.length > 1,
-            "internal.assertionFailed",
-            "array meter expected",
-            {
+
+          invariant(slot0.length > 1, () =>
+            createInternalError("assertionFailed", {
               where: "meter.stage",
-              detail: key,
-            },
+              detail: `array meter expected for key=${key}`,
+            }),
           );
-          invariant(
-            isMeterDataPlane(slot0.plane),
-            "internal.assertionFailed",
-            "unexpected meter plane",
-            {
+
+          invariant(isMeterDataPlane(slot0.plane), () =>
+            createInternalError("assertionFailed", {
               where: "meter.stage",
-              detail: slot0.plane,
-            },
+              detail: `unexpected meter plane ${slot0.plane}`,
+            }),
           );
+
           const view = meterArrayViewFor(mapped.meters, {
             ...slot0,
             plane: slot0.plane,
           });
+
           cb2(view);
         }
 
         function set(key: string, value: number): void {
           const scalarWriter = scalarWriters[key];
+
           if (!scalarWriter) {
             throwUnknownKey("meters", key, Object.keys(scalarWriters));
           }
+
           scalarWriter(value);
         }
 

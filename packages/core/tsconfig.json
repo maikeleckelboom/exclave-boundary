@@ -2,24 +2,23 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
-    "rootDir": "./",
+    "rootDir": "./src",
     "outDir": "./dist",
-    "tsBuildInfoFile": "./node_modules/.cache/core.tsbuildinfo",
+    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/core.tsbuildinfo",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["vitest/globals", "node"]
+    "types": ["vitest/globals", "node"],
+    "paths": {}
   },
   "include": ["src/**/*"],
   "exclude": [
     "dist",
     "node_modules",
-    "tests/**/*",
-    "bench/**/*",
-    "scripts/**/*",
-    "**/*.test.ts",
-    "**/*.spec.ts",
+    "tests",
+    "bench",
+    "scripts",
     "*.config.ts",
-    "vitest.config.*"
+    "vitest.config.ts"
   ]
 }

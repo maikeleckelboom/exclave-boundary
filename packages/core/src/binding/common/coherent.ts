@@ -10,15 +10,12 @@
  * @internal
  */
 
-import { incrementCounter } from "../../diagnostics/counters";
-import { createError } from "../../errors/error";
-import { tryRead, type SeqPair } from "../../primitives/seqlock";
+import { tryRead, type SeqPair } from "@seqlok/primitives";
+
+import { recordIntrospectCounter } from "./coherent-introspect";
+import { createBindingError } from "../../errors/binding";
 
 import type { MeterDegradePolicy } from "./types";
-import type {
-  CoherentDetails,
-  SnapshotRetryDetails,
-} from "../../errors/details";
 
 /**
  * Configuration for a seqlock-protected read.
@@ -37,7 +34,7 @@ export interface SnapshotPolicyOptions extends CoherentReadOptions {
   readonly degrade?: MeterDegradePolicy;
 }
 
-interface SnapshotStatus {
+export interface SnapshotStatus {
   readonly spins: number;
   readonly retries: number;
 }
@@ -46,10 +43,10 @@ interface SnapshotStatus {
  * Internal: run a snapshot reader under seqlock with optional degrade policy.
  *
  * - Uses primitives `tryRead`.
- * - Emits diagnostics counters on spin / retry exhaustion.
+ * - Emits introspect counters on spin / retry exhaustion.
  * - On failure:
- * - if `degrade` is `'returnLatest'`, falls back to `degradedReader`.
- * - otherwise throws `binding.snapshotRetryExhausted`.
+ *   - if `degrade` is `'returnLatest'`, falls back to `degradedReader`.
+ *   - otherwise throws `binding.snapshotRetryExhausted`.
  */
 export function snapshotWithPolicy<T>(
   pair: SeqPair,
@@ -68,31 +65,36 @@ export function snapshotWithPolicy<T>(
   const status: SnapshotStatus = result.status;
 
   if (status.spins >= spinBudget) {
-    incrementCounter("spinBudgetExhausted");
+    recordIntrospectCounter("spinBudgetExhausted", {
+      where,
+      section,
+    });
   }
   if (status.retries >= retryBudget) {
-    incrementCounter("retryBudgetExhausted");
+    recordIntrospectCounter("retryBudgetExhausted", {
+      where,
+      section,
+    });
   }
 
   if (degrade === "returnLatest") {
-    incrementCounter("degradedSnapshots");
+    recordIntrospectCounter("degradedSnapshots", {
+      where,
+      section,
+    });
     return degradedReader();
   }
 
-  throw createError(
-    "binding.snapshotRetryExhausted",
-    "Snapshot retries exhausted",
-    {
-      where,
-      section,
-      spins: status.spins,
-      retries: status.retries,
-    } satisfies SnapshotRetryDetails,
-  );
+  throw createBindingError("snapshotRetryExhausted", {
+    where,
+    section,
+    spins: status.spins,
+    retries: status.retries,
+  });
 }
 
 /**
- * @Internal: processor-side coherent read helper.
+ * @internal Processor-side coherent read helper.
  *
  * - Wraps a raw reader in the PU seqlock protocol.
  * - No degrade path: coherence is mandatory on the processor.
@@ -112,23 +114,21 @@ export function makeWithin<T>(
       const { spins, retries } = result.status;
 
       if (spins >= spinBudget) {
-        incrementCounter("spinBudgetExhausted");
+        recordIntrospectCounter("spinBudgetExhausted", {
+          where,
+        });
       }
       if (retries >= retryBudget) {
-        incrementCounter("retryBudgetExhausted");
+        recordIntrospectCounter("retryBudgetExhausted", {
+          where,
+        });
       }
 
-      const details: CoherentDetails = {
+      throw createBindingError("coherentRetryExhausted", {
         where,
         spins,
         retries,
-      };
-
-      throw createError(
-        "binding.coherentRetryExhausted",
-        "Coherent read retries exhausted",
-        details,
-      );
+      });
     }
 
     cb(result.value);

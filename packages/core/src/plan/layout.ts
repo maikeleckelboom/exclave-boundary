@@ -8,6 +8,8 @@
  * - Ensures thread-safe access patterns through proper memory barriers.
  */
 
+import { invariant } from "@seqlok/base";
+
 import {
   assertValidSpecForPlanning,
   composePlaneLengths,
@@ -17,7 +19,8 @@ import {
   withAlignedSeqlockForMeters,
   withAlignedSeqlockForParams,
 } from "./validate";
-import { createError } from "../errors/error";
+import { createPlanError } from "../errors/plan";
+import { createSpecError } from "../errors/spec";
 import { hashSpec } from "../spec/hash";
 
 import type { EntrySlot, LockStrideBytes, Plan, PlanOptions } from "./types";
@@ -61,17 +64,17 @@ export function planLayout<S extends SpecInput>(
   const lockStrideBytes: LockStrideBytes =
     options.lockStrideBytes ?? DEFAULT_LOCK_STRIDE;
 
-  if (
-    !Number.isFinite(lockStrideBytes) ||
-    lockStrideBytes < 8 ||
-    !Number.isInteger(lockStrideBytes)
-  ) {
-    throw createError("spec.builderInvalid", "Invalid lockStrideBytes option", {
-      where: "plan.planLayout",
-      reason: "alignmentFailed",
-      detail: String(lockStrideBytes),
-    });
-  }
+  invariant(
+    Number.isFinite(lockStrideBytes) &&
+      Number.isInteger(lockStrideBytes) &&
+      lockStrideBytes >= 8,
+    () =>
+      createSpecError("builderInvalid", {
+        where: "plan.planLayout",
+        reason: "alignmentFailed",
+        detail: String(lockStrideBytes),
+      }),
+  );
 
   const { slots: paramSlots, bytes: pBytes0 } = packParamSlots(paramsObj);
   const { pBytes, PU } = withAlignedSeqlockForParams(pBytes0, lockStrideBytes);
@@ -82,26 +85,21 @@ export function planLayout<S extends SpecInput>(
   const planes = composePlaneLengths(pBytes, PU, mBytes, MU);
   const bytesTotal = totalBytes(planes);
 
-  if (bytesTotal > PLAN_SOFT_LIMIT_BYTES) {
-    throw createError(
-      "plan.overflowRisk",
-      "Planned memory exceeds soft limit",
-      {
-        where: "plan.planLayout",
-        detail: "plan.size",
-        estimatedBytes: bytesTotal,
-        softLimitBytes: PLAN_SOFT_LIMIT_BYTES,
-      },
-    );
-  }
+  invariant(bytesTotal <= PLAN_SOFT_LIMIT_BYTES, () =>
+    createPlanError("overflowRisk", {
+      where: "plan.planLayout",
+      detail: "plan.size",
+      estimatedBytes: bytesTotal,
+      softLimitBytes: PLAN_SOFT_LIMIT_BYTES,
+    }),
+  );
 
   let hash: ReturnType<typeof hashSpec>;
   try {
     hash = hashSpec(inputSpec);
   } catch (cause) {
-    throw createError(
-      "spec.builderInvalid",
-      "Spec planning failed while hashing spec",
+    throw createSpecError(
+      "builderInvalid",
       {
         where: "plan.planLayout",
         reason: "planFailed",

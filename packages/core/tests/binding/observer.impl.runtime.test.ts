@@ -1,5 +1,3 @@
-// File: packages/core/tests/binding/observer.runtime.test.ts
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -14,6 +12,22 @@ import type {
   SharedBacking,
   SharedPartitionedBacking,
 } from "../../src/backing/types";
+
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error(
+    `Error(core/tests/helpers/capture-error.ts): Expected function to throw.`,
+  );
+}
+
+interface AssertionErrorShape {
+  code?: string;
+  details?: { where?: string; detail?: string };
+}
 
 describe("observer binding – coverage edges", () => {
   const spec = defineSpec(({ param, meter }) => ({
@@ -52,7 +66,7 @@ describe("observer binding – coverage edges", () => {
       mode: "manual",
     });
 
-    // object-form subset --
+    // object-form subset
     const paramsObject = observer.params.snapshot({
       keys: ["rate", "mode"],
     });
@@ -62,7 +76,7 @@ describe("observer binding – coverage edges", () => {
     const paramsVarargs = observer.params.snapshot("rate", "mode");
     expect(paramsVarargs).toEqual(paramsArray);
 
-    // snapshot([]) → current semantics: treated as full snapshot -
+    // snapshot([]) → current semantics: treated as full snapshot
     const paramsEmpty = observer.params.snapshot([]);
     expect(Object.keys(paramsEmpty).sort()).toEqual(
       Object.keys(paramsFull).sort(),
@@ -128,24 +142,25 @@ describe("observer binding – coverage edges", () => {
       observer.dispose();
     }).not.toThrow();
 
-    // All APIs should guard after disposal.
-    expect(() => observer.params.snapshot()).toThrow(
-      /observer binding disposed/,
-    );
-    expect(() => observer.meters.snapshot()).toThrow(
-      /observer binding disposed/,
-    );
-    expect(() => observer.params.version()).toThrow(
-      /observer binding disposed/,
-    );
-    expect(() => observer.meters.version()).toThrow(
-      /observer binding disposed/,
-    );
-    expect(() => {
+    const expectObserverDisposed = (fn: () => unknown) => {
+      const thrown = captureError(fn);
+      const err = thrown as AssertionErrorShape;
+
+      expect(err.code).toBe("internal.assertionFailed");
+      expect(err.details?.where ?? "").toMatch(/observer/i);
+      // detail text is centralized now; we only care that an assertion fired
+    };
+
+    // All APIs should guard after disposal and surface the internal invariant
+    expectObserverDisposed(() => observer.params.snapshot());
+    expectObserverDisposed(() => observer.meters.snapshot());
+    expectObserverDisposed(() => observer.params.version());
+    expectObserverDisposed(() => observer.meters.version());
+    expectObserverDisposed(() => {
       observer.params.within(() => {
-        /* empty */
+        // no-op
       });
-    }).toThrow(/observer binding disposed/);
+    });
   });
 
   it("accepts and respects budget/policy options", () => {
@@ -203,11 +218,15 @@ describe("observer binding – coverage edges", () => {
       sab,
     };
 
-    expect(() => {
+    const thrown = captureError(() => {
       bindObserver(smallSpec, smallPlan, smallBacking);
-    }).toThrow(
-      /Single-buffer backing byteLength smaller than plan\.bytesTotal/,
-    );
+    });
+
+    const err = thrown as AssertionErrorShape;
+
+    expect(err.code).toBe("internal.assertionFailed");
+    expect(err.details?.where ?? "").toMatch(/bindObserver|binding\.observer/i);
+    // detail text is left to dedicated error tests
   });
 
   it("validates partitioned backing capacity", () => {
@@ -244,12 +263,18 @@ describe("observer binding – coverage edges", () => {
       planes,
     };
 
-    expect(() => {
+    const thrown = captureError(() => {
       bindObserver(
         partitionedSpec,
         partitionedPlan,
         undersizedPartitionedBacking,
       );
-    }).toThrow(/Partitioned backing plane undersized for plan/);
+    });
+
+    const err = thrown as AssertionErrorShape;
+
+    expect(err.code).toBe("internal.assertionFailed");
+    expect(err.details?.where ?? "").toMatch(/bindObserver|binding\.observer/i);
+    // again, do not assert message text here
   });
 });

@@ -1,5 +1,3 @@
-// File: packages/core/src/binding/processor/index.ts
-
 /**
  * @fileoverview
  * Public processor binding factory.

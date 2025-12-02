@@ -99,12 +99,12 @@ interface ParamProcessorMap {
   f32: number;
   i32: number;
   bool: boolean;
-  enum: number; // enum scalar → numeric index on processor
+  enum: number;
   "f32.array": Float32Array;
   "i32.array": Int32Array;
   "u8.array": Uint8Array;
   "bool.array": Uint8Array;
-  "enum.array": Int32Array; // indices
+  "enum.array": Int32Array;
 }
 
 /**
@@ -1080,7 +1080,7 @@ export interface ObserverMeters<S extends SpecInput> {
  * Observer binding: read-only facade for params and meters.
  *
  * @remarks
- * - Intended for visualizations, diagnostics, HUDs, and remote inspectors.
+ * - Intended for visualizations, introspect, HUDs, and remote inspectors.
  * - `params` exposes coherent reads via `within(...)` and small snapshots.
  * - `meters` exposes coherent snapshots with rich overloads.
  * - No write capability.

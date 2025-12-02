@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seqlok.dev/schemas/error-registry.schema.json",
+  "title": "Seqlok Error Registry",
+  "description": "JSON Schema describing the export format of the Seqlok error registry (domains, codes, numeric encodings, and metadata).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Schema version for this export format. Increment on breaking changes."
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the registry was generated."
+    },
+    "generator": {
+      "type": "string",
+      "enum": ["@seqlok/introspect"],
+      "description": "Identifier of the tool that generated this registry export."
+    },
+    "domainIds": {
+      "type": "object",
+      "description": "Mapping from domain prefix (e.g., 'backing', 'spec') to numeric domain ID (0–255).",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9]*$": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "domains": {
+      "type": "array",
+      "description": "All error domains registered in the system.",
+      "items": {
+        "$ref": "#/$defs/Domain"
+      },
+      "minItems": 1
+    },
+    "allCodes": {
+      "type": "array",
+      "description": "Flattened list of all error codes across all domains. Convenience view for tools.",
+      "items": {
+        "$ref": "#/$defs/ErrorCode"
+      },
+      "minItems": 1
+    },
+    "stats": {
+      "$ref": "#/$defs/RegistryStats"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "generator",
+    "domainIds",
+    "domains",
+    "allCodes",
+    "stats"
+  ],
+  "$defs": {
+    "RegistryStats": {
+      "type": "object",
+      "description": "Aggregate statistics about the error registry.",
+      "additionalProperties": false,
+      "properties": {
+        "totalDomains": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of error domains."
+        },
+        "totalCodes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of error codes across all domains."
+        },
+        "domainCounts": {
+          "type": "object",
+          "description": "Error count per domain prefix.",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9]*$": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "severityCounts": {
+          "type": "object",
+          "description": "Error count grouped by severity level.",
+          "additionalProperties": false,
+          "properties": {
+            "warning": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of errors with severity='warning'."
+            },
+            "error": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of errors with severity='error'."
+            },
+            "fatal": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of errors with severity='fatal'."
+            }
+          },
+          "required": ["warning", "error", "fatal"]
+        }
+      },
+      "required": [
+        "totalDomains",
+        "totalCodes",
+        "domainCounts",
+        "severityCounts"
+      ]
+    },
+    "Domain": {
+      "type": "object",
+      "description": "A single error domain with its codes.",
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*$",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Domain prefix used in fully-qualified error codes (e.g., 'backing' in 'backing.allocFailed')."
+        },
+        "domainId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "Numeric domain ID used in the error code encoding scheme (high byte of the 32-bit numeric code)."
+        },
+        "codes": {
+          "type": "array",
+          "description": "All error codes belonging to this domain.",
+          "items": {
+            "$ref": "#/$defs/ErrorCode"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["prefix", "domainId", "codes"]
+    },
+    "ErrorCode": {
+      "type": "object",
+      "description": "A single error code with its metadata.",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*\\.[a-zA-Z][a-zA-Z0-9]*$",
+          "minLength": 3,
+          "description": "Fully-qualified error code in the format 'domain.key' (e.g., 'backing.allocFailed')."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Human-readable error message template."
+        },
+        "numericCode": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295,
+          "description": "32-bit numeric error code encoding (domainId << 24) | localId. Used by native integrations and binary protocols."
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*$",
+          "minLength": 1,
+          "description": "Domain prefix extracted from the code (e.g. 'backing')."
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9]*$",
+          "minLength": 1,
+          "description": "Local key within the domain (e.g., 'allocFailed')."
+        },
+        "meta": {
+          "$ref": "#/$defs/ErrorMeta"
+        }
+      },
+      "required": ["code", "message", "numericCode", "domain", "key", "meta"]
+    },
+    "ErrorMeta": {
+      "type": "object",
+      "description": "Metadata describing an error code's semantics and handling hints.",
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["warning", "error", "fatal"],
+          "description": "Coarse severity classification:\n- 'warning': recoverable, usually non-fatal\n- 'error': operation failed, but process may continue\n- 'fatal': unrecoverable, process or worker should be torn down"
+        },
+        "recoverable": {
+          "type": "boolean",
+          "description": "Whether recovery is plausible in principle (e.g. transient vs structural failure)."
+        },
+        "boundarySafe": {
+          "type": "boolean",
+          "description": "Whether it is safe to surface this error across trust boundaries (true = OK for UIs / APIs, false = internal-only)."
+        },
+        "docsUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional documentation URL for 'learn more' links."
+        },
+        "tags": {
+          "type": "array",
+          "description": "Optional tags used by tooling / dashboards.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "uniqueItems": true
+        },
+        "domainHint": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*$",
+          "description": "Optional hint about the dominant resource or subsystem (e.g. 'memory', 'env', 'binding')."
+        }
+      },
+      "required": ["severity", "recoverable", "boundarySafe"]
+    }
+  }
+}

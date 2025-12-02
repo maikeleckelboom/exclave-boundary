@@ -9,8 +9,22 @@ import {
   enumPaletteFor,
   enumValues,
 } from "../../src";
-import { SeqlokError } from "../../src/errors/error";
 import { enumGuardFor } from "../../src/spec/enums";
+
+/**
+ * Shape of the enumInvalid error we expect from the spec helpers.
+ */
+interface EnumInvalidErrorDetails {
+  key: string;
+  values: readonly string[];
+  invalidIndex?: number;
+  received?: string;
+}
+
+interface EnumInvalidError {
+  code: "spec.enumInvalid";
+  details: EnumInvalidErrorDetails;
+}
 
 /**
  * Internal test specification defining a single enum parameter.
@@ -48,19 +62,18 @@ describe("Enum Utilities & Helper Functions", () => {
   it("throws spec.enumInvalid when converting an out-of-bounds index to a label", () => {
     const indices = Int32Array.from([0, 99]);
 
-    expect(() => enumArrayToLabels(spec, "mode", indices)).toThrow(SeqlokError);
+    // We only care that it throws; class identity is tested elsewhere
+    expect(() => enumArrayToLabels(spec, "mode", indices)).toThrow();
 
     try {
       enumArrayToLabels(spec, "mode", indices);
-    } catch (error) {
-      const base = error as SeqlokError;
-      expect(base.code).toBe("spec.enumInvalid");
+    } catch (error: unknown) {
+      const err = error as EnumInvalidError;
 
-      type EnumInvalidError = SeqlokError<"spec.enumInvalid">;
-      const err = base as EnumInvalidError;
-
+      expect(err.code).toBe("spec.enumInvalid");
       expect(err.details.key).toBe("mode");
       expect(err.details.invalidIndex).toBe(99);
+      expect(err.details.values).toEqual(["normal", "stretch", "freeze"]);
     }
   });
 
@@ -70,14 +83,18 @@ describe("Enum Utilities & Helper Functions", () => {
     expect(() => {
       // @ts-expect-error Intentional invalid label to verify runtime validation.
       enumLabelsToArray(spec, "mode", labels);
-    }).toThrow(SeqlokError);
+    }).toThrow();
 
     try {
       // @ts-expect-error Intentional invalid label to verify runtime validation.
       enumLabelsToArray(spec, "mode", labels);
-    } catch (error) {
-      const err = error as SeqlokError;
+    } catch (error: unknown) {
+      const err = error as EnumInvalidError;
+
       expect(err.code).toBe("spec.enumInvalid");
+      expect(err.details.key).toBe("mode");
+      expect(err.details.received).toBe("nope");
+      expect(err.details.values).toEqual(["normal", "stretch", "freeze"]);
     }
   });
 

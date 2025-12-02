@@ -164,5 +164,6 @@ export type SnapshotMetersOf<
   S extends SpecInput,
   K extends readonly MeterKeys<S>[] = readonly MeterKeys<S>[],
 > = {
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   [P in K[number]]: MeterValueFor<S, P> | undefined;
 };

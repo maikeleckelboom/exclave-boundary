@@ -9,7 +9,6 @@ describe("DSL: type inference & validation", () => {
       params: {
         mode: param.enum(["sine", "square", "saw"]),
       },
-      meters: {},
     }));
 
     type Mode = (typeof _spec.params.mode.values)[number];
@@ -76,7 +75,7 @@ describe("DSL: type inference & validation", () => {
         },
         meters: {},
       }));
-    }).toThrow(/integer/i);
+    }).toThrow(); // spec.rangeInvalid is enough; message tested elsewhere
   });
 
   it("throws on non-positive array lengths", () => {
@@ -88,7 +87,7 @@ describe("DSL: type inference & validation", () => {
         },
         meters: {},
       }));
-    }).toThrow(/positive|length/i);
+    }).toThrow(); // spec.arrayInvalid
 
     expect(() => {
       defineSpec(({ param }) => ({
@@ -98,7 +97,7 @@ describe("DSL: type inference & validation", () => {
         },
         meters: {},
       }));
-    }).toThrow(/positive|length/i);
+    }).toThrow(); // spec.arrayInvalid
   });
 
   it("throws on empty enum values", () => {
@@ -122,7 +121,7 @@ describe("DSL: type inference & validation", () => {
         },
         meters: {},
       }));
-    }).toThrow(/nonempty|string/i);
+    }).toThrow(); // spec.enumInvalid
   });
 
   it("accepts array length when passed as an object", () => {

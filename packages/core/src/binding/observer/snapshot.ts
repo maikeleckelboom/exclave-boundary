@@ -14,10 +14,11 @@
  *   - `snapshot(keys)` → subset snapshot
  *
  * Coherence and retry/degrade policy are handled by `snapshotWithPolicy`
- * in `binding/foundation/coherent.ts`. This module is purely view logic.
+ * in `binding/base/coherent.ts`. This module is purely view logic.
  */
 
-import { createError } from "../../errors/error";
+import { createInternalError, invariant } from "@seqlok/base";
+
 import { readMeterScalar, readParamScalar } from "../common/snapshot-util";
 import {
   type MeterPlane,
@@ -107,15 +108,12 @@ function paramsSnapshotRawObserver(
   for (const key of keysList) {
     const slot = slots[key];
 
-    if (!slot) {
-      throw createError(
-        "internal.assertionFailed",
-        "Param snapshot slot missing",
-        {
-          where: key,
-        },
-      );
-    }
+    invariant(slot !== undefined, () =>
+      createInternalError("assertionFailed", {
+        where: "observer.params.snapshot",
+        detail: `missing param slot for key=${key}`,
+      }),
+    );
 
     const start = slot.index;
 
@@ -162,15 +160,12 @@ function metersSnapshotRawObserver(
   for (const key of keysList) {
     const slot = slots[key];
 
-    if (!slot) {
-      throw createError(
-        "internal.assertionFailed",
-        "Meter snapshot slot missing",
-        {
-          where: key,
-        },
-      );
-    }
+    invariant(slot !== undefined, () =>
+      createInternalError("assertionFailed", {
+        where: "observer.meters.snapshot",
+        detail: `missing meter slot for key=${key}`,
+      }),
+    );
 
     const start = slot.index;
 

@@ -1,18 +1,20 @@
 /**
  * @fileoverview
- * Observer read-path micro benchmarks.
+ * Observer read-path micro-benchmarks.
  *
  * Focus:
  * - full vs partial `params.snapshot(...)`
  * - `params.within(...)` coherent read windows
  * - full vs partial `meters.snapshot(...)`
+ * - API shape: varargs vs array vs `{ keys }` form
  *
  * These benches exercise observer reads while a controller + processor pair
- * drive a simple gain/peak + spectrum pipeline over a shared backing.
+ * drive a simple gain/mode + peak/spectrum pipeline over a shared backing.
  */
 
 import { bench, describe } from "vitest";
 
+import { MICRO_BENCH_OPTS } from "../../../scripts/vitest/bench-presets";
 import {
   allocateShared,
   bindController,
@@ -23,20 +25,27 @@ import {
   planLayout,
   receiveHandoff,
 } from "../src";
-import { MICRO_BENCH_OPTS } from "../vitest.config";
 
-// Keep the JIT from optimizing everything away.
-let _blackhole = 0;
+const ITERATIONS = 128;
+
+const OBSERVER_BENCH_OPTS = {
+  ...MICRO_BENCH_OPTS,
+  time: 500,
+};
+
+// Reused key arrays for snapshot() array / object forms.
+const PARAM_KEYS_GAIN = ["gain"] as const;
+const METER_KEYS_PEAK = ["peak"] as const;
 
 describe("Observer read-path benchmarks", () => {
   const spec = defineSpec(({ param, meter }) => ({
+    id: "bench/observer-reads",
     params: {
       gain: param.f32({ min: 0, max: 2 }),
       mode: param.enum(["a", "b", "c"]),
     },
     meters: {
       peak: meter.f32(),
-      // Small array to exercise array views in meter snapshots.
       spectrum: meter.f32.array(32),
     },
   }));
@@ -50,42 +59,45 @@ describe("Observer read-path benchmarks", () => {
   const processor = bindProcessor(received);
   const observer = bindObserver(spec, plan, backing);
 
-  // Pre-warm: write non-zero values so snapshots see realistic data.
-  controller.params.set("gain", 0.5);
-  controller.params.set("mode", "b");
+  function processorStep(gain: number): void {
+    controller.params.set("gain", gain);
 
-  processor.params.within((view) => {
-    processor.meters.publish((writer) => {
-      writer.peak(view.gain);
-      writer.stage("spectrum", (dest) => {
-        const value = view.gain;
-        for (let i = 0; i < dest.length; i += 1) {
-          dest[i] = value;
-        }
+    processor.params.within((view) => {
+      processor.meters.publish((writer) => {
+        writer.peak(view.gain);
+
+        writer.stage("spectrum", (dest) => {
+          const value = view.gain;
+          const len = dest.length;
+
+          for (let i = 0; i < len; i += 1) {
+            dest[i] = value;
+          }
+        });
       });
     });
-  });
+  }
 
-  const ITERATIONS = 128;
-  const OBSERVER_BENCH_OPTS = { ...MICRO_BENCH_OPTS, time: 500 };
+  // Warm once so snapshots see realistic values.
+  processorStep(0.5);
+  controller.params.set("mode", "b");
 
   bench(
     "params.within() – full view",
     () => {
-      let local = 0;
-
       for (let i = 0; i < ITERATIONS; i += 1) {
         const gain = (i % 16) / 16;
         controller.params.set("gain", gain);
 
         observer.params.within((view) => {
-          local ^= Number.isFinite(view.gain) ? 1 : 0;
-          // Touch the enum label to exercise label mapping.
-          local ^= typeof view.mode === "string" ? 1 : 0;
+          const g = view.gain;
+          const m = view.mode;
+
+          if (!Number.isFinite(g) || typeof m !== "string") {
+            throw new Error("observer.params.within produced invalid values");
+          }
         });
       }
-
-      _blackhole ^= local;
     },
     OBSERVER_BENCH_OPTS,
   );
@@ -93,36 +105,75 @@ describe("Observer read-path benchmarks", () => {
   bench(
     "params.snapshot() – full spec",
     () => {
-      let local = 0;
-
       for (let i = 0; i < ITERATIONS; i += 1) {
         const gain = (i % 16) / 16;
         controller.params.set("gain", gain);
 
         const snapshot = observer.params.snapshot();
-        local ^= Number.isFinite(snapshot.gain) ? 1 : 0;
-        local ^= typeof snapshot.mode === "string" ? 1 : 0;
-      }
+        const g = snapshot.gain;
+        const m = snapshot.mode;
 
-      _blackhole ^= local;
+        if (!Number.isFinite(g) || typeof m !== "string") {
+          throw new Error("params.snapshot() produced invalid values");
+        }
+      }
     },
     OBSERVER_BENCH_OPTS,
   );
 
   bench(
-    "params.snapshot(['gain']) – partial",
+    "params.snapshot('gain') – vararg",
     () => {
-      let local = 0;
+      for (let i = 0; i < ITERATIONS; i += 1) {
+        const gain = (i % 16) / 16;
+        controller.params.set("gain", gain);
 
+        const snapshot = observer.params.snapshot("gain");
+        const g = snapshot.gain;
+
+        if (!Number.isFinite(g)) {
+          throw new Error("params.snapshot('gain') produced invalid values");
+        }
+      }
+    },
+    OBSERVER_BENCH_OPTS,
+  );
+
+  bench(
+    "params.snapshot(['gain']) – array",
+    () => {
       for (let i = 0; i < ITERATIONS; i += 1) {
         const gain = (i % 16) / 16;
         controller.params.set("gain", gain);
 
         const snapshot = observer.params.snapshot(["gain"]);
-        local ^= Number.isFinite(snapshot.gain) ? 1 : 0;
-      }
+        const g = snapshot.gain;
 
-      _blackhole ^= local;
+        if (!Number.isFinite(g)) {
+          throw new Error("params.snapshot(['gain']) produced invalid values");
+        }
+      }
+    },
+    OBSERVER_BENCH_OPTS,
+  );
+
+  bench(
+    "params.snapshot({ keys: ['gain'] }) – object",
+    () => {
+      for (let i = 0; i < ITERATIONS; i += 1) {
+        const gain = (i % 16) / 16;
+        controller.params.set("gain", gain);
+
+        const snapshot = observer.params.snapshot({
+          keys: PARAM_KEYS_GAIN,
+        });
+
+        const g = snapshot.gain;
+
+        if (!Number.isFinite(g)) {
+          throw new Error("params.snapshot({ keys }) produced invalid values");
+        }
+      }
     },
     OBSERVER_BENCH_OPTS,
   );
@@ -130,53 +181,75 @@ describe("Observer read-path benchmarks", () => {
   bench(
     "meters.snapshot() – full spec",
     () => {
-      let local = 0;
-
       for (let i = 0; i < ITERATIONS; i += 1) {
         const gain = (i % 16) / 16;
-        controller.params.set("gain", gain);
-
-        processor.params.within((view) => {
-          processor.meters.publish((writer) => {
-            writer.peak(view.gain);
-            writer.stage("spectrum", (dest) => {
-              const value = view.gain;
-              for (let j = 0; j < dest.length; j += 1) {
-                dest[j] = value;
-              }
-            });
-          });
-        });
+        processorStep(gain);
 
         const meters = observer.meters.snapshot();
-        local ^= Number.isFinite(meters.peak) ? 1 : 0;
-        local ^= Number.isFinite(meters.spectrum[0]) ? 1 : 0;
-      }
+        const peak = meters.peak;
+        const firstBin = meters.spectrum[0] ?? 0;
 
-      _blackhole ^= local;
+        if (!Number.isFinite(peak) || !Number.isFinite(firstBin)) {
+          throw new Error("meters.snapshot() produced invalid values");
+        }
+      }
     },
     OBSERVER_BENCH_OPTS,
   );
 
   bench(
-    "meters.snapshot(['peak']) – partial",
+    "meters.snapshot('peak') – vararg",
     () => {
-      let local = 0;
-
       for (let i = 0; i < ITERATIONS; i += 1) {
         const gain = (i % 16) / 16;
-        controller.params.set("gain", gain);
-        processor.params.within((view) => {
-          processor.meters.publish((writer) => {
-            writer.peak(view.gain);
-          });
-        });
+        processorStep(gain);
+
+        const meters = observer.meters.snapshot("peak");
+        const peak = meters.peak;
+
+        if (!Number.isFinite(peak)) {
+          throw new Error("meters.snapshot('peak') produced invalid values");
+        }
+      }
+    },
+    OBSERVER_BENCH_OPTS,
+  );
+
+  bench(
+    "meters.snapshot(['peak']) – array",
+    () => {
+      for (let i = 0; i < ITERATIONS; i += 1) {
+        const gain = (i % 16) / 16;
+        processorStep(gain);
 
         const meters = observer.meters.snapshot(["peak"]);
-        local ^= Number.isFinite(meters.peak) ? 1 : 0;
-      }
+        const peak = meters.peak;
 
-      _blackhole ^= local;
+        if (!Number.isFinite(peak)) {
+          throw new Error("meters.snapshot(['peak']) produced invalid values");
+        }
+      }
+    },
+    OBSERVER_BENCH_OPTS,
+  );
+
+  bench(
+    "meters.snapshot({ keys: ['peak'] }) – object",
+    () => {
+      for (let i = 0; i < ITERATIONS; i += 1) {
+        const gain = (i % 16) / 16;
+        processorStep(gain);
+
+        const meters = observer.meters.snapshot({
+          keys: METER_KEYS_PEAK,
+        });
+
+        const peak = meters.peak;
+
+        if (!Number.isFinite(peak)) {
+          throw new Error("meters.snapshot({ keys }) produced invalid values");
+        }
+      }
     },
     OBSERVER_BENCH_OPTS,
   );

@@ -1,14 +1,14 @@
 import { copyFileSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 /**
  * @fileoverview
  * Format Vitest benchmark JSON into Markdown + ASCII charts
  * for Seqlok documentation.
  *
- * This version introspects the benchmark structure dynamically
- * and derives markdown tables + console-friendly ASCII charts.
+ * This version uses a single configuration for "important" benchmarks
+ * and derives both the markdown table and ASCII charts from it.
+ * It also surfaces warnings when expected files or benches are missing.
  */
 
 interface BenchSample {
@@ -37,7 +37,19 @@ interface BenchReport {
   readonly files: readonly BenchFile[];
 }
 
+type ChartGroup = "hotPath" | "paramWrite" | "observer";
+
+interface MicroOpConfig {
+  readonly id: string;
+  readonly label: string;
+  readonly fileSuffix: string;
+  readonly benchPattern: string | RegExp;
+  readonly chartGroups: readonly ChartGroup[];
+  readonly chartLabel?: string;
+}
+
 interface MicroOpRow {
+  readonly id: string;
   readonly operation: string;
   readonly meanUs: number;
   readonly hz: number;
@@ -68,6 +80,179 @@ interface ChartEntry {
   readonly benchPattern: string | RegExp;
 }
 
+/**
+ * Expected micro operations and where they live.
+ *
+ * If you rename a bench or move it to another file:
+ * - this is the only place to update
+ * - missing entries will produce warnings (and can be made fatal via --strict)
+ */
+const MICRO_OP_CONFIG: readonly MicroOpConfig[] = [
+  // Seqlock primitives
+  {
+    id: "seqlock-tryRead",
+    label: "seqlock tryRead uncontended",
+    fileSuffix: "seqlock.bench.ts",
+    benchPattern: /tryRead uncontended/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "seqlock tryRead",
+  },
+  {
+    id: "seqlock-publish",
+    label: "seqlock publish uncontended",
+    fileSuffix: "seqlock.bench.ts",
+    benchPattern: /publish uncontended/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "seqlock publish",
+  },
+
+  // Controller param operations
+  {
+    id: "params-set-scalars",
+    label: "controller.params.set (two scalars)",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /controller\.params\.set.*two scalars/i,
+    chartGroups: ["hotPath", "paramWrite"],
+    chartLabel: "params.set",
+  },
+  {
+    id: "params-update-scalars",
+    label: "controller.params.update (3 scalars)",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /controller\.params\.update.*3 scalars\)$/i,
+    chartGroups: ["hotPath", "paramWrite"],
+    chartLabel: "params.update",
+  },
+  {
+    id: "params-update-scalars-array",
+    label: "controller.params.update (3 scalars + f32[8])",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /controller\.params\.update.*3 scalars.*f32\[8\]/i,
+    chartGroups: ["hotPath", "paramWrite"],
+    chartLabel: "params.update+array",
+  },
+  {
+    id: "params-hydrate-mixed",
+    label: "controller.params.hydrate (3 scalars + f32[8])",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /controller\.params\.hydrate.*3 scalars.*f32\[8\]/i,
+    chartGroups: ["hotPath", "paramWrite"],
+    chartLabel: "params.hydrate",
+  },
+  {
+    id: "params-stage-array",
+    label: "controller.params.stage (eqBands f32[8])",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /controller\.params\.stage.*eqBands/i,
+    chartGroups: ["hotPath", "paramWrite"],
+    chartLabel: "params.stage",
+  },
+  {
+    id: "params-within-scalars",
+    label: "processor.params.within (scalars only)",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /processor\.params\.within.*scalars only/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "processor.within",
+  },
+  {
+    id: "params-within-mixed",
+    label: "processor.params.within (scalars + eqBands f32[8])",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /processor\.params\.within.*scalars \+ eqBands/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "processor.within+arr",
+  },
+  {
+    id: "params-interleaved-update-within",
+    label: "interleaved controller.update + processor.within",
+    fileSuffix: "param-operations.bench.ts",
+    benchPattern: /interleaved controller\.update \+ processor\.within/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "interleaved",
+  },
+
+  // MeterWriter sugar
+  {
+    id: "writer-level",
+    label: "meter scalar: writer.level(0.75)",
+    fileSuffix: "array-vs-stage-and-meters.bench.ts",
+    benchPattern: /writer\.level\(0\.75\)/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "writer.level",
+  },
+  {
+    id: "writer-set",
+    label: "meter scalar: writer.set('level', 0.75)",
+    fileSuffix: "array-vs-stage-and-meters.bench.ts",
+    benchPattern: /writer\.set\('level', 0\.75\)/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "writer.set",
+  },
+  {
+    id: "writer-stage-array",
+    label: "meter array: writer.stage('spectrum', cb)",
+    fileSuffix: "array-vs-stage-and-meters.bench.ts",
+    benchPattern: /writer\.stage\('spectrum', cb\)/i,
+    chartGroups: ["hotPath"],
+    chartLabel: "writer.stage",
+  },
+
+  // Observer reads
+  {
+    id: "observer-within-full",
+    label: "observer.params.within (full view)",
+    fileSuffix: "observer-reads.bench.ts",
+    benchPattern: /params\.within\(\).*full view/i,
+    chartGroups: ["observer"],
+    chartLabel: "within (full view)",
+  },
+  {
+    id: "observer-params-snapshot-full",
+    label: "observer.params.snapshot (full)",
+    fileSuffix: "observer-reads.bench.ts",
+    benchPattern: /params\.snapshot\(\).*full spec/i,
+    chartGroups: ["observer"],
+    chartLabel: "snap params (full)",
+  },
+  {
+    id: "observer-params-snapshot-partial",
+    label: "observer.params.snapshot (partial, array)",
+    fileSuffix: "observer-reads.bench.ts",
+    benchPattern: /params\.snapshot\(\['gain'\]\).*array/i,
+    chartGroups: ["observer"],
+    chartLabel: "snap params (partial, array)",
+  },
+  {
+    id: "observer-meters-snapshot-full",
+    label: "observer.meters.snapshot (full)",
+    fileSuffix: "observer-reads.bench.ts",
+    benchPattern: /meters\.snapshot\(\).*full spec/i,
+    chartGroups: ["observer"],
+    chartLabel: "snap meters (full)",
+  },
+  {
+    id: "observer-meters-snapshot-partial",
+    label: "observer.meters.snapshot (partial, array)",
+    fileSuffix: "observer-reads.bench.ts",
+    benchPattern: /meters\.snapshot\(\['peak'\]\).*array/i,
+    chartGroups: ["observer"],
+    chartLabel: "snap meters (partial, array)",
+  },
+];
+
+const MICRO_OP_CONFIG_BY_ID: ReadonlyMap<string, MicroOpConfig> = new Map(
+  MICRO_OP_CONFIG.map((config) => [config.id, config]),
+);
+
+interface CollectWarning {
+  readonly kind: "fileMissing" | "benchMissing";
+  readonly context: "microOps" | "setup" | "chart";
+  readonly label: string;
+  readonly fileSuffix: string;
+  readonly benchPattern: string;
+}
+
 function loadReport(path: string): BenchReport {
   const raw = readFileSync(path, "utf8");
   return JSON.parse(raw) as BenchReport;
@@ -81,12 +266,12 @@ function findBenchInFile(
   file: BenchFile,
   pattern: string | RegExp,
 ): BenchSample | null {
-  for (const group of file.groups) {
-    const matcher =
-      typeof pattern === "string"
-        ? (name: string) => name === pattern
-        : (name: string) => pattern.test(name);
+  const matcher =
+    typeof pattern === "string"
+      ? (name: string) => name === pattern
+      : (name: string) => pattern.test(name);
 
+  for (const group of file.groups) {
     const bench = group.benchmarks.find((b) => matcher(b.name));
     if (bench) {
       return bench;
@@ -96,130 +281,46 @@ function findBenchInFile(
 }
 
 /**
- * Collect all hot-path micro operations dynamically from known benchmark files.
+ * Collect all hot-path micro operations based on MICRO_OP_CONFIG.
  */
-function collectMicroOps(report: BenchReport): MicroOpRow[] {
+function collectMicroOps(
+  report: BenchReport,
+  warnings: CollectWarning[],
+): MicroOpRow[] {
   const rows: MicroOpRow[] = [];
 
-  const tryAdd = (
-    operation: string,
-    fileSuffix: string,
-    benchPattern: string | RegExp,
-  ): void => {
-    const file = findFile(report, fileSuffix);
+  for (const config of MICRO_OP_CONFIG) {
+    const file = findFile(report, config.fileSuffix);
     if (!file) {
-      return;
+      warnings.push({
+        kind: "fileMissing",
+        context: "microOps",
+        label: config.label,
+        fileSuffix: config.fileSuffix,
+        benchPattern: String(config.benchPattern),
+      });
+      continue;
     }
 
-    const bench = findBenchInFile(file, benchPattern);
+    const bench = findBenchInFile(file, config.benchPattern);
     if (!bench) {
-      return;
+      warnings.push({
+        kind: "benchMissing",
+        context: "microOps",
+        label: config.label,
+        fileSuffix: config.fileSuffix,
+        benchPattern: String(config.benchPattern),
+      });
+      continue;
     }
 
     rows.push({
-      operation,
+      id: config.id,
+      operation: config.label,
       meanUs: bench.mean * 1_000,
       hz: bench.hz,
     });
-  };
-
-  // Seqlock primitives
-  tryAdd(
-    "seqlock tryRead uncontended",
-    "seqlock.bench.ts",
-    /tryRead uncontended/i,
-  );
-  tryAdd(
-    "seqlock publish uncontended",
-    "seqlock.bench.ts",
-    /publish uncontended/i,
-  );
-
-  // Controller param operations
-  tryAdd(
-    "controller.params.set (two scalars)",
-    "param-operations.bench.ts",
-    /controller\.params\.set.*two scalars/i,
-  );
-  tryAdd(
-    "controller.params.update (3 scalars)",
-    "param-operations.bench.ts",
-    /controller\.params\.update.*3 scalars\)$/i,
-  );
-  tryAdd(
-    "controller.params.update (3 scalars + f32[8])",
-    "param-operations.bench.ts",
-    /controller\.params\.update.*3 scalars.*f32\[8\]/i,
-  );
-  tryAdd(
-    "controller.params.hydrate (3 scalars + f32[8])",
-    "param-operations.bench.ts",
-    /controller\.params\.hydrate.*3 scalars.*f32\[8\]/i,
-  );
-  tryAdd(
-    "controller.params.stage (eqBands f32[8])",
-    "param-operations.bench.ts",
-    /controller\.params\.stage.*eqBands/i,
-  );
-  tryAdd(
-    "processor.params.within (scalars only)",
-    "param-operations.bench.ts",
-    /processor\.params\.within.*scalars only/i,
-  );
-  tryAdd(
-    "processor.params.within (scalars + eqBands f32[8])",
-    "param-operations.bench.ts",
-    /processor\.params\.within.*scalars \+ eqBands/i,
-  );
-  tryAdd(
-    "interleaved controller.update + processor.within",
-    "param-operations.bench.ts",
-    /interleaved controller\.update \+ processor\.within/i,
-  );
-
-  // MeterWriter sugar
-  tryAdd(
-    "meter scalar: writer.level(0.75)",
-    "array-vs-stage-and-meters.bench.ts",
-    /writer\.level\(0\.75\)/i,
-  );
-  tryAdd(
-    "meter scalar: writer.set('level', 0.75)",
-    "array-vs-stage-and-meters.bench.ts",
-    /writer\.set\('level', 0\.75\)/i,
-  );
-  tryAdd(
-    "meter array: writer.stage('spectrum', cb)",
-    "array-vs-stage-and-meters.bench.ts",
-    /writer\.stage\('spectrum', cb\)/i,
-  );
-
-  // Observer reads (updated to match current names)
-  tryAdd(
-    "observer.params.within (full view)",
-    "observer-reads.bench.ts",
-    /params\.within\(\).*full view/i,
-  );
-  tryAdd(
-    "observer.params.snapshot (full)",
-    "observer-reads.bench.ts",
-    /params\.snapshot\(\).*full spec/i,
-  );
-  tryAdd(
-    "observer.params.snapshot (partial)",
-    "observer-reads.bench.ts",
-    /params\.snapshot\(\['gain'\]\).*partial/i,
-  );
-  tryAdd(
-    "observer.meters.snapshot (full)",
-    "observer-reads.bench.ts",
-    /meters\.snapshot\(\).*full spec/i,
-  );
-  tryAdd(
-    "observer.meters.snapshot (partial)",
-    "observer-reads.bench.ts",
-    /meters\.snapshot\(\['peak'\]\).*partial/i,
-  );
+  }
 
   return [...rows].sort((a, b) => a.meanUs - b.meanUs);
 }
@@ -227,20 +328,30 @@ function collectMicroOps(report: BenchReport): MicroOpRow[] {
 /**
  * Collect end-to-end setup benchmarks dynamically.
  */
-function collectSetup(report: BenchReport): SetupRow[] {
+function collectSetup(
+  report: BenchReport,
+  warnings: CollectWarning[],
+): SetupRow[] {
   const file = findFile(report, "e2e-pipeline.bench.ts");
   if (!file) {
+    warnings.push({
+      kind: "fileMissing",
+      context: "setup",
+      label: "E2E pipeline",
+      fileSuffix: "e2e-pipeline.bench.ts",
+      benchPattern: "/small|medium|large spec: full setup/",
+    });
     return [];
   }
 
   const rows: SetupRow[] = [];
 
-  const patterns = [
+  const patterns: readonly {
+    readonly label: string;
+    readonly pattern: RegExp;
+  }[] = [
     { label: "Small spec", pattern: /small spec: full setup/i },
-    {
-      label: "Medium spec",
-      pattern: /medium spec: full setup/i,
-    },
+    { label: "Medium spec", pattern: /medium spec: full setup/i },
     { label: "Large spec", pattern: /large spec: full setup/i },
   ];
 
@@ -252,6 +363,14 @@ function collectSetup(report: BenchReport): SetupRow[] {
         meanMs: bench.mean,
         hz: bench.hz,
       });
+    } else {
+      warnings.push({
+        kind: "benchMissing",
+        context: "setup",
+        label,
+        fileSuffix: "e2e-pipeline.bench.ts",
+        benchPattern: String(pattern),
+      });
     }
   }
 
@@ -259,19 +378,76 @@ function collectSetup(report: BenchReport): SetupRow[] {
 }
 
 /**
+ * Chart configurations for ASCII output.
+ *
+ * Note: labels are doc-facing, patterns are shared with MICRO_OP_CONFIG
+ * via chartGroups and chartLabel.
+ */
+const CHART_CONFIGS: readonly ChartConfig[] = [
+  {
+    title: "Hot Path Operations (µs) – lower is better",
+    entries: MICRO_OP_CONFIG.filter((c) =>
+      c.chartGroups.includes("hotPath"),
+    ).map<ChartEntry>((c) => ({
+      label: c.chartLabel ?? c.label,
+      fileSuffix: c.fileSuffix,
+      benchPattern: c.benchPattern,
+    })),
+  },
+  {
+    title: "Parameter Writes (µs) – lower is better",
+    entries: MICRO_OP_CONFIG.filter((c) =>
+      c.chartGroups.includes("paramWrite"),
+    ).map<ChartEntry>((c) => ({
+      label: c.chartLabel ?? c.label,
+      fileSuffix: c.fileSuffix,
+      benchPattern: c.benchPattern,
+    })),
+  },
+  {
+    title: "Observer Reads (µs) – lower is better",
+    entries: MICRO_OP_CONFIG.filter((c) =>
+      c.chartGroups.includes("observer"),
+    ).map<ChartEntry>((c) => ({
+      label: c.chartLabel ?? c.label,
+      fileSuffix: c.fileSuffix,
+      benchPattern: c.benchPattern,
+    })),
+  },
+];
+
+/**
  * Build chart data from configuration.
  */
-function buildChart(report: BenchReport, config: ChartConfig): ChartRow[] {
+function buildChart(
+  report: BenchReport,
+  config: ChartConfig,
+  warnings: CollectWarning[],
+): ChartRow[] {
   const rows: ChartRow[] = [];
 
   for (const entry of config.entries) {
     const file = findFile(report, entry.fileSuffix);
     if (!file) {
+      warnings.push({
+        kind: "fileMissing",
+        context: "chart",
+        label: entry.label,
+        fileSuffix: entry.fileSuffix,
+        benchPattern: String(entry.benchPattern),
+      });
       continue;
     }
 
     const bench = findBenchInFile(file, entry.benchPattern);
     if (!bench) {
+      warnings.push({
+        kind: "benchMissing",
+        context: "chart",
+        label: entry.label,
+        fileSuffix: entry.fileSuffix,
+        benchPattern: String(entry.benchPattern),
+      });
       continue;
     }
 
@@ -284,151 +460,11 @@ function buildChart(report: BenchReport, config: ChartConfig): ChartRow[] {
   return rows;
 }
 
-/**
- * Chart configurations for ASCII output.
- *
- * Note: labels are doc-facing, patterns are tightly matched
- * to current benchmark names.
- */
-const CHART_CONFIGS: readonly ChartConfig[] = [
-  {
-    title: "Hot Path Operations (µs) – lower is better",
-    entries: [
-      {
-        label: "seqlock publish",
-        fileSuffix: "seqlock.bench.ts",
-        benchPattern: /publish uncontended/i,
-      },
-      {
-        label: "params.stage",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.stage.*eqBands/i,
-      },
-      {
-        label: "writer.set",
-        fileSuffix: "array-vs-stage-and-meters.bench.ts",
-        benchPattern: /writer\.set\('level', 0\.75\)/i,
-      },
-      {
-        label: "writer.level",
-        fileSuffix: "array-vs-stage-and-meters.bench.ts",
-        benchPattern: /writer\.level\(0\.75\)/i,
-      },
-      {
-        label: "seqlock tryRead",
-        fileSuffix: "seqlock.bench.ts",
-        benchPattern: /tryRead uncontended/i,
-      },
-      {
-        label: "params.update",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.update.*3 scalars\)$/i,
-      },
-      {
-        label: "params.set",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.set.*two scalars/i,
-      },
-      {
-        label: "params.hydrate",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.hydrate/i,
-      },
-      {
-        label: "params.update+array",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.update.*3 scalars.*f32\[8\]/i,
-      },
-      {
-        label: "processor.within",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /processor\.params\.within.*scalars only/i,
-      },
-      {
-        label: "processor.within+arr",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /processor\.params\.within.*scalars \+ eqBands/i,
-      },
-      {
-        label: "writer.stage",
-        fileSuffix: "array-vs-stage-and-meters.bench.ts",
-        benchPattern: /writer\.stage\('spectrum', cb\)/i,
-      },
-      {
-        label: "interleaved",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /interleaved controller\.update \+ processor\.within/i,
-      },
-    ],
-  },
-  {
-    title: "Parameter Writes (µs) – lower is better",
-    entries: [
-      {
-        label: "stage (array only)",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.stage.*eqBands/i,
-      },
-      {
-        label: "update (scalars)",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.update.*3 scalars\)$/i,
-      },
-      {
-        label: "set (scalars)",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.set.*two scalars/i,
-      },
-      {
-        label: "hydrate (mixed)",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.hydrate/i,
-      },
-      {
-        label: "update+array",
-        fileSuffix: "param-operations.bench.ts",
-        benchPattern: /controller\.params\.update.*3 scalars.*f32\[8\]/i,
-      },
-    ],
-  },
-  {
-    title: "Observer Reads (µs) – lower is better",
-    entries: [
-      {
-        label: "within (full view)",
-        fileSuffix: "observer-reads.bench.ts",
-        benchPattern: /params\.within\(\).*full view/i,
-      },
-      {
-        label: "snap params (partial)",
-        fileSuffix: "observer-reads.bench.ts",
-        benchPattern: /params\.snapshot\(\['gain'\]\).*partial/i,
-      },
-      {
-        label: "snap params (full)",
-        fileSuffix: "observer-reads.bench.ts",
-        benchPattern: /params\.snapshot\(\).*full spec/i,
-      },
-      {
-        label: "snap meters (partial)",
-        fileSuffix: "observer-reads.bench.ts",
-        benchPattern: /meters\.snapshot\(\['peak'\]\).*partial/i,
-      },
-      {
-        label: "snap meters (full)",
-        fileSuffix: "observer-reads.bench.ts",
-        benchPattern: /meters\.snapshot\(\).*full spec/i,
-      },
-    ],
-  },
-];
-
 function renderAsciiChart(title: string, rows: readonly ChartRow[]): string {
   if (rows.length === 0) {
     return `${title}\n\n(no data)`;
   }
 
-  // Sort by ascending time (fastest first)
   const sorted = [...rows].sort((a, b) => a.valueUs - b.valueUs);
 
   const maxLabelLen = sorted.reduce(
@@ -457,18 +493,36 @@ function renderAsciiChart(title: string, rows: readonly ChartRow[]): string {
   return lines.join("\n");
 }
 
-function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
+function renderMarkdown(
+  micro: readonly MicroOpRow[],
+  setup: readonly SetupRow[],
+  warnings: readonly CollectWarning[],
+): string {
   const lines: string[] = [];
-  const runIso = new Date().toISOString();
+
+  const runDate = new Date();
+  const runIso = runDate.toISOString();
+  const runLocal = runDate.toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  });
+  const nodeVersion = process.versions.node;
+
+  const hotPathTableRows = micro.filter((row) => {
+    const cfg = MICRO_OP_CONFIG_BY_ID.get(row.id);
+    return cfg?.chartGroups.includes("hotPath") === true;
+  });
 
   const opHeader = "Operation";
   const meanHeader = "Mean time (µs)";
   const thrHeader = "Throughput (M ops/s)";
 
-  const meanStrings = micro.map((row) => row.meanUs.toFixed(3));
-  const throughputStrings = micro.map((row) => (row.hz / 1_000_000).toFixed(2));
+  const meanStrings = hotPathTableRows.map((row) => row.meanUs.toFixed(3));
+  const throughputStrings = hotPathTableRows.map((row) =>
+    (row.hz / 1_000_000).toFixed(2),
+  );
 
-  const operationWidth = micro.reduce(
+  const operationWidth = hotPathTableRows.reduce(
     (acc, row) => (row.operation.length > acc ? row.operation.length : acc),
     opHeader.length,
   );
@@ -516,8 +570,48 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
     }
   }
 
-  lines.push("");
-  lines.push("");
+  const microById = new Map<string, MicroOpRow>();
+  for (const row of micro) {
+    microById.set(row.id, row);
+  }
+
+  function getRow(id: string): MicroOpRow | undefined {
+    return microById.get(id);
+  }
+
+  function getConfig(id: string): MicroOpConfig | undefined {
+    return MICRO_OP_CONFIG_BY_ID.get(id);
+  }
+
+  function formatOpLabel(id: string, row: MicroOpRow | undefined): string {
+    const cfg = getConfig(id);
+    const label = cfg?.chartLabel ?? cfg?.label ?? row?.operation ?? id;
+    return `\`${label}\``;
+  }
+
+  function ratioText(
+    numerator: MicroOpRow | undefined,
+    denominator: MicroOpRow | undefined,
+  ): string {
+    if (!numerator || !denominator) {
+      return "n/a";
+    }
+    if (denominator.meanUs <= 0) {
+      return "n/a";
+    }
+    const value = numerator.meanUs / denominator.meanUs;
+    return value.toFixed(2);
+  }
+
+  function exampleOps(rows: readonly MicroOpRow[], limit: number): string {
+    if (rows.length === 0) {
+      return "none";
+    }
+    const sorted = [...rows].sort((a, b) => a.meanUs - b.meanUs);
+    const slice = sorted.slice(0, limit);
+    return slice.map((row) => `\`${row.operation}\``).join(", ");
+  }
+
   lines.push("# Bench Results");
   lines.push("");
   lines.push(
@@ -525,12 +619,17 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
       " Re-run `pnpm bench:report` after changing benchmarks.",
   );
   lines.push("");
-  lines.push(`_Bench run: ${runIso}_`);
+  lines.push(`_Bench run (local time): ${runLocal}_`);
+  lines.push("");
+  lines.push(`_Bench run (ISO 8601): ${runIso}_`);
   lines.push("");
   lines.push("## Hot path micro-operations");
+  lines.push(
+    "_Includes seqlock primitives, controller param writes, processor reads, and MeterWriter operations. Observer reads are broken out separately below._",
+  );
   lines.push("");
 
-  if (micro.length > 0) {
+  if (hotPathTableRows.length > 0) {
     lines.push(
       `| ${opHeader.padEnd(operationWidth, " ")} | ${meanHeader.padStart(meanWidth, " ")} | ${thrHeader.padStart(throughputWidth, " ")} |`,
     );
@@ -538,14 +637,16 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
       `|${"-".repeat(operationWidth + 2)}|${"-".repeat(meanWidth + 1)}:|${"-".repeat(throughputWidth + 1)}:|`,
     );
 
-    for (let i = 0; i < micro.length; i += 1) {
-      const row = micro[i];
+    for (let i = 0; i < hotPathTableRows.length; i += 1) {
+      const row = hotPathTableRows[i];
       const meanStr = meanStrings[i];
       const thrStr = throughputStrings[i];
 
       if (row === undefined || meanStr === undefined || thrStr === undefined) {
         throw new Error(
-          `Internal error: mismatched micro row lengths at index ${String(i)}`,
+          `Internal error: mismatched hot-path row lengths at index ${String(
+            i,
+          )}`,
         );
       }
 
@@ -554,7 +655,7 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
       );
     }
   } else {
-    lines.push("_(No micro-operations found in benchmark results)_");
+    lines.push("_(No hot-path micro-operations found in benchmark results)_");
   }
 
   lines.push("");
@@ -592,9 +693,281 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
     lines.push("_(No E2E setup benchmarks found in results)_");
   }
 
+  // Interpretation section – this is what makes it a "living spec"
   lines.push("");
+  lines.push("## Interpretation and budgets");
+  lines.push("");
+
+  if (micro.length > 0) {
+    const tier0 = micro.filter((row) => row.meanUs < 1);
+    const tier1 = micro.filter((row) => row.meanUs >= 1 && row.meanUs < 100);
+    const tier2 = micro.filter((row) => row.meanUs >= 100);
+
+    lines.push("### Latency tiers");
+    lines.push("");
+
+    if (tier0.length > 0) {
+      lines.push(
+        `- Tier 0 (sub-microsecond): ${String(
+          tier0.length,
+        )} operations including ${exampleOps(tier0, 4)}.`,
+      );
+    }
+    if (tier1.length > 0) {
+      lines.push(
+        `- Tier 1 (tens of microseconds): ${String(
+          tier1.length,
+        )} operations including ${exampleOps(tier1, 3)}.`,
+      );
+    }
+    if (tier2.length > 0) {
+      lines.push(
+        `- Tier 2 (hundreds of microseconds): ${String(
+          tier2.length,
+        )} operations including ${exampleOps(tier2, 3)}.`,
+      );
+    }
+
+    lines.push("");
+  }
+
+  // Parameter write budgets
+  const paramsStage = getRow("params-stage-array");
+  const paramsSet = getRow("params-set-scalars");
+  const paramsUpdate = getRow("params-update-scalars");
+  const paramsUpdateArray = getRow("params-update-scalars-array");
+  const paramsHydrate = getRow("params-hydrate-mixed");
+
+  const paramWriteIds = MICRO_OP_CONFIG.filter((c) =>
+    c.chartGroups.includes("paramWrite"),
+  ).map((c) => c.id);
+  const paramWriteRows = paramWriteIds
+    .map((id) => getRow(id))
+    .filter((row): row is MicroOpRow => row !== undefined);
+
+  if (paramWriteRows.length > 0) {
+    lines.push("### Parameter write budgets");
+    lines.push("");
+
+    const firstParam = paramWriteRows[0];
+    if (!firstParam) {
+      // Should be unreachable with the length guard, but kept for type and runtime safety.
+      lines.push(
+        "_Internal formatter invariant violated, parameter write rows were empty._",
+      );
+      lines.push("");
+    } else {
+      let fastestParam: MicroOpRow = firstParam;
+      let slowestParam: MicroOpRow = firstParam;
+
+      for (const row of paramWriteRows) {
+        if (row.meanUs < fastestParam.meanUs) {
+          fastestParam = row;
+        }
+        if (row.meanUs > slowestParam.meanUs) {
+          slowestParam = row;
+        }
+      }
+
+      lines.push(
+        `- Absolute costs: param writes sit between ${fastestParam.meanUs.toFixed(
+          3,
+        )} µs (${formatOpLabel(
+          fastestParam.id,
+          fastestParam,
+        )}) and ${slowestParam.meanUs.toFixed(3)} µs (${formatOpLabel(
+          slowestParam.id,
+          slowestParam,
+        )}) in this run.`,
+      );
+
+      if (paramsStage && paramsSet && paramsUpdate) {
+        lines.push(
+          `- Relative: ${formatOpLabel(
+            "params-stage-array",
+            paramsStage,
+          )} is about ${ratioText(
+            paramsSet,
+            paramsStage,
+          )}× faster than ${formatOpLabel(
+            "params-set-scalars",
+            paramsSet,
+          )} and ${ratioText(
+            paramsUpdate,
+            paramsStage,
+          )}× faster than ${formatOpLabel(
+            "params-update-scalars",
+            paramsUpdate,
+          )}.`,
+        );
+      }
+
+      if (paramsHydrate && paramsUpdateArray) {
+        const low = Math.min(paramsHydrate.meanUs, paramsUpdateArray.meanUs);
+        const high = Math.max(paramsHydrate.meanUs, paramsUpdateArray.meanUs);
+        lines.push(
+          `- Mixed scalar + array writes remain sub-microsecond: ${formatOpLabel(
+            "params-hydrate-mixed",
+            paramsHydrate,
+          )} and ${formatOpLabel(
+            "params-update-scalars-array",
+            paramsUpdateArray,
+          )} land around ${low.toFixed(3)}–${high.toFixed(3)} µs per call.`,
+        );
+      }
+
+      lines.push("");
+    }
+  }
+
+  // Observer param read budgets
+  const observerPartialParams = getRow("observer-params-snapshot-partial");
+  const observerFullParams = getRow("observer-params-snapshot-full");
+  const observerWithinFull = getRow("observer-within-full");
+
+  if (observerPartialParams || observerFullParams || observerWithinFull) {
+    lines.push("### Observer param read budgets");
+    lines.push("");
+
+    if (observerPartialParams) {
+      lines.push(
+        `- Partial param snapshots (array form) cost about ${observerPartialParams.meanUs.toFixed(3)} µs per snapshot.`,
+      );
+    }
+    if (observerFullParams) {
+      lines.push(
+        `- Full param snapshots sit around ${observerFullParams.meanUs.toFixed(3)} µs.`,
+      );
+    }
+    if (observerWithinFull) {
+      lines.push(
+        `- Coherent views via ${formatOpLabel(
+          "observer-within-full",
+          observerWithinFull,
+        )} land near ${observerWithinFull.meanUs.toFixed(3)} µs.`,
+      );
+    }
+
+    if (observerPartialParams && paramsSet && paramsStage) {
+      lines.push(
+        `- Relative to writes: a partial param snapshot is roughly ${ratioText(
+          observerPartialParams,
+          paramsSet,
+        )}× the cost of ${formatOpLabel(
+          "params-set-scalars",
+          paramsSet,
+        )} and ${ratioText(
+          observerPartialParams,
+          paramsStage,
+        )}× the cost of ${formatOpLabel("params-stage-array", paramsStage)}.`,
+      );
+    }
+
+    lines.push("");
+  }
+
+  // Observer meter read budgets
+  const observerPartialMeters = getRow("observer-meters-snapshot-partial");
+  const observerFullMeters = getRow("observer-meters-snapshot-full");
+  const writerStage = getRow("writer-stage-array");
+
+  if (observerPartialMeters || observerFullMeters) {
+    lines.push("### Observer meter read budgets");
+    lines.push("");
+
+    if (observerPartialMeters) {
+      lines.push(
+        `- Partial meter snapshots (array form) cost about ${observerPartialMeters.meanUs.toFixed(3)} µs.`,
+      );
+    }
+    if (observerFullMeters) {
+      lines.push(
+        `- Full meter snapshots land around ${observerFullMeters.meanUs.toFixed(3)} µs.`,
+      );
+    }
+
+    if (observerPartialMeters && writerStage) {
+      lines.push(
+        `- Compared to a write: a partial meter snapshot is roughly ${ratioText(
+          observerPartialMeters,
+          writerStage,
+        )}× the cost of ${formatOpLabel("writer-stage-array", writerStage)}.`,
+      );
+    }
+    if (observerPartialMeters && observerPartialParams && observerFullParams) {
+      lines.push(
+        `- Compared to params: meter snapshots are about ${ratioText(
+          observerPartialMeters,
+          observerPartialParams,
+        )}× heavier than partial param snapshots and ${ratioText(
+          observerPartialMeters,
+          observerFullParams,
+        )}× heavier than full param snapshots.`,
+      );
+    }
+
+    lines.push("");
+  }
+
+  // End-to-end setup budgets
+  if (setup.length > 0) {
+    lines.push("### End-to-end setup budgets");
+    lines.push("");
+
+    const firstSetup = setup[0];
+    if (!firstSetup) {
+      lines.push(
+        "_Internal formatter invariant violated, setup rows were empty._",
+      );
+      lines.push("");
+    } else {
+      let largestSetup: SetupRow = firstSetup;
+
+      for (const row of setup) {
+        if (row.meanMs > largestSetup.meanMs) {
+          largestSetup = row;
+        }
+      }
+
+      const blockSamples = 128;
+      const sampleRateHz = 48_000;
+      const blockMs = (blockSamples / sampleRateHz) * 1_000;
+      const factor = blockMs / largestSetup.meanMs;
+
+      lines.push(
+        `- Largest measured setup (${largestSetup.label}) is about ${largestSetup.meanMs.toFixed(3)} ms per run.`,
+      );
+      lines.push(
+        `- For reference, a ${String(
+          blockSamples,
+        )}-sample audio block at ${sampleRateHz.toLocaleString(
+          "en-US",
+        )} Hz is about ${blockMs.toFixed(
+          3,
+        )} ms, so ${largestSetup.label} is roughly ${factor.toFixed(
+          1,
+        )}× cheaper than processing a single block.`,
+      );
+      lines.push(
+        "- This keeps full `spec → plan → backing → handoff → bindings` rebuilds safely on the control side rather than in the audio hot path.",
+      );
+      lines.push("");
+    }
+  }
+
+  if (warnings.length > 0) {
+    lines.push("## Formatter health");
+    lines.push("");
+    lines.push(
+      `This run had ${String(
+        warnings.length,
+      )} formatting warning${warnings.length === 1 ? "" : "s"} from \`scripts/format-bench.ts\`. See the CLI output for details.`,
+    );
+    lines.push("");
+  }
+
   lines.push(
-    "_Note:_ numbers are from a single Node 20 + Vitest bench run and are meant for relative comparison, not absolute tuning.",
+    `_Note:_ numbers are from a single Node ${nodeVersion} + Vitest bench run and are meant for relative comparison, not absolute tuning.`,
   );
   lines.push("");
 
@@ -602,19 +975,18 @@ function renderMarkdown(micro: MicroOpRow[], setup: SetupRow[]): string {
 }
 
 function main(): void {
-  const scriptDir = dirname(fileURLToPath(import.meta.url));
+  // Assumes CWD is the @seqlok/core package root
+  const rootDir = process.cwd();
 
-  const defaultJsonPath = join(scriptDir, "..", "bench-results.json");
+  const defaultJsonPath = join(rootDir, "bench-results.json");
   const defaultOutPath = join(
-    scriptDir,
-    "..",
+    rootDir,
     "docs",
     "performance",
     "bench-results.generated.md",
   );
   const defaultJsonCopyDest = join(
-    scriptDir,
-    "..",
+    rootDir,
     "docs",
     "performance",
     "bench-results.json",
@@ -622,15 +994,17 @@ function main(): void {
 
   const args = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
   const shouldClean = process.argv.includes("--clean");
+  const isStrict = process.argv.includes("--strict");
 
   const jsonPath = args[0] ?? defaultJsonPath;
   const outPath = args[1] ?? defaultOutPath;
 
   const report = loadReport(jsonPath);
+  const warnings: CollectWarning[] = [];
 
-  const micro = collectMicroOps(report);
-  const setup = collectSetup(report);
-  const markdown = renderMarkdown(micro, setup);
+  const micro = collectMicroOps(report, warnings);
+  const setup = collectSetup(report, warnings);
+  const markdown = renderMarkdown(micro, setup, warnings);
 
   writeFileSync(outPath, markdown, "utf8");
   console.log(`Bench summary written to ${outPath}`);
@@ -652,15 +1026,31 @@ function main(): void {
     }
   }
 
-  // ASCII charts to stdout for quick visual inspection
   console.log("```");
   for (const config of CHART_CONFIGS) {
-    const rows = buildChart(report, config);
+    const rows = buildChart(report, config, warnings);
     const chart = renderAsciiChart(config.title, rows);
     console.log(chart);
     console.log();
   }
   console.log("```");
+
+  if (warnings.length > 0) {
+    console.log();
+    console.log("Bench format warnings:");
+    for (const w of warnings) {
+      const where = `${w.fileSuffix} / ${w.benchPattern}`;
+      const prefix =
+        w.kind === "fileMissing" ? "File not found" : "Bench not found";
+      console.log(`- [${w.context}] ${prefix} for "${w.label}" in ${where}`);
+    }
+
+    if (isStrict) {
+      throw new Error(
+        "Bench formatting failed due to missing files or benchmarks",
+      );
+    }
+  }
 }
 
 main();

@@ -1,4 +1,4 @@
-# Seqlok Golden Flow: From Spec to Bindings
+# Seqlok Canonical Flow: From Spec to Bindings
 
 > *How a param/meter schema becomes shared memory + bindings.*
 
@@ -93,7 +93,7 @@ const processor = bindProcessor(received);
 
 // Future additional consumers on the same backing:
 // const observer  = bindObserver(received);
-// const diagnostics = bindTelemetry(received);
+// const introspect = bindTelemetry(received);
 ```
 
 Notes:
@@ -391,7 +391,7 @@ const processor = bindProcessor(received);
 
 // Future additional roles on the same backing:
 // const observer  = bindObserver(received);
-// const diagnostics = bindTelemetry(received);
+// const introspect = bindTelemetry(received);
 ```
 
 Typical uses:
@@ -404,7 +404,7 @@ No copies, no extra handoffs: just more bindings over the same seqlock-protected
 
 ---
 
-## 5. Cross-language golden flow
+## 5. Cross-language canonical flow
 
 The same stages apply in C/C++/Rust bindings that want to be Seqlok-compatible:
 
@@ -446,7 +446,7 @@ is a valid Seqlok pipeline, even if the exact function names differ.
 
 ---
 
-## 6. Design rules: the golden flow as a hard contract
+## 6. Design rules: the canonical flow as a hard contract
 
 1. **Ordering is non-negotiable**
 
@@ -474,5 +474,5 @@ is a valid Seqlok pipeline, even if the exact function names differ.
 * Only one role (the processor) may publish meters for a given meter domain;
   other roles are read-only or use dedicated planes planned up front.
 
-As long as every engine, observer, and analyzer stays on this golden flow, hot-swap
+As long as every engine, observer, and analyzer stays on this canonical flow, hot-swap
 flows, multi-engine setups, and parallel visualizations all compose cleanly.

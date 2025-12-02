@@ -10,15 +10,16 @@
  * @internal
  */
 
+import { createInternalError, invariant } from "@seqlok/base";
+
 import {
   type BindingInvalidValueDetails,
   type BindingParamRangeDetails,
   type BindingSnapshotIntoLengthMismatchDetails,
   type BindingSnapshotIntoTypeMismatchDetails,
   type BindingUnknownKeyDetails,
-} from "../../errors/codes/binding";
-import { createError } from "../../errors/error";
-import { invariant } from "../../errors/invariant";
+  createBindingError,
+} from "../../errors/binding";
 
 import type { MeterPlaneViews, ParamPlaneViews } from "../../backing/map-views";
 
@@ -27,7 +28,7 @@ export function throwUnknownKey(
   key: string,
   known: readonly string[],
 ): never {
-  throw createError("binding.unknownKey", `Unknown ${scope} key "${key}"`, {
+  throw createBindingError("unknownKey", {
     scope,
     key,
     known,
@@ -40,7 +41,7 @@ export function throwParamRange(
   max: number,
   received: number,
 ): never {
-  throw createError("binding.paramRange", `Param "${key}" out of range`, {
+  throw createBindingError("paramRange", {
     key,
     min,
     max,
@@ -50,18 +51,14 @@ export function throwParamRange(
 
 export function throwInvalidParamValue(
   key: string,
-  expected?: unknown,
-  received?: unknown,
+  expected: BindingInvalidValueDetails["expected"],
+  received: BindingInvalidValueDetails["received"],
 ): never {
-  throw createError(
-    "binding.paramInvalidValue",
-    `Param "${key}" has invalid value`,
-    {
-      key,
-      expected,
-      received,
-    } satisfies BindingInvalidValueDetails,
-  );
+  throw createBindingError("paramInvalidValue", {
+    key,
+    expected,
+    received,
+  } satisfies BindingInvalidValueDetails);
 }
 
 export function throwIntoType(
@@ -71,18 +68,14 @@ export function throwIntoType(
   expectedLength: number,
   receivedLength: number,
 ): never {
-  throw createError(
-    "binding.snapshotIntoTypeMismatch",
-    `Into buffer type mismatch for "${key}"`,
-    {
-      key,
-      expectedType:
-        expectedType as BindingSnapshotIntoTypeMismatchDetails["expectedType"],
-      receivedType,
-      expectedLength,
-      receivedLength,
-    } satisfies BindingSnapshotIntoTypeMismatchDetails,
-  );
+  throw createBindingError("snapshotIntoTypeMismatch", {
+    key,
+    expectedType:
+      expectedType as BindingSnapshotIntoTypeMismatchDetails["expectedType"],
+    receivedType,
+    expectedLength,
+    receivedLength,
+  } satisfies BindingSnapshotIntoTypeMismatchDetails);
 }
 
 export function throwIntoLength(
@@ -91,18 +84,14 @@ export function throwIntoLength(
   expectedLength: number,
   receivedLength: number,
 ): never {
-  throw createError(
-    "binding.snapshotIntoLengthMismatch",
-    `Into buffer length mismatch for "${key}"`,
-    {
-      key,
-      expectedType:
-        expectedType as BindingSnapshotIntoLengthMismatchDetails["expectedType"],
-      receivedType: expectedType,
-      expectedLength,
-      receivedLength,
-    } satisfies BindingSnapshotIntoLengthMismatchDetails,
-  );
+  throw createBindingError("snapshotIntoLengthMismatch", {
+    key,
+    expectedType:
+      expectedType as BindingSnapshotIntoLengthMismatchDetails["expectedType"],
+    receivedType: expectedType,
+    expectedLength,
+    receivedLength,
+  } satisfies BindingSnapshotIntoLengthMismatchDetails);
 }
 
 /** @internal Param planes (data) — binding-local union. */
@@ -122,7 +111,9 @@ interface TA<T extends ArrayBufferView & { length: number }> {
 
 /**
  * Shared validator for both params/meters "into" targets.
- * - Enforces constructor type (e.g., Float32Array)
+ *
+ * @remarks
+ * - Enforces constructor type (e.g. Float32Array)
  * - Enforces exact length
  */
 export function validateIntoBuffer<
@@ -273,11 +264,11 @@ export function validateParamSlots(
         ok = index >= 0 && index < views.PB.length;
       }
 
-      invariant(
-        ok,
-        "internal.assertionFailed",
-        `Param scalar "${key}" offset out of bounds`,
-        { detail: `param.scalar:${key}` },
+      invariant(ok, () =>
+        createInternalError("assertionFailed", {
+          where: "binding.validateParamSlots",
+          detail: `param.scalar:${key}`,
+        }),
       );
     } else {
       const end = index + length;
@@ -290,11 +281,11 @@ export function validateParamSlots(
         ok = index >= 0 && end <= views.PB.length;
       }
 
-      invariant(
-        ok,
-        "internal.assertionFailed",
-        `Param array "${key}" range out of bounds`,
-        { detail: `param.array:${key}` },
+      invariant(ok, () =>
+        createInternalError("assertionFailed", {
+          where: "binding.validateParamSlots",
+          detail: `param.array:${key}`,
+        }),
       );
     }
 
@@ -349,11 +340,11 @@ export function validateMeterSlots(
         ok = index >= 0 && index < views.MU32.length;
       }
 
-      invariant(
-        ok,
-        "internal.assertionFailed",
-        `Meter scalar "${key}" offset out of bounds`,
-        { detail: `meter.scalar:${key}` },
+      invariant(ok, () =>
+        createInternalError("assertionFailed", {
+          where: "binding.validateMeterSlots",
+          detail: `meter.scalar:${key}`,
+        }),
       );
     } else {
       const end = index + length;
@@ -366,11 +357,11 @@ export function validateMeterSlots(
         ok = index >= 0 && end <= views.MU32.length;
       }
 
-      invariant(
-        ok,
-        "internal.assertionFailed",
-        `Meter array "${key}" range out of bounds`,
-        { detail: `meter.array:${key}` },
+      invariant(ok, () =>
+        createInternalError("assertionFailed", {
+          where: "binding.validateMeterSlots",
+          detail: `meter.array:${key}`,
+        }),
       );
     }
 

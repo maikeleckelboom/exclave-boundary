@@ -62,7 +62,7 @@ pnpm add @seqlok/core
 
 ## Core concept: Spec → Plan → Backing → Handoff → Bindings
 
-Seqlok's API is shaped like the underlying protocol. There is **one golden flow** and the core does not provide
+Seqlok's API is shaped like the underlying protocol. There is **one canonical flow** and the core does not provide
 shortcuts.
 
 1. **Spec** – what exists
@@ -261,7 +261,7 @@ self.onmessage = (
   observer = bindObserver(received);
 };
 
-// Periodic diagnostics sampling loop
+// Periodic introspect sampling loop
 function sampleTelemetry() {
   if (!observer) return;
 
@@ -299,7 +299,7 @@ const observer = bindObserver(ctx);
 const handoff = buildHandoff(ctx);
 ```
 
-This is purely a host convenience; it does not change the underlying golden flow.
+This is purely a host convenience; it does not change the underlying canonical flow.
 
 ---
 
@@ -351,8 +351,8 @@ Diagnostics live on a separate entry point:
 import {
   snapshotCounters,
   resetCounters,
-  type DiagnosticsCountersSnapshot,
-} from "@seqlok/core/diagnostics";
+  type IntrospectCountersSnapshot,
+} from "@seqlok/core/introspect";
 ```
 
 Use this surface for:
@@ -373,7 +373,7 @@ Recommended entry points:
 
 - [`docs/INDEX.md`](./docs/INDEX.md) – map of all architecture docs and ADRs.
 - Concurrency model, seqlock rationale, planes layout, and architecture diagrams.
-- API reference for the explicit golden flow:
+- API reference for the explicit canonical flow:
 
   - `defineSpec`
   - `planLayout`

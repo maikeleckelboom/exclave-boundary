@@ -1,5 +1,3 @@
-// File: tests/public/quickstart.deck-flow.partitioned.test.ts
-
 import { describe, expect, it } from "vitest";
 
 import {

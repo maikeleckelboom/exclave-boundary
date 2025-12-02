@@ -8,7 +8,7 @@
  * - Used during spec definition to ensure correctness before binding.
  */
 
-import { createError } from "../errors/error";
+import { createSpecError } from "../errors/spec";
 
 export interface ScalarRangeInput {
   readonly min?: number;
@@ -50,7 +50,7 @@ export function assertValidateScalarRange(
 
   if (min !== undefined && max !== undefined) {
     if (Number.isNaN(min) || Number.isNaN(max)) {
-      throw createError("spec.rangeInvalid", "Range cannot contain NaN", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         min,
         max,
@@ -59,7 +59,7 @@ export function assertValidateScalarRange(
     }
 
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      throw createError("spec.rangeInvalid", "Range must be finite", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         min,
         max,
@@ -68,7 +68,7 @@ export function assertValidateScalarRange(
     }
 
     if (!(min < max)) {
-      throw createError("spec.rangeInvalid", "Range must satisfy min < max", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         min,
         max,
@@ -79,37 +79,33 @@ export function assertValidateScalarRange(
     if (integer) {
       if (!Number.isInteger(min) || !Number.isInteger(max)) {
         /* Reuse 'inverted' as the generic "range shape invalid" reason. */
-        throw createError(
-          "spec.rangeInvalid",
-          "Integer range must use integer values",
-          {
-            key: kindKey,
-            min,
-            max,
-            reason: "inverted",
-          },
-        );
+        throw createSpecError("rangeInvalid", {
+          key: kindKey,
+          min,
+          max,
+          reason: "inverted",
+        });
       }
     }
   }
 
   if (min !== undefined) {
     if (Number.isNaN(min)) {
-      throw createError("spec.rangeInvalid", "min cannot be NaN", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         min,
         reason: "nan",
       });
     }
     if (!Number.isFinite(min)) {
-      throw createError("spec.rangeInvalid", "min must be finite", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         min,
         reason: "infinite",
       });
     }
     if (integer && !Number.isInteger(min)) {
-      throw createError("spec.rangeInvalid", "min must be an integer", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         min,
         reason: "inverted",
@@ -119,21 +115,21 @@ export function assertValidateScalarRange(
 
   if (max !== undefined) {
     if (Number.isNaN(max)) {
-      throw createError("spec.rangeInvalid", "max cannot be NaN", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         max,
         reason: "nan",
       });
     }
     if (!Number.isFinite(max)) {
-      throw createError("spec.rangeInvalid", "max must be finite", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         max,
         reason: "infinite",
       });
     }
     if (integer && !Number.isInteger(max)) {
-      throw createError("spec.rangeInvalid", "max must be an integer", {
+      throw createSpecError("rangeInvalid", {
         key: kindKey,
         max,
         reason: "inverted",
@@ -151,27 +147,19 @@ export function parseArrayLen(
   const v = typeof length === "number" ? length : length.length;
 
   if (!Number.isFinite(v) || Number.isNaN(v) || !Number.isInteger(v)) {
-    throw createError(
-      "spec.arrayInvalid",
-      "Array length must be a positive integer",
-      {
-        key: "array.length",
-        length: v,
-        reason: "fractional",
-      },
-    );
+    throw createSpecError("arrayInvalid", {
+      key: "array.length",
+      length: v,
+      reason: "fractional",
+    });
   }
 
   if (v <= 0) {
-    throw createError(
-      "spec.arrayInvalid",
-      "Array length must be a positive integer",
-      {
-        key: "array.length",
-        length: v,
-        reason: "nonPositive",
-      },
-    );
+    throw createSpecError("arrayInvalid", {
+      key: "array.length",
+      length: v,
+      reason: "nonPositive",
+    });
   }
 
   return v;
@@ -189,7 +177,7 @@ export function isPlainObject(x: unknown): x is Record<string, unknown> {
  */
 export function asNonEmpty<V extends readonly string[]>(values: V): V {
   if (values.length === 0) {
-    throw createError("spec.enumInvalid", "Enum requires at least one value", {
+    throw createSpecError("enumInvalid", {
       key: "enum.values",
       values,
     });
@@ -198,15 +186,11 @@ export function asNonEmpty<V extends readonly string[]>(values: V): V {
   for (let i = 0; i < values.length; i += 1) {
     const v = values[i];
     if (typeof v !== "string" || v.length === 0) {
-      throw createError(
-        "spec.enumInvalid",
-        "Enum values must be non-empty strings",
-        {
-          key: "enum.values",
-          values,
-          invalidIndex: i,
-        },
-      );
+      throw createSpecError("enumInvalid", {
+        key: "enum.values",
+        values,
+        invalidIndex: i,
+      });
     }
   }
 

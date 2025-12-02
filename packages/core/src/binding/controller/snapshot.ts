@@ -8,7 +8,8 @@
  * - Provides both full and partial snapshot capabilities.
  */
 
-import { createError } from "../../errors/error";
+import { createInternalError, invariant } from "@seqlok/base";
+
 import {
   copyMeterArray,
   copyParamArray,
@@ -72,15 +73,13 @@ function paramsSnapshotRaw(
 
   for (const key of keysList) {
     const slot = slots[key];
-    if (!slot) {
-      throw createError(
-        "internal.assertionFailed",
-        "Param snapshot slot missing",
-        {
-          where: key,
-        },
-      );
-    }
+
+    invariant(slot !== undefined, () =>
+      createInternalError("assertionFailed", {
+        where: "controller.params.snapshot",
+        detail: `missing param slot for key=${key}`,
+      }),
+    );
 
     const start = slot.index;
 
@@ -98,14 +97,12 @@ function paramsSnapshotRaw(
           (dst as Uint8Array).set(views.PB.subarray(start, end));
         }
         out[key] = dst;
+      } else if (slot.plane === "PF32") {
+        out[key] = copyParamArray(views.PF32.subarray(start, end));
+      } else if (slot.plane === "PI32") {
+        out[key] = copyParamArray(views.PI32.subarray(start, end));
       } else {
-        if (slot.plane === "PF32") {
-          out[key] = copyParamArray(views.PF32.subarray(start, end));
-        } else if (slot.plane === "PI32") {
-          out[key] = copyParamArray(views.PI32.subarray(start, end));
-        } else {
-          out[key] = copyParamArray(views.PB.subarray(start, end));
-        }
+        out[key] = copyParamArray(views.PB.subarray(start, end));
       }
     } else {
       // Scalar value: number / boolean / enum label.
@@ -178,15 +175,13 @@ function metersSnapshotRaw(
 
   for (const key of keysList) {
     const slot = slots[key];
-    if (!slot) {
-      throw createError(
-        "internal.assertionFailed",
-        "Meter snapshot slot missing",
-        {
-          where: key,
-        },
-      );
-    }
+
+    invariant(slot !== undefined, () =>
+      createInternalError("assertionFailed", {
+        where: "controller.meters.snapshot",
+        detail: `missing meter slot for key=${key}`,
+      }),
+    );
 
     const start = slot.index;
 
@@ -204,14 +199,12 @@ function metersSnapshotRaw(
           dst.set(views.MU32.subarray(start, end));
         }
         out[key] = dst;
+      } else if (slot.plane === "MF32") {
+        out[key] = copyMeterArray(views.MF32.subarray(start, end));
+      } else if (slot.plane === "MF64") {
+        out[key] = copyMeterArray(views.MF64.subarray(start, end));
       } else {
-        if (slot.plane === "MF32") {
-          out[key] = copyMeterArray(views.MF32.subarray(start, end));
-        } else if (slot.plane === "MF64") {
-          out[key] = copyMeterArray(views.MF64.subarray(start, end));
-        } else {
-          out[key] = copyMeterArray(views.MU32.subarray(start, end));
-        }
+        out[key] = copyMeterArray(views.MU32.subarray(start, end));
       }
     } else {
       // Scalar value: numbers only (bool meters use MU32 as 0/1).

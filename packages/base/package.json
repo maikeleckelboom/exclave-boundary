@@ -1,0 +1,53 @@
+{
+  "name": "@seqlok/base",
+  "version": "0.3.0-next.0",
+  "description": "Seqlok error algebra, invariants, and shared protocol shapes.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && rollup -c rollup.dts.config.mts",
+    "clean": "rimraf dist .eslintcache pnpm-debug.log",
+    "purge": "pnpm run clean && rimraf node_modules",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "format": "prettier --ignore-path ../../.prettierignore --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
+    "bench": "vitest bench --run",
+    "bench:watch": "vitest bench",
+    "test:types": "pnpm --filter seqlok test:types",
+    "dev": "pnpm run test:watch"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-regex": "catalog:",
+    "fast-check": "catalog:",
+    "globals": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "rollup": "catalog:",
+    "rollup-plugin-dts": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -9,8 +9,9 @@
  * @internal
  */
 
+import { createInternalError } from "@seqlok/base";
+
 import { getEnumLabelForIndex, isEnumDef } from "./enum-utils";
-import { createError } from "../../errors/error";
 
 import type { MeterPlane, ParamPlane } from "./validate";
 import type { MeterPlaneViews, ParamPlaneViews } from "../../backing/map-views";
@@ -27,13 +28,14 @@ export function requireIndex(
   arr: ArrayLike<number>,
   index: number,
   where: string,
-  message: string,
+  detail: string,
 ): number {
   const value = arr[index];
   if (value === undefined) {
-    throw createError("internal.assertionFailed", message, {
+    throw createInternalError("assertionFailed", {
       where,
-      detail: `index ${String(index)}`,
+      detail,
+      index,
     });
   }
   return value;

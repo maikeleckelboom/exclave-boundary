@@ -1,10 +1,12 @@
 {
   "name": "@seqlok/hotswap",
   "version": "0.1.0",
+  "description": "Engine lifecycle and hot-swap protocol on top of Seqlok.",
+  "license": "MIT",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,20 +15,31 @@
     },
     "./package.json": "./package.json"
   },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build && rollup -c rollup.dts.config.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
+    "format": "prettier --ignore-path ../../.prettierignore --write .",
     "clean": "rimraf dist .eslintcache node_modules/.vite node_modules/.cache pnpm-debug.log",
-    "test:types": "tsc -b --noEmit --pretty",
-    "format": "prettier --write ."
+    "test:types": "pnpm --filter seqlok test:types",
+    "dev": "pnpm run test:watch"
+  },
+  "dependencies": {
+    "@seqlok/base": "workspace:*",
+    "@seqlok/primitives": "workspace:*",
+    "@seqlok/core": "workspace:*",
+    "@seqlok/commands": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
     "eslint": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
@@ -37,6 +50,8 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
+    "rollup": "catalog:",
+    "rollup-plugin-dts": "catalog:",
     "vitest": "catalog:"
   }
 }

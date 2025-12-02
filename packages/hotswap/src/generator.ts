@@ -120,7 +120,7 @@ export interface SwapGeneratorInput<EngineKind extends number> {
    * Sentinel value representing "no next engine".
    *
    * This is passed through to `stepSwapStateRT` and should match the
-   * sentinel used by the actual engine host.
+   * sentinel used by the actual engine integration.
    */
   readonly noneKindSentinel: EngineKind;
 }
@@ -158,7 +158,7 @@ export type SwapDecisionGenerator<EngineKind extends number> = Generator<
  * ```
  *
  * For real-time engines, prefer calling `stepSwapStateRT` directly in the
- * audio callback. This generator is intentionally host-side ergonomics.
+ * audio callback. This generator is intentionally integration-side ergonomics.
  */
 export function* createSwapGenerator<EngineKind extends number>(
   input: SwapGeneratorInput<EngineKind>,

@@ -50,7 +50,7 @@ Each verb reflects a distinct domain with its own invariants and error codes.
 ## 1. Roles of `spec`, `plan`, `backing`, `handoff`, `binding`
 
 | Object    | Role                                     | Owned by       |
-| --------- | ---------------------------------------- | -------------- |
+|-----------|------------------------------------------|----------------|
 | `spec`    | Semantic contract (params/meters)        | spec domain    |
 | `plan`    | Deterministic plan blueprint             | plan domain    |
 | `backing` | Concrete memory implementing a plan      | backing domain |
@@ -508,7 +508,8 @@ Kernel-level `Backing` is deliberately boring:
 
 The **pairings** live in verbs:
 
-- `allocateShared(plan)` / `allocateSharedPartitioned(plan)` → “give me a backing for this plan (contiguous or per-plane SABs).”
+- `allocateShared(plan)` / `allocateSharedPartitioned(plan)` → “give me a backing for this plan (contiguous or per-plane
+  SABs).”
 - `buildHandoff(plan, backing)` → “stamp this backing as implementing this plan.”
 - `bindController(spec, plan, backing)` → “prove this spec matches this plan+backing.”
 - `bindProcessor(received)` → “adopt the plan+backing pair referenced by this received handoff.”
@@ -710,31 +711,62 @@ The payoff is a system that remains debuggable, testable, and adaptable under re
 
 ---
 
-## 9. Layer boundaries (visual)
+## 9. Introspect domain (`introspect.*`)
 
-```mermaid
-flowchart LR
-  A[spec] -->|planLayout| B[plan]
-  B -->|"allocateShared / allocateSharedPartitioned"| C[backing]
-  B --- D[plan hash/meta]
-  C --- E["shared memory (SABs / planes)"]
-  B --> F[handoff]
-  C --> F
-  F -->|postMessage| G[received]
-  A & C --> H[bindController]
-  G --> I[bindProcessor]
-  G --> J[bindObserver]
-```
+`@seqlok/introspect` is a **host-side sidecar** for observability and health. The runtime engine does not depend on it
+and can run without it, but hosts are free to enable it in both development and production.
 
-Boundaries:
+There are three layers involved:
 
-- **spec domain** – `defineSpec`
-- **plan domain** – `planLayout`
-- **backing domain** – `allocateShared` / `allocateSharedPartitioned` / (advanced) `allocateWasmShared`
-- **handoff domain** – `buildHandoff` / `receiveHandoff` / `verifyHandoff`
-- **binding domain** – `bindController` / `bindProcessor` / `bindObserver`
+1. **Errors (`introspect.*`)**
 
-Everything else (diagnostics, orchestration, registries, workers, engine kits) lives _around_ this diagram, not inside it.
+- `introspect.counterInvalid`
+- `introspect.featureInvalid`
+
+These are raised when the _introspection subsystem itself_ is misconfigured or corrupted:
+
+- invalid counters / budgets / timestamps,
+- unknown introspection feature flags.
+
+They carry `ErrorMeta` with:
+
+- `severity: 'warning'`
+- `recoverable: true`
+- `boundarySafe: false`
+
+`introspect.*` errors represent issues in instrumentation or observability rather than core engine failures. They are
+expected to be non-fatal and are primarily useful for developers and operators, even in production logs.
+
+2. **Health interpretation**
+
+   The central `interpretHealth(error)` helper treats `introspect.*` as:
+
+- `status: 'degraded'`
+- label along the lines of "Introspection subsystem issue"
+- hint: "Introspection is misconfigured; core engine remains healthy."
+
+This keeps introspection failures clearly separate from engine failures.
+
+3. **Introspection toolkit**
+
+   This lives under `src/*` in `@seqlok/introspect`:
+
+- `counters` – named introspection counters (degraded snapshots, spin budget exhaustions, …)
+- `budgets` – validated limits for introspection work
+- `features` – typed feature flags (some dev-only like `seqlockTrace`, others production-appropriate)
+- `session` – start/end introspection sessions with timestamp sanity
+- `export` – JSON / Prometheus / CSV export for counters
+
+These modules are intended for:
+
+- CI / stress tests
+- dev HUDs and profiling tools
+- production dashboards and operator observability
+- Node/Electron CLIs that scrape metrics
+
+**Architectural invariant**: Runtime packages never import `@seqlok/introspect`. Production behaviour must not _rely_ on
+introspect being present. This keeps the engine decoupled from observability, but does not ban introspect from
+production—it simply means the engine runs correctly whether or not introspect is wired in.
 
 ## 10. Reviewer checklist
 

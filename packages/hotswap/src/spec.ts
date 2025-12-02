@@ -10,6 +10,8 @@ export function invariant(
   }
 }
 
+// import { invariant } from "packages/base";
+
 const __DEV__ = true;
 
 /**
@@ -107,7 +109,7 @@ export interface SwapTicketRT<EngineKind extends number> {
 }
 
 /**
- * RT status: safe to publish from the audio thread to a diagnostics /
+ * RT status: safe to publish from the audio thread to a introspect /
  * meter plane (numbers only, no heap allocation).
  */
 export interface SwapStatusRT<EngineKind extends number> {

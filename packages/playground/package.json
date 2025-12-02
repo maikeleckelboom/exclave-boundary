@@ -15,15 +15,20 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:types": "tsc -b --noEmit --pretty"
+    "test:types": "pnpm --filter seqlok test:types"
   },
   "dependencies": {
+    "@seqlok/base": "workspace:*",
+    "@seqlok/commands": "workspace:*",
     "@seqlok/core": "workspace:*",
     "@seqlok/hotswap": "workspace:*",
-    "@seqlok/host": "workspace:*"
+    "@seqlok/integration": "workspace:*",
+    "@seqlok/introspect": "workspace:*",
+    "@seqlok/primitives": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@vitejs/plugin-vue": "^6.0.2",
     "eslint": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
@@ -34,7 +39,6 @@
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "@vitest/coverage-v8": "catalog:",
-    "@vitejs/plugin-vue": "^6.0.2"
+    "tsx": "catalog:"
   }
 }

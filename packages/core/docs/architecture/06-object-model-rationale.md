@@ -1,4 +1,4 @@
-# Seqlok Object Model & Non-OOP Core Rationale (Golden Flow Edition)
+# Seqlok Object Model & Non-OOP Core Rationale (Canonical Flow Edition)
 
 > Why the Seqlok **kernel** is function-centric and not object-oriented – and why that's intentional, not an accident.
 
@@ -11,7 +11,7 @@ The Seqlok core is deliberately **not** designed as a set of stateful objects or
 Object-oriented APIs are allowed – and expected – **on top** of this (orchestration, framework adapters, app code).
 The kernel itself stays functional for reasons of correctness, analyzability, portability, and layering.
 
-This version of the document assumes the **golden flow** is the only supported, canonical way to wire Seqlok:
+This version of the document assumes the **canonical flow** is the only supported, canonical way to wire Seqlok:
 
 - **Owner / main side:** `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` → `bindController`
 - **Worker / processor side:** `receiveHandoff` → `bindProcessor`
@@ -29,7 +29,7 @@ bindController(spec, plan, backing, options?);
 **Design principle.** The Seqlok core models concurrency and memory layout using **data + functions**, not “big objects
 with methods".
 
-At the kernel level, APIs are shaped like the golden flow:
+At the kernel level, APIs are shaped like the canonical flow:
 
 ```ts
 // owner / main
@@ -60,7 +60,7 @@ const controller = ctx.createController();
 const handoff = ctx.buildHandoff();
 ```
 
-Ergonomics moves "upwards"; correctness-critical logic stays "flat and explicit" in terms of the golden flow.
+Ergonomics moves "upwards"; correctness-critical logic stays "flat and explicit" in terms of the canonical flow.
 
 ---
 
@@ -104,7 +104,7 @@ In that context, "hidden mutable state behind method calls" is not a feature –
 
 ## 3. Functions + data are easier to reason about (and verify)
 
-Seqlok's core operations in the golden flow are intentionally shaped like **total functions** on immutable inputs
+Seqlok's core operations in the canonical flow are intentionally shaped like **total functions** on immutable inputs
 wherever possible:
 
 - `planLayout(spec): Plan<S>`
@@ -116,7 +116,7 @@ wherever possible:
 
 ### 3.1. Compositional reasoning
 
-You can treat the golden flow as two simple pipelines.
+You can treat the canonical flow as two simple pipelines.
 
 Owner / main:
 
@@ -168,7 +168,7 @@ all of which live **behind** method boundaries instead of in explicit data.
 
 ### 3.2. Testing and invariants
 
-Tests can exercise the golden flow functions directly:
+Tests can exercise the canonical flow functions directly:
 
 - Planner invariants (no overlap, correct plane lengths)
 - Backing invariants (correct SAB size and alignment)
@@ -189,7 +189,7 @@ Seqlok targets:
 - Node / Deno (`worker_threads`)
 - Environments with shared `WebAssembly.Memory`
 
-The golden flow is intentionally **portable**:
+The canonical flow is intentionally **portable**:
 
 - `Plan<S>` is a plain data structure describing the layout.
 - `allocateShared(plan)` constructs raw shared memory for that layout.
@@ -209,7 +209,7 @@ can re-implement the core behavior against the same invariants.
 > **Design goal.**
 > No part of Seqlok's correctness should depend on JavaScript's `class` model or method dispatch. The semantics should
 > be
-> expressible purely as "data + functions" along the golden flow, so an equivalent implementation in another language is
+> expressible purely as "data + functions" along the canonical flow, so an equivalent implementation in another language is
 > straightforward.
 
 Heavy OO in the kernel would pull in JS-specific concepts (prototype chains, subclassing) that make porting and
@@ -231,7 +231,7 @@ Seqlok enforces a strict layering:
 
 Each layer has a small, explicit API and depends on a restricted set of lower layers.
 
-The golden flow function signatures **encode those dependencies**:
+The canonical flow function signatures **encode those dependencies**:
 
 - `planLayout(spec)` lives in `plan`
 - `allocateShared(plan)` lives in `backing`
@@ -255,7 +255,7 @@ Over time, that leads to:
 
 > **Intent.**
 > Seqlok's kernel is closer to a well-designed C library with strong types than to a classical OO "engine" object. The
-> golden flow is expressed as a sequence of explicit module calls; their relationships are visible in the type
+> canonical flow is expressed as a sequence of explicit module calls; their relationships are visible in the type
 > signatures.
 
 ---
@@ -264,7 +264,7 @@ Over time, that leads to:
 
 This is **not** a blanket rejection of object-orientation. It's a **scoping decision**:
 
-- Kernel: **functional, data + functions**, minimal internal state, explicit layering, golden flow only.
+- Kernel: **functional, data + functions**, minimal internal state, explicit layering, canonical flow only.
 - Above kernel: **use whatever abstraction is ergonomic**:
 
   - Builder/factory helpers
@@ -280,7 +280,7 @@ Examples of places where OO / context styles are perfectly fine:
 - `@seqlok/devtools` – inspector UIs, stateful debug contexts
 - App-level "Session" / "Deck" / "Engine" classes in consumer code
 
-These can wrap the golden flow:
+These can wrap the canonical flow:
 
 ```ts
 // example sketch: orchestration helper (could be OO, could be functional)
@@ -306,7 +306,7 @@ export function initProcessor<S extends SpecInput>(handoff: Handoff<S>) {
 }
 ```
 
-The important part: this lives **on top of** the kernel and delegates to the golden flow functions. If an integration
+The important part: this lives **on top of** the kernel and delegates to the canonical flow functions. If an integration
 layer goes wrong, the core invariants remain intact.
 
 > **Policy.**
@@ -322,7 +322,7 @@ When reviewers ask:
 > “Why not have a `SeqlokContext` that hides spec/plan/backing and just gives me `.allocate()`, `.bind()`,
 > `.handoff()`?”
 
-You can answer along these lines, in terms of the golden flow:
+You can answer along these lines, in terms of the canonical flow:
 
 1. **Correctness & reasoning**
 
@@ -353,20 +353,20 @@ You can answer along these lines, in terms of the golden flow:
 5. **Ergonomics via composition**
 
 - We provide (or endorse) higher-level helpers/factories that close over `spec`/`plan` to reduce repetition, while still
-  delegating to the golden flow.
+  delegating to the canonical flow.
 - The kernel stays small, explicit, and predictable.
 
 A concise line you can reuse:
 
 > We chose not to make the Seqlok core OO because the problem is about **memory and time**, not “objects and methods”.
 > OO is a great tool for orchestration and UI integration; it's the wrong tool for defining a portable, verifiable
-> concurrency kernel. The golden flow gives us that kernel.
+> concurrency kernel. The canonical flow gives us that kernel.
 
 ---
 
 ## 8. Summary
 
-- The Seqlok **core** is intentionally non-OOP and organized around a single **golden flow**:
+- The Seqlok **core** is intentionally non-OOP and organized around a single **canonical flow**:
 
   - Owner / main: `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` →
     `bindController(spec, plan, backing, options?)`
@@ -386,7 +386,7 @@ A concise line you can reuse:
   - Preserves the strict layering enforced elsewhere in the project
 
 - Object-oriented abstractions are encouraged **above** the kernel, where they can improve ergonomics without
-  compromising the concurrency model or the golden flow.
+  compromising the concurrency model or the canonical flow.
 
-In other words: the core is designed like a **portable systems library** with a single, explicit golden flow; the OO
+In other words: the core is designed like a **portable systems library** with a single, explicit canonical flow; the OO
 “nice bits” live one layer higher.

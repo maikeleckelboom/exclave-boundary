@@ -3,10 +3,13 @@
  * Observer binding implementation.
  *
  * @remarks
- * - Read-only binding for passive/diagnostics consumers.
+ * - Read-only binding for passive/introspect consumers.
  * - Shares the same backing and seqlocks as controller/processor.
  * - Uses seqlock-protected snapshots with configurable degradation.
  */
+
+import { createInternalError, invariant } from "@seqlok/base";
+import { ALL_PLANES } from "@seqlok/primitives";
 
 import {
   createObserverMeterSnapshot,
@@ -14,8 +17,6 @@ import {
 } from "./snapshot";
 import { getPlaneBuffer, getBackingBuffer } from "../../backing/buffers";
 import { mapViews } from "../../backing/map-views";
-import { invariant } from "../../errors/invariant";
-import { ALL_PLANES } from "../../primitives/planes";
 import {
   makeWithin,
   type SnapshotPolicyOptions,
@@ -33,7 +34,6 @@ import {
 
 import type { Backing } from "../../backing/types";
 import type { Plan } from "../../plan/types";
-import type { SeqPair } from "../../primitives/seqlock";
 import type {
   MeterKeys,
   ParamDef,
@@ -50,6 +50,7 @@ import type {
   ParamsSnapshot,
   PUSeq,
 } from "../common/types";
+import type { SeqPair } from "@seqlok/primitives";
 
 /**
  * Narrow slot shape used by observer snapshots.
@@ -82,13 +83,12 @@ type ObserverWithinView<S extends SpecInput> =
   ObserverWithinCallback<S> extends (view: infer V) => unknown ? V : never;
 
 function assertNotDisposed(disposed: boolean, where: string): void {
-  invariant(
-    !disposed,
-    "internal.assertionFailed",
-    "observer binding disposed",
-    {
+  invariant(!disposed, () =>
+    createInternalError("assertionFailed", {
       where,
-    },
+      bindingRole: "observer",
+      reason: "binding disposed",
+    }),
   );
 }
 
@@ -113,16 +113,15 @@ function assertBackingCapacity<S extends SpecInput>(
   // Single-buffer backings: shared + wasm-shared
   if (backing.kind === "shared" || backing.kind === "wasm-shared") {
     const buf = getBackingBuffer(backing);
-    const actual = buf.byteLength >>> 0;
+    const actualBytes = buf.byteLength >>> 0;
 
-    invariant(
-      actual >= requiredTotal,
-      "internal.assertionFailed",
-      "Single-buffer backing byteLength smaller than plan.bytesTotal",
-      {
+    invariant(actualBytes >= requiredTotal, () =>
+      createInternalError("assertionFailed", {
         where: "binding.observer.backing.single",
-        detail: `required=${String(requiredTotal)}, actual=${String(actual)}`,
-      },
+        backingKind: backing.kind,
+        requiredBytes: requiredTotal,
+        actualBytes,
+      }),
     );
 
     return;
@@ -130,20 +129,22 @@ function assertBackingCapacity<S extends SpecInput>(
 
   // shared-partitioned: each plane has its own SAB; check per-plane capacity.
   for (const plane of ALL_PLANES) {
-    const required = plan.planes[plane] >>> 0;
-    const buf = getPlaneBuffer(backing, plane);
-    const actual = buf.byteLength >>> 0;
+    const requiredBytes = plan.planes[plane] >>> 0;
 
-    invariant(
-      actual >= required,
-      "internal.assertionFailed",
-      "Partitioned backing plane undersized for plan",
-      {
+    if (requiredBytes === 0) {
+      continue;
+    }
+
+    const buf = getPlaneBuffer(backing, plane);
+    const actualBytes = buf.byteLength >>> 0;
+
+    invariant(actualBytes >= requiredBytes, () =>
+      createInternalError("assertionFailed", {
         where: "binding.observer.backing.shared-partitioned",
-        detail: `plane=${plane}, required=${String(required)}, actual=${String(
-          actual,
-        )}`,
-      },
+        plane,
+        requiredBytes,
+        actualBytes,
+      }),
     );
   }
 }
@@ -170,7 +171,6 @@ export function observerImpl<const S extends SpecInput>(
   try {
     const mapped = mapViews(plan, backing);
 
-    // Validate param/meter slots once.
     interface ParamSlotForValidate {
       readonly plane: ParamPlane | "PU";
       readonly offset: number;

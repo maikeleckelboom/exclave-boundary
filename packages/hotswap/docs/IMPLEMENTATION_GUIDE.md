@@ -108,7 +108,7 @@ The protocol guarantees: **at most two engines are ever instantiated per slot**.
 //
 // Caller MUST:
 //   - Run current engine normally
-//   - Poll for incoming tickets (from host thread)
+//   - Poll for incoming tickets (from integration thread)
 //
 // Caller MAY:
 //   - Do nothing special
@@ -180,7 +180,7 @@ The protocol guarantees: **at most two engines are ever instantiated per slot**.
 // Caller MUST:
 //   - Run current engine ONE FINAL TIME (output used)
 //   - After processing: swap handles (next → current)
-//   - After processing: signal host that old engine can be reclaimed
+//   - After processing: signal integration that old engine can be reclaimed
 //   - Ensure memory ordering (see below)
 //
 // Duration: exactly 1 block, then back to idle

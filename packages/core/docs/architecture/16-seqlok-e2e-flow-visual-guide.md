@@ -41,6 +41,12 @@ graph TB
     N --> O[Atomic Meter Write<br/>meters.publish]
   end
 
+  subgraph "HUD / Inspector (Observer)"
+    I --> OBS[Bind Observer<br/>bindObserver]
+    OBS --> OParams[Params Snapshot<br/>observer.params.snapshot]
+    OBS --> OMeters[Meters Snapshot<br/>observer.meters.snapshot]
+  end
+
   subgraph "Shared Memory"
     P[Params Domain<br/>PF32 / PI32 / PB / PU]
     Q[Meters Domain<br/>MF32 / MF64 / MU32 / MU]
@@ -50,11 +56,13 @@ graph TB
   M --> P
   O --> Q
   H --> Q
+  OParams --> P
+  OMeters --> Q
 ```
 
-> **Verification note:** > `verifyHandoff(plan, received)` exists for diagnostics/tests (e.g. asserting a handoff matches a locally planned
-> layout). It can run on the controller side or in a non-RT worker. It is **not** part of the processor's hot path and
-> is omitted from the canonical runtime pipeline above.
+> **Verification note:** `verifyHandoff(plan, received)` exists in diagnostics/tests (for example, to assert that a
+> received handoff matches a locally planned layout). It can run on the controller side or in a non-RT worker. It is
+> **not** part of the processor's hot path and is intentionally omitted from the canonical runtime pipeline above.
 
 ---
 
@@ -291,8 +299,11 @@ gantt
   on `MU`.
 - **Meters (controller):** `controller.meters.snapshot(...)` is a **cold-path, best-effort read** – ideal for HUDs and
   tooling, allowed to observe mixed frames under contention.
-- **Meters (observer, future):** visualizer-grade coherent meter snapshots live in a future **observer binding**
-  (e.g. in `@seqlok/compose`), which will use seqlock-aware helpers over `MU` with budgets and degrade policy.
+- **Meters (observer):** visualizer-grade coherent meter snapshots live in the
+  `ObserverBinding` returned by `bindObserver(received)`. This binding exists
+  in `@seqlok/core` (same trust story as `bindProcessor`) and uses seqlock-aware
+  helpers over `MU` with budgets / degrade policy. Higher layers (e.g. drivers
+  or `@seqlok/compose`) only wire topologies, not coherence.
 
 3. **Type safety end-to-end**
 

@@ -9,7 +9,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals"],
+    "paths": {}
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]

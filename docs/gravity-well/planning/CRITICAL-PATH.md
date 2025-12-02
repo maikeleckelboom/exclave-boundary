@@ -25,7 +25,7 @@ This document breaks down the minimum viable work to ship Seqlok v1.0. Each phas
 
 ## Phase 1: Complete Core Contracts (2-3 weeks)
 
-**Goal**: Finish implementing the golden flow end-to-end, including commands and hotswap.
+**Goal**: Finish implementing the canonical flow end-to-end, including commands and hotswap.
 
 ### Task 1.1: Lock Error System (0.5 weeks)
 **Status**: 🟢 95% done  
@@ -36,15 +36,15 @@ This document breaks down the minimum viable work to ship Seqlok v1.0. Each phas
 - [ ] Validate schema against live registry in CI
 
 **Acceptance**:
-- JSON schema file exists at `packages/core/schemas/errors.schema.json`
+- JSON schema file exists at `packages/introspect/schema/error-registry.*.json`
 - Schema includes all current error codes with metadata
 - CI step validates registry matches schema
 - Rust/C++ can consume schema to generate enums
 
 **Files to Create/Modify**:
 ```
-packages/core/scripts/generate-error-schema.ts
-packages/core/schemas/errors.schema.json (generated)
+packages/introspect/scripts/export-error-registry.ts
+packages/introspect/schema/error-registry.*.json (generated)
 .github/workflows/validate-error-schema.yml (or in existing CI)
 ```
 
@@ -54,7 +54,7 @@ packages/core/schemas/errors.schema.json (generated)
 
 ### Task 1.2: Implement `@seqlok/commands` (1 week)
 **Status**: 🔴 Not started  
-**Dependencies**: None (foundation + primitives already exist)
+**Dependencies**: None (base + primitives already exist)
 
 **Deliverables**:
 - [ ] Command ring (SWSR or MWSR based on DoD)
@@ -490,8 +490,8 @@ impl MeterWriter {
 
 **Files to Create**:
 ```
-packages/core/scripts/generate-error-schema.ts
-packages/core/schemas/errors.schema.json (generated)
+packages/introspect/scripts/export-error-registry.ts
+packages/introspect/schema/error-registry.*.json (generated)
 ```
 
 **Acceptance**:

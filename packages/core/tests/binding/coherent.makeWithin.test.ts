@@ -61,8 +61,8 @@ describe("Make Within: Coherent Read Primitive", () => {
     expect(thrownError).toBeInstanceOf(Error);
 
     // Verify specific error code structure
-    const err = thrownError as { code?: string; message?: string };
+    const err = thrownError as { code?: string };
     expect(err.code).toBe("binding.coherentRetryExhausted");
-    expect(err.message).toMatch(/coherent read/i);
+    // message is owned by the error registry; not asserted here
   });
 });

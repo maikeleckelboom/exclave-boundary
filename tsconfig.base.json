@@ -5,6 +5,17 @@
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "baseUrl": ".",
+    "paths": {
+      "@seqlok/base": ["packages/base/src/index.ts"],
+      "@seqlok/primitives": ["packages/primitives/src/index.ts"],
+      "@seqlok/introspect": ["packages/introspect/src/index.ts"],
+      "@seqlok/core": ["packages/core/src/index.ts"],
+      "@seqlok/commands": ["packages/commands/src/index.ts"],
+      "@seqlok/hotswap": ["packages/hotswap/src/index.ts"],
+      "@seqlok/integration": ["packages/integration/src/index.ts"],
+      "@seqlok/playground": ["packages/playground/src/index.ts"]
+    },
     "strict": true,
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,

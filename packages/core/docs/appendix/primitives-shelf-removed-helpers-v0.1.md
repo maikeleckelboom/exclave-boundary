@@ -31,7 +31,7 @@ This document captures:
 For reference, this is the final decision matrix for the primitives under discussion:
 
 | Symbol                | Action               | Rationale                                              |
-| --------------------- | -------------------- | ------------------------------------------------------ |
+|-----------------------|----------------------|--------------------------------------------------------|
 | `isPow2`              | **DELETE**           | Unused; adds noise                                     |
 | `isAligned`           | **DELETE**           | Unused; adds noise                                     |
 | `acquire`             | **DELETE**           | Design stub for future feature; implement when needed  |

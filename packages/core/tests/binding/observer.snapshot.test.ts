@@ -1,5 +1,3 @@
-// File: packages/core/tests/binding/observer.snapshot.test.ts
-
 import { describe, expect, it } from "vitest";
 
 import { allocateShared } from "../../src/backing/allocate-shared";
@@ -46,7 +44,7 @@ describe("observer snapshots", () => {
       mapped.meters,
     );
 
-    // Pre-fill param planes to mimic a controller commit.
+    /** Pre-fill param planes to mimic a controller commit. */
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     mapped.params.PF32[paramSlots.rate!.index] = 1.25;
     mapped.params.PF32.set(
@@ -59,7 +57,7 @@ describe("observer snapshots", () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     mapped.params.PB[paramSlots.enabled!.index] = 1; // bool true
 
-    // Pre-fill meter planes to mimic processor publishes.
+    /** Pre-fill meter planes to mimic processor publishes. */
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     mapped.meters.MF32[meterSlots.peak!.index] = 0.9;
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -188,8 +186,11 @@ describe("observer snapshots", () => {
     const paramsSecond = paramsSnapshot();
     const metersSecond = metersSnapshot();
 
-    // Both the old captured views and fresh snapshots should see updated data,
-    // proving we are returning ephemeral subarray views with no copies.
+    /**
+     * Both the old captured views and fresh snapshots should see updated data,
+     * proving we are returning ephemeral subarray views with no copies.
+     */
+
     expect(Array.from(curveView)).toEqual([1, 2, 3, 4]);
     expect(Array.from(paramsSecond.curve)).toEqual([1, 2, 3, 4]);
 

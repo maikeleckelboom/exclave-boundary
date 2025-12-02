@@ -28,7 +28,7 @@ const layers = {
   backing: "src/backing",
   handoff: "src/handoff",
   binding: "src/binding",
-  diagnostics: "src/diagnostics",
+  introspect: "src/introspect",
   context: "src/context",
   internal: "src/internal",
 };
@@ -59,7 +59,7 @@ function buildLayerRestrictions() {
     restrictions.push({ target, from, message });
   };
 
-  // errors: foundational leaf — cannot import any other layer
+  // errors: base leaf — cannot import any other layer
   const layersAboveErrors = [
     "primitives",
     "types",
@@ -142,7 +142,7 @@ function buildLayerRestrictions() {
   );
 
   // context: host ergonomics over spec/plan/backing; cannot import higher layers
-  for (const layer of ["handoff", "binding", "diagnostics"]) {
+  for (const layer of ["handoff", "binding", "introspect"]) {
     addRestriction(
       layers.context,
       layers[layer],
@@ -182,9 +182,8 @@ function buildLayerRestrictions() {
     addRestriction("src", file, `Import from ${domain}`);
   }
 
-  // diagnostics: outermost leaf — production core layers cannot import it,
-  // EXCEPT binding, which is allowed to bump counters on slow/error paths.
-  const productionLayersExceptBinding = [
+  // introspect: outermost leaf — production core layers cannot import it.
+  const productionLayers = [
     "primitives",
     "errors",
     "types",
@@ -192,13 +191,15 @@ function buildLayerRestrictions() {
     "plan",
     "backing",
     "handoff",
+    "binding",
     "context",
+    "internal",
   ];
-  for (const layer of productionLayersExceptBinding) {
+  for (const layer of productionLayers) {
     addRestriction(
       layers[layer],
-      layers.diagnostics,
-      `${layer} must not import diagnostics`,
+      layers.introspect,
+      `${layer} must not import introspect`,
     );
   }
 

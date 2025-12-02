@@ -54,7 +54,7 @@ Seqlok's bindings are built around three roles:
 
 - **Processor** – hot path, real-time work.
 - **Controller** – cold path, orchestration and UI logic.
-- **Observer** – hot read-side for high-frequency visualizers (conceptual role; binding comes later).
+- **Observer** – hot read-side for high-frequency visualizers, shipped as a first-class binding via `bindObserver`.
 
 They do _not_ all promise the same level of coherence.
 
@@ -121,8 +121,11 @@ guarantees live in the observer role.
 
 **Who:** High-frequency visualizers (e.g. waveforms, swarms, analyzers) that need consistent frames.
 
-**Status:** architectural role. A dedicated `bindObserver` binding is designed but **not** part of `@seqlok/core`
-v0.1.x yet; it is expected to live in higher layers (e.g. `@seqlok/compose` or similar).
+**Status:** **shipped** in `@seqlok/core` (`bindObserver`).
+
+Observer bindings are real public bindings with the same trust-boundary story
+as `bindProcessor`. Higher layers (`@seqlok/compose`, host apps, drivers)
+only compose topologies and routes; they do not own the seqlock protocol.
 
 **Responsibilities:**
 
@@ -222,7 +225,7 @@ Within a single `within` window:
 
 ---
 
-## 4. Observer: reading meters coherently (conceptual)
+## 4. Observer: reading meters coherently
 
 The observer role is the **read-side twin** of the processor's coherent writes.
 
@@ -251,11 +254,9 @@ and the policy is testable in isolation.
 
 ### Usage sketch
 
-Exact API names are intentionally **not** part of `@seqlok/core` yet; a future higher-level package is expected to
-provide something in this shape:
+The observer binding is available via `bindObserver` in `@seqlok/core`. Example usage:
 
 ```ts
-// concept only – not v0.1.0 API
 const received = receiveHandoff(handoff);
 const observer = bindObserver(received, {
   /* observer options */

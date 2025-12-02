@@ -251,7 +251,7 @@ const u32 = new Uint32Array(sab);
 // no schema, no safety, lots of magic numbers.
 ```
 
-Seqlok approach (golden flow):
+Seqlok approach (canonical flow):
 
 ```ts
 const spec = defineSpec(({ param, meter }) => ({

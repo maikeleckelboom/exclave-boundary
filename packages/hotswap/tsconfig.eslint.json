@@ -1,22 +1,10 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "composite": true,
     "noEmit": true,
-    "rootDir": "../..",
-    "outDir": "./dist",
-    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/hotswap.tsbuildinfo",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "isolatedDeclarations": false,
+    "rootDir": ".",
     "types": ["vite/client", "vitest/globals", "node"]
   },
-  "include": [
-    "src/**/*",
-    "tests/**/*",
-    "vite.config.ts",
-    "../../scripts/vite/vite.lib.config.ts"
-  ],
+  "include": ["src/**/*", "tests/**/*", "*.config.ts"],
   "exclude": ["dist", "node_modules"]
 }

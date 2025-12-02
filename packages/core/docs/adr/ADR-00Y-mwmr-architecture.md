@@ -6,7 +6,7 @@
 
 **Related**:
 
-- ADR-001 – Seqlok Core Golden Flow
+- ADR-001 – Seqlok Core Canonical Flow
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Z – Observer Binding Role in `@seqlok/core`
 - ADR-00X – `@seqlok/compose` for System-Level Composition
@@ -16,7 +16,7 @@
 
 ## 1. Context
 
-Seqlok core provides rock-solid **SWMR** primitives with seqlock-based coherence. The golden flow is frozen:
+Seqlok core provides rock-solid **SWMR** primitives with seqlock-based coherence. The canonical flow is frozen:
 
 ```txt
 defineSpec

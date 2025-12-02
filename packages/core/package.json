@@ -1,10 +1,10 @@
 {
   "name": "@seqlok/core",
-  "version": "0.2.0",
+  "version": "0.3.0-next.0",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -22,6 +22,7 @@
     "bench": "vitest bench --reporter=verbose --run",
     "bench:format": "tsx scripts/format-bench.ts",
     "bench:report": "pnpm run bench && pnpm run bench:format",
+    "bench:charts": "python3 scripts/plot_bench.py",
     "lint": "eslint src tests scripts",
     "lint:fix": "eslint src tests scripts --fix",
     "format": "prettier --ignore-path ../../.prettierignore --write .",
@@ -30,13 +31,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:types": "tsc -b --noEmit --pretty",
-    "build": "pnpm run clean && vite build && rollup -c rollup.dts.config.mts"
+    "test:types": "pnpm --filter seqlok test:types",
+    "build": "pnpm run clean && vite build && rollup -c rollup.dts.config.mts",
+    "dev": "pnpm run test:watch"
+  },
+  "dependencies": {
+    "@seqlok/base": "workspace:*",
+    "@seqlok/primitives": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "eslint": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "eslint-plugin-regex": "catalog:",
     "fast-check": "catalog:",
@@ -47,7 +52,6 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
-    "@vitest/coverage-v8": "catalog:"
+    "vitest": "catalog:"
   }
 }

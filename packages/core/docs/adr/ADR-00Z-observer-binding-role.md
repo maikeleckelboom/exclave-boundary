@@ -6,7 +6,7 @@
 
 **Related**:
 
-- ADR-001 – Seqlok Core Golden Flow
+- ADR-001 – Seqlok Core Canonical Flow
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
 - ADR-00X – `@seqlok/compose` System Composition
 - ADR-00C – Meter Writes & Snapshot `into` (Controller side)
@@ -84,7 +84,7 @@ export interface ObserverMeters<S extends SpecInput> {
 }
 
 export interface ObserverOptions {
-  // Reserved for future tuning (max retries, diagnostics hooks, etc.).
+  // Reserved for future tuning (max retries, introspect hooks, etc.).
 }
 ```
 

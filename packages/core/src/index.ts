@@ -23,6 +23,7 @@ export { planLayout } from "./plan/layout";
 export { allocateShared } from "./backing/allocate-shared";
 export { allocateSharedPartitioned } from "./backing/allocate-shared-partitioned";
 export { allocateWasmShared } from "./backing/allocate-wasm-shared";
+export { describeViews } from "./backing/describe-views";
 
 // BINDING
 export { bindController } from "./binding/controller";
@@ -61,20 +62,6 @@ export type {
 export { buildHandoff, receiveHandoff, verifyHandoff } from "./handoff/handoff";
 export type { Handoff, HandoffPacking, ReceivedHandoff } from "./handoff/types";
 
-// ERRORS
-export { SeqlokError, isSeqlokError } from "./errors/error";
-export { getErrorMeta, getErrorMessage, isErrorCode } from "./errors/registry";
-export { interpretHealth } from "./errors/health";
-
-// ERROR TYPES
-export type {
-  ErrorCode,
-  ErrorPayload,
-  ErrorDetails,
-  ErrorMeta,
-  HealthInterpretation,
-} from "./errors/types";
-
 // ENUM UTILITIES
 export {
   enumArrayToLabels,
@@ -97,28 +84,92 @@ export type {
   SnapshotMetersOf,
 } from "./types";
 
-// PRIMITIVES
-export {
-  SWSR_HEADER_WORDS,
-  SWSR_HEADER_WRITE_INDEX,
-  SWSR_HEADER_READ_INDEX,
-  SWSR_HEADER_WRITE_SEQ,
-  SWSR_HEADER_DROPPED,
-  allocateSwsrRing,
-  bindSwsrRingProducer,
-  bindSwsrRingConsumer,
-} from "./primitives/swsr-ring";
-
-export type {
-  SwsrRingLayout,
-  SwsrRingBacking,
-  SwsrRingEncode,
-  SwsrRingDecode,
-  SwsrRingProducer,
-  SwsrRingConsumer,
-  SwsrRingStats,
-} from "./primitives/swsr-ring";
-
 // CONTEXT
 export type { SharedContext } from "./context/types";
 export { createSharedContext } from "./context/create";
+
+// ENV
+export {
+  assertSabSupport,
+  assertSabSupportFromSummary,
+  summarizeEnv,
+  probeEnv,
+  type EnvKind,
+  type EnvGlobal,
+  type EnvSummary,
+} from "./env/probe";
+
+// ERRORS
+export { ENV_ERRORS } from "./errors/env";
+export type {
+  EnvError,
+  EnvErrorCode,
+  EnvErrorKey,
+  EnvErrorFactory,
+  EnvUnsupportedDetails,
+  EnvCoopCoepDetails,
+} from "./errors/env";
+
+export { BACKING_ERRORS } from "./errors/backing";
+export type {
+  BackingErrorFactory,
+  BackingError,
+  BackingErrorCode,
+  BackingErrorKey,
+  BackingPlaneDetails,
+  BackingIntoLengthMismatchDetails,
+  BackingIntoTypeMismatchDetails,
+  BackingWasmMemoryDetails,
+} from "./errors/backing";
+
+export { SPEC_ERRORS } from "./errors/spec";
+export type {
+  SpecArrayDetails,
+  SpecBuilderDetails,
+  SpecEnumDetails,
+  SpecError,
+  SpecErrorKey,
+  SpecRangeDetails,
+  SpecDuplicateKeyDetails,
+  SpecErrorCode,
+  SpecErrorFactory,
+} from "./errors/spec";
+
+export { PLAN_ERRORS } from "./errors/plan";
+export type {
+  PlanError,
+  PlanErrorCode,
+  PlanErrorFactory,
+  PlanErrorKey,
+  PlanFailedDetails,
+  PlanOverflowRiskDetails,
+} from "./errors/plan";
+
+export { BINDING_ERRORS } from "./errors/binding";
+export type {
+  BindingParamRangeDetails,
+  BindingCoherentRetryDetails,
+  BindingBufferDetails,
+  BindingError,
+  BindingErrorCode,
+  BindingErrorFactory,
+  BindingErrorKey,
+  BindingShapeDetails,
+  BindingSnapshotRetryDetails,
+  BindingInvalidValueDetails,
+  BindingUnknownKeyDetails,
+  BindingSnapshotIntoLengthMismatchDetails,
+  BindingSnapshotIntoTypeMismatchDetails,
+} from "./errors/binding";
+
+export { HANDOFF_ERRORS } from "./errors/handoff";
+export type {
+  HandoffBackingMismatchDetails,
+  HandoffError,
+  HandoffErrorCode,
+  HandoffErrorKey,
+  HandoffErrorFactory,
+  HandoffVersionMismatchDetails,
+  HandoffSpecHashMismatchDetails,
+  HandoffInvalidArtifactDetails,
+} from "./errors/handoff";

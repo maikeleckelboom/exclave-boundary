@@ -9,15 +9,15 @@
  * - Provides snapshot helpers for params and meters, including zero-alloc `into`.
  */
 
+import { createInternalError, invariant } from "@seqlok/base";
+import { publish } from "@seqlok/primitives";
+
 import { createMeterSnapshot, createParamSnapshot } from "./snapshot";
 import {
   type MappedViews,
   mapViews,
   type ParamPlaneViews,
 } from "../../backing/map-views";
-import { invariant } from "../../errors/invariant";
-import { isObject } from "../../internal/is-object";
-import { publish } from "../../primitives/seqlock";
 import { isEnumDef } from "../common/enum-utils";
 import { claimBinding, releaseBinding } from "../common/registry";
 import {
@@ -57,6 +57,70 @@ import type {
   ParamSlot,
   ValidatedParamSlot,
 } from "../common/validate";
+import type { JsonValue } from "@seqlok/base";
+
+/**
+ * Convert an unknown value into a compact, JSON-safe diagnostic payload.
+ *
+ * @remarks
+ * - Primitives pass through unchanged.
+ * - Arrays and typed-array-like values are summarized as `{ type, length }`.
+ * - Other objects are summarized as `{ type }` using their constructor name.
+ */
+function toJsonDetail(value: unknown): JsonValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      type: "Array",
+      length: value.length,
+    };
+  }
+
+  if (typeof value === "object" && "buffer" in value && "byteLength" in value) {
+    const ctorName =
+      (value as { constructor?: { name?: string } }).constructor?.name ??
+      "ArrayBufferView";
+    const length = (value as { length?: number }).length ?? 0;
+
+    return {
+      type: ctorName,
+      length,
+    };
+  }
+
+  if (typeof value === "object") {
+    const ctorName =
+      (value as { constructor?: { name?: string } }).constructor?.name ??
+      "Object";
+
+    return {
+      type: ctorName,
+    };
+  }
+
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
+  if (typeof value === "symbol") {
+    return value.description ?? "Symbol";
+  }
+
+  if (typeof value === "function") {
+    return "Function";
+  }
+
+  // Covers `undefined` or any truly weird case
+  return "undefined";
+}
 
 /**
  * Internal helper for bulk array copies in `hydrate()`.
@@ -99,6 +163,10 @@ type I32RangeDef = Extract<ParamDef, { kind: "i32" }> & {
 };
 
 type BoolDef = Extract<ParamDef, { kind: "bool" }>;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
 
 /**
  * Type guard for f32 scalar definitions with explicit range.
@@ -207,11 +275,15 @@ function normalizeScalarValue(
     if (typeof value === "string") {
       const idx = def.values.indexOf(value);
       if (idx < 0) {
-        throwInvalidParamValue(key, `oneOf(${def.values.join(",")})`, value);
+        throwInvalidParamValue(
+          key,
+          `oneOf(${def.values.join(",")})`,
+          toJsonDetail(value),
+        );
       }
       return idx;
     }
-    throwInvalidParamValue(key, "enum index|string", value);
+    throwInvalidParamValue(key, "enum index|string", toJsonDetail(value));
   }
 
   if (isBoolDef(def)) {
@@ -221,18 +293,18 @@ function normalizeScalarValue(
     if (typeof value === "number") {
       return value !== 0;
     }
-    throwInvalidParamValue(key, "boolean|0|1", value);
+    throwInvalidParamValue(key, "boolean|0|1", toJsonDetail(value));
   }
 
   if (isF32RangeDef(def) || isI32RangeDef(def)) {
     if (typeof value !== "number") {
-      throwInvalidParamValue(key, "number", value);
+      throwInvalidParamValue(key, "number", toJsonDetail(value));
     }
     return value;
   }
 
   if (!(typeof value === "number" || typeof value === "boolean")) {
-    throwInvalidParamValue(key, "number|boolean", value);
+    throwInvalidParamValue(key, "number|boolean", toJsonDetail(value));
   }
 
   return value;
@@ -290,14 +362,11 @@ function assertBackingCapacity<S extends SpecInput>(
     const required = plan.bytesTotal >>> 0;
     const actual = backing.sab.byteLength >>> 0;
 
-    invariant(
-      actual >= required,
-      "internal.assertionFailed",
-      "Shared backing byteLength smaller than plan.bytesTotal",
-      {
+    invariant(actual >= required, () =>
+      createInternalError("assertionFailed", {
         where: "binding.controller.backing",
         detail: `required=${String(required)}, actual=${String(actual)}`,
-      },
+      }),
     );
   }
   // Other backing kinds (e.g. WASM, partitioned) should be validated
@@ -476,7 +545,7 @@ export function controllerImpl<const S extends SpecInput>(
           switch (slot.plane) {
             case "PF32": {
               if (!(v instanceof Float32Array)) {
-                throwInvalidParamValue(key, "Float32Array", v);
+                throwInvalidParamValue(key, "Float32Array", toJsonDetail(v));
               }
               const src = v;
               if (src.length !== expectedLength) {
@@ -492,7 +561,7 @@ export function controllerImpl<const S extends SpecInput>(
 
             case "PI32": {
               if (!(v instanceof Int32Array)) {
-                throwInvalidParamValue(key, "Int32Array", v);
+                throwInvalidParamValue(key, "Int32Array", toJsonDetail(v));
               }
               const src = v;
               if (src.length !== expectedLength) {
@@ -508,7 +577,7 @@ export function controllerImpl<const S extends SpecInput>(
 
             case "PB": {
               if (!(v instanceof Uint8Array)) {
-                throwInvalidParamValue(key, "Uint8Array", v);
+                throwInvalidParamValue(key, "Uint8Array", toJsonDetail(v));
               }
               const src = v;
               if (src.length !== expectedLength) {
@@ -523,8 +592,16 @@ export function controllerImpl<const S extends SpecInput>(
             }
 
             default: {
+              // Compile-time exhaustiveness: if ArrayOp grows, this is a type error.
               const _exhaustive: never = slot.plane;
               void _exhaustive;
+
+              invariant(false, () =>
+                createInternalError("assertionFailed", {
+                  where: "binding.controller.hydrate",
+                  detail: "param.hydrate:unknownPlane",
+                }),
+              );
             }
           }
         }
@@ -556,15 +633,14 @@ export function controllerImpl<const S extends SpecInput>(
                 break;
               }
               default: {
-                // Compile-time exhaustiveness: if ArrayOp grows, this is a type error.
                 const _exhaustive: never = op;
                 void _exhaustive;
 
-                invariant(
-                  false,
-                  "internal.assertionFailed",
-                  "Param hydrate() reached unsupported plane",
-                  { detail: "param.hydrate:unknownPlane" },
+                invariant(false, () =>
+                  createInternalError("assertionFailed", {
+                    where: "binding.controller.hydrate",
+                    detail: "param.hydrate:unknownPlane",
+                  }),
                 );
               }
             }

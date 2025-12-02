@@ -1,0 +1,64 @@
+{
+  "name": "@seqlok/introspect",
+  "version": "0.3.0-next.0",
+  "description": "Introspection, counters, and environment checks for Seqlok.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && rollup -c rollup.dts.config.mts",
+    "clean": "rimraf dist .eslintcache pnpm-debug.log",
+    "purge": "pnpm run clean && rimraf node_modules",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "format": "prettier --ignore-path ../../.prettierignore --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
+    "test:types": "pnpm --filter seqlok test:types",
+    "bench": "vitest bench --reporter=verbose --run",
+    "dev": "pnpm run test:watch",
+    "errors:registry:schema": "tsx scripts/export-error-registry.ts",
+    "errors:registry:schema:full": "pnpm run errors:registry:schema -- --preset=full --out schema/snapshots/error-registry.full.snapshot.json",
+    "errors:registry:schema:boundary-safe": "pnpm run errors:registry:schema -- --preset=boundary-safe --out schema/snapshots/error-registry.boundary-safe.snapshot.json",
+    "errors:registry:schema:fatal-core": "pnpm run errors:registry:schema -- --preset=fatal-core --out schema/snapshots/error-registry.fatal-core.snapshot.json",
+    "errors:registry:schema:snapshots": "pnpm run errors:registry:schema:full && pnpm run errors:registry:schema:boundary-safe && pnpm run errors:registry:schema:fatal-core"
+  },
+  "dependencies": {
+    "@seqlok/base": "workspace:*",
+    "@seqlok/primitives": "workspace:*",
+    "@seqlok/core": "workspace:*",
+    "@seqlok/commands": "workspace:*",
+    "@seqlok/hotswap": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "eslint-plugin-regex": "catalog:",
+    "fast-check": "catalog:",
+    "globals": "catalog:",
+    "rimraf": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:",
+    "rollup": "catalog:",
+    "rollup-plugin-dts": "catalog:"
+  }
+}

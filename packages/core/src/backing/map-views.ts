@@ -5,18 +5,16 @@
  * @remarks
  * - Interprets a Plan's layout over SharedArrayBuffer or WASM backings.
  * - Produces strongly typed views for param, meter and lock planes.
- * - Validates offsets, alignment and sizes with structured diagnostics.
+ * - Validates offsets, alignment and sizes with structured introspect.
  *
  * @internal
  */
 
+import { invariant } from "@seqlok/base";
+import { ALL_PLANES, BYTES_PER_ELEM, type PlaneKey } from "@seqlok/primitives";
+
 import { getBackingBuffer } from "./buffers";
-import { createError } from "../errors/error";
-import {
-  ALL_PLANES,
-  BYTES_PER_ELEM,
-  type PlaneKey,
-} from "../primitives/planes";
+import { createBackingError } from "../errors/backing";
 
 import type { Backing, SharedBacking, WasmSharedBacking } from "./types";
 import type { Plan, PlaneByteLengths } from "../plan/types";
@@ -134,7 +132,7 @@ export function computeBackingPlaneBases(planes: PlaneByteLengths): PlaneBases {
  * @param plan - Memory layout specification
  * @param backing - Backing storage (SharedArrayBuffer or WebAssembly.Memory)
  * @returns Mapped views for all planes and locks
- * @throws {Error} If backing is undersized
+ * @throws SeqlokError<'backing.allocUndersized'> if backing is undersized
  * @internal
  */
 function mapPackedBacking<S extends SpecInput>(
@@ -142,17 +140,19 @@ function mapPackedBacking<S extends SpecInput>(
   backing: SharedBacking | WasmSharedBacking,
 ): MappedViews {
   const buf = getBackingBuffer(backing);
-  const actualBytes = buf.byteLength;
-  const requiredBytes = plan.bytesTotal;
+  const requiredBytes = plan.bytesTotal >>> 0;
+  const actualBytes = buf.byteLength >>> 0;
 
-  if (actualBytes < requiredBytes) {
-    throw createError("backing.allocUndersized", "Backing buffer undersized", {
+  invariant(actualBytes >= requiredBytes, () =>
+    createBackingError("allocUndersized", {
+      allocatedBytes: 0,
+      requestedBytes: 0,
+      where: "backing.mapViews.packed",
       plane: "all",
-      requestedBytes: requiredBytes,
-      allocatedBytes: actualBytes,
-      where: "mapViews",
-    });
-  }
+      requiredBytes,
+      actualBytes,
+    }),
+  );
 
   const bases = computeBackingPlaneBases(plan.planes);
 
@@ -209,7 +209,7 @@ function mapPackedBacking<S extends SpecInput>(
  * @param plan - Memory layout specification
  * @param partitionedBacking - Backing with separate SharedArrayBuffer per plane
  * @returns Mapped views for all planes and locks
- * @throws {Error} If any plane buffer is undersized
+ * @throws SeqlokError<'backing.allocUndersized'> if any plane buffer is undersized
  * @internal
  */
 function mapPartitionedBacking<S extends SpecInput>(
@@ -221,20 +221,23 @@ function mapPartitionedBacking<S extends SpecInput>(
 
   /**
    * Validates and returns a plane's SharedArrayBuffer.
-   * @throws If the plane's buffer is smaller than required
+   * @throws SeqlokError<'backing.allocUndersized'> if the plane's buffer is smaller than required
    */
   const ensurePlaneBuffer = (plane: PlaneKey): SharedArrayBuffer => {
     const sab = partitionedBacking.planes[plane];
-    const requiredBytes = plan.planes[plane];
+    const requiredBytes = plan.planes[plane] >>> 0;
+    const actualBytes = sab.byteLength >>> 0;
 
-    if (sab.byteLength < requiredBytes) {
-      throw createError("backing.allocUndersized", `Plane ${plane} too small`, {
+    invariant(actualBytes >= requiredBytes, () =>
+      createBackingError("allocUndersized", {
+        allocatedBytes: 0,
+        requestedBytes: 0,
+        where: "backing.mapViews.partitioned",
         plane,
-        requestedBytes: requiredBytes,
-        allocatedBytes: sab.byteLength,
-        where: "mapViews.partitioned",
-      });
-    }
+        requiredBytes,
+        actualBytes,
+      }),
+    );
 
     return sab;
   };
@@ -292,7 +295,6 @@ function mapPartitionedBacking<S extends SpecInput>(
  * @param plan - Memory layout specification
  * @param backing - Backing storage to map
  * @returns Typed array views for all planes and locks
- * @throws {Error} If backing is invalid or undersized
  *
  * @example
  * ```typescript

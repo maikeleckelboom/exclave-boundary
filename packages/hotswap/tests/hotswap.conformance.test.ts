@@ -18,7 +18,7 @@ enum EngineKind {
  *
  * These tests assert that:
  * - the sequence of (phase, kind) pairs for a given ticket and block size
- *   matches the expected golden flows.
+ *   matches the expected canonical flows.
  * - state eventually returns to idle with no ticket.
  */
 describe("@seqlok/hotswap – conformance vectors", () => {

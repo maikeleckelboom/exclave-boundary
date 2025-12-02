@@ -22,6 +22,17 @@ function backingStub(label: string): Backing {
   } as unknown as Backing;
 }
 
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error(
+    `Error(core/tests/helpers/capture-error.ts): Expected function to throw.`,
+  );
+}
+
 /**
  * Tests for the binding registry which manages shared state between
  * controller, processor and observer roles.
@@ -84,9 +95,18 @@ describe("Binding Registry: Global State Management", () => {
     });
 
     // Duplicate claim should fail
-    expect(() => {
+    const thrown = captureError(() => {
       claimBinding(backing, "controller");
-    }).toThrow(/exclusive binding already exists/i);
+    });
+
+    const err = thrown as {
+      code?: string;
+      details?: { where?: string; detail?: string };
+    };
+
+    expect(err.code).toBe("internal.assertionFailed");
+    expect(err.details?.where ?? "").toMatch(/binding/i);
+    // detail string is tested in error-focused tests, so we ignore it here
 
     // State remains unchanged after failed claim
     expect(getBindingState(backing)).toEqual({

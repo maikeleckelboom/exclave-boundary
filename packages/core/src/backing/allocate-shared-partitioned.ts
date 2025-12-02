@@ -10,9 +10,10 @@
  * @internal
  */
 
-import { createError } from "../errors/error";
-import { throwEnvUnsupported } from "../errors/helpers";
-import { ALL_PLANES, type PlaneKey } from "../primitives/planes";
+import { ALL_PLANES, type PlaneKey } from "@seqlok/primitives";
+
+import { createBackingError } from "../errors/backing";
+import { createEnvError } from "../errors/env";
 
 import type { SharedPartitionedBacking } from "./types";
 import type { Plan } from "../plan/types";
@@ -39,10 +40,10 @@ export function allocateSharedPartitioned<S extends SpecInput>(
   plan: Plan<S>,
 ): SharedPartitionedBacking {
   if (typeof SharedArrayBuffer === "undefined") {
-    throwEnvUnsupported(
-      "SharedArrayBuffer",
-      "missing SharedArrayBuffer (check COOP/COEP for browsers)",
-    );
+    throw createEnvError("unsupported", {
+      feature: "SharedArrayBuffer",
+      reason: "missing SharedArrayBuffer (check COOP/COEP for browsers)",
+    });
   }
 
   // Create null prototype to avoid accidental property access
@@ -55,10 +56,8 @@ export function allocateSharedPartitioned<S extends SpecInput>(
     try {
       sabByPlane[plane] = new SharedArrayBuffer(bytes);
     } catch (cause) {
-      // On failure, include which plane failed and its requested size
-      throw createError(
-        "backing.allocFailed",
-        `Failed to allocate ${String(bytes)} bytes for plane ${plane}`,
+      throw createBackingError(
+        "allocFailed",
         {
           plane,
           requestedBytes: bytes,

@@ -6,7 +6,7 @@
 
 **Related**:
 
-- ADR-001 – Seqlok Core Golden Flow
+- ADR-001 – Seqlok Core Canonical Flow
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
 - ADR-00X – `@seqlok/compose` for System-Level Composition

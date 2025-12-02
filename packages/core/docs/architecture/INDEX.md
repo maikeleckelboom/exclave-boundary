@@ -37,7 +37,7 @@ bindings look the way they do, this is the place.
    Naming conventions (`planLayout`, `bindController`, etc.) and how they reinforce invariants.
 
 10. [09-seqlok-api-reference.md](./09-seqlok-api-reference.md)
-    Human-oriented API reference tying together the golden flow and bindings.
+    Human-oriented API reference tying together the canonical flow and bindings.
 
 11. [10-seqlok-primitives-and-seqlock.md](./10-seqlok-primitives-and-seqlock.md)
     The primitive seqlock model, counters, and how bounded reads work.

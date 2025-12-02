@@ -1,5 +1,6 @@
 import { bench, describe } from "vitest";
 
+import { E2E_BENCH_OPTS } from "../../../scripts/vitest/bench-presets";
 import {
   allocateShared,
   bindController,
@@ -9,7 +10,6 @@ import {
   planLayout,
   receiveHandoff,
 } from "../src";
-import { E2E_BENCH_OPTS } from "../vitest.config";
 
 /**
  * @fileoverview
@@ -20,8 +20,6 @@ import { E2E_BENCH_OPTS } from "../vitest.config";
  * - controller writes
  * - processor reads and meter publishes
  */
-
-let _blackhole = 0;
 
 describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
   const smallSpec = defineSpec(({ param, meter }) => ({
@@ -94,9 +92,6 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       // Exercise controller/processor bindings.
       bindController(smallSpec, plan, backing);
       bindProcessor(received);
-
-      // Trivial side-effect to keep the pipeline live.
-      _blackhole ^= 1;
     },
     E2E_BENCH_OPTS,
   );
@@ -111,8 +106,6 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
 
       bindController(mediumSpec, plan, backing);
       bindProcessor(received);
-
-      _blackhole ^= 2;
     },
     E2E_BENCH_OPTS,
   );
@@ -127,8 +120,6 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
 
       bindController(largeSpec, plan, backing);
       bindProcessor(received);
-
-      _blackhole ^= 4;
     },
     E2E_BENCH_OPTS,
   );

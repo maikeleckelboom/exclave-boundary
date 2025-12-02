@@ -19,7 +19,7 @@ export interface SwapTestVector {
 
 /**
  * Minimal conformance suite that both TS and C++ implementations must pass.
- * These are the “golden flows”.
+ * These are the “canonical flows”.
  */
 export const swapTestVectors: SwapTestVector[] = [
   {

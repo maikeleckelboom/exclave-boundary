@@ -1,3 +1,5 @@
+// File: packages/core/tests/binding/processor.impl.within.test.ts
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,7 +11,6 @@ import {
   receiveHandoff,
 } from "../../src";
 import { mapViews } from "../../src/backing/map-views";
-import { isSeqlokError, type SeqlokError } from "../../src/errors/error";
 
 describe("Processor Params: Coherent Read Transaction", () => {
   it("propagates binding.coherentRetryExhausted when lock contention exceeds budget", () => {
@@ -56,16 +57,21 @@ describe("Processor Params: Coherent Read Transaction", () => {
       thrown = err;
     }
 
-    // Verify the error structure matches the expected contract
-    if (!isSeqlokError(thrown)) {
+    if (!thrown || typeof thrown !== "object") {
       throw new Error(
-        "Expected processor.params.within to throw a SeqlokError",
+        "Expected processor.params.within to throw a structured error object",
       );
     }
 
-    const err = thrown as SeqlokError<"binding.coherentRetryExhausted">;
+    const err = thrown as {
+      code?: string;
+      details?: {
+        where?: string;
+        [key: string]: unknown;
+      };
+    };
 
     expect(err.code).toBe("binding.coherentRetryExhausted");
-    expect(err.details.where).toBe("processor.params.within");
+    expect(err.details?.where).toBe("processor.params.within");
   });
 });

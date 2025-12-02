@@ -116,7 +116,7 @@ if (spins >= spinBudget) {
 
 // In hot paths or high-frequency observation:
 // YES, use feature gates
-if (isDiagnosticsFeatureEnabled("seqlockTrace")) {
+if (isIntrospectFeatureEnabled("seqlockTrace")) {
   observeSeqlockRead(result.status);
 }
 ```

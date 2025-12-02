@@ -19,7 +19,7 @@ Docs are grouped into:
 Use these as entry points; each has its own `INDEX.md`.
 
 - **[architecture/](./architecture/INDEX.md)**
-  “Book chapters” that explain Seqlok’s concepts, concurrency model, DSL, and golden flow.
+  “Book chapters” that explain Seqlok’s concepts, concurrency model, DSL, and canonical flow.
 
 - **[adr/](./adr/INDEX.md)**
   Architecture Decision Records and design docs. This is the canonical "why did we pick this?" archive.
@@ -44,7 +44,7 @@ Pick the path that matches your current job.
 
 ### 2.1 "I just want to _use_ Seqlok"
 
-1. **Repo root `README.md`** – learn the golden flow:
+1. **Repo root `README.md`** – learn the canonical flow:
 
    > `defineSpec → planLayout → allocateShared/allocateWasmShared → buildHandoff → receiveHandoff → bindController / bindProcessor`
 
@@ -172,6 +172,6 @@ When in doubt:
 
 The goal is that you can refactor internals freely as long as:
 
-- the **golden flow** remains recognizable,
+- the **canonical flow** remains recognizable,
 - SWMR semantics remain intact,
 - and these docs stay roughly aligned with reality instead of drifting into fiction.

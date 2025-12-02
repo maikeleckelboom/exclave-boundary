@@ -4,9 +4,9 @@
   "description": "Low-level primitives for Seqlok: seqlocks, planes, atomics, and SWSR ring buffers.",
   "license": "MIT",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,20 +21,21 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "clean": "rimraf dist .eslintcache node_modules/.vite node_modules/.cache pnpm-debug.log",
+    "build": "tsc -p tsconfig.json && rollup -c rollup.dts.config.mts",
+    "clean": "rimraf dist .eslintcache pnpm-debug.log",
     "purge": "pnpm run clean && rimraf node_modules",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
     "format": "prettier --ignore-path ../../.prettierignore --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:types": "tsc -b --noEmit --pretty",
-    "bench": "vitest bench --reporter=verbose --run"
+    "test:types": "pnpm --filter seqlok test:types",
+    "bench": "vitest bench --reporter=verbose --run",
+    "dev": "pnpm run test:watch"
   },
   "dependencies": {
-    "@seqlok/foundation": "workspace:*"
+    "@seqlok/base": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -48,6 +49,7 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vitest": "catalog:",
-    "@vitest/coverage-v8": "catalog:"
+    "rollup": "catalog:",
+    "rollup-plugin-dts": "catalog:"
   }
 }

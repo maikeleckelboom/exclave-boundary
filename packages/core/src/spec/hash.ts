@@ -197,7 +197,7 @@ export function hashSpec(spec: SpecInput): SpecHash {
 }
 
 /**
- * Canonical spec source for dev-mode diagnostics and handoff debugging.
+ * Canonical spec source for dev-mode introspect and handoff debugging.
  *
  * @remarks
  * Intended for use in `_debugSource` fields on handoff payloads and for

@@ -1,31 +1,27 @@
+/**
+ * @file Vite build configuration for @seqlok/core.
+ *
+ * - Mode-dependent `__SEQLOK_DEV_ASSERTS__` (true in dev, false in prod)
+ * - Workspace deps as externals (not bundled into dist)
+ */
+
 import { defineConfig } from "vite";
 
-export default defineConfig(({ mode }) => ({
-  define: {
-    __SEQLOK_DEV_ASSERTS__: mode === "development" ? "true" : "false",
-  },
-  build: {
-    lib: {
-      entry: {
-        index: "src/index.ts",
-      },
-      formats: ["es"],
-      fileName: (_format, entry) => `${entry}.js`,
+import { createLibraryViteConfig } from "../../scripts/vite/vite.base.config";
+
+import type { UserConfig } from "vite";
+
+export default defineConfig(({ mode }): UserConfig => {
+  const base = createLibraryViteConfig({
+    entryRelative: "src/index.ts",
+    external: ["@seqlok/base", "@seqlok/primitives"],
+  });
+
+  return {
+    ...base,
+    define: {
+      ...base.define,
+      __SEQLOK_DEV_ASSERTS__: mode === "development" ? "true" : "false",
     },
-    minify: "esbuild",
-    sourcemap: true,
-    outDir: "dist",
-    emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        preserveModules: false,
-      },
-    },
-  },
-  esbuild: {
-    minifyIdentifiers: true,
-    minifySyntax: true,
-    minifyWhitespace: true,
-    legalComments: "none",
-  },
-}));
+  };
+});

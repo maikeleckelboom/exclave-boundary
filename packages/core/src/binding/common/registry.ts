@@ -12,7 +12,7 @@
  * @internal
  */
 
-import { invariant } from "../../errors/invariant";
+import { createInternalError, invariant } from "@seqlok/base";
 
 import type { Backing } from "../../backing/types";
 
@@ -78,11 +78,11 @@ export function noteBinding(backing: Backing, role: BindRole): void {
 export function claimBinding(backing: Backing, role: BindRole): void {
   const current = BOUND.get(backing);
 
-  invariant(
-    !current?.[role],
-    "internal.assertionFailed",
-    "Exclusive binding already exists for this backing and role",
-    { where: `binding.${role}`, detail: "double-bind on Backing instance" },
+  invariant(!current?.[role], () =>
+    createInternalError("assertionFailed", {
+      where: `binding.claimBinding.${role}`,
+      detail: "double-bind on Backing instance",
+    }),
   );
 
   if (!current) {
@@ -118,7 +118,7 @@ export function releaseBinding(backing: Backing, role: BindRole): void {
 }
 
 /**
- * Introspection hook for diagnostics and tests.
+ * Introspection hook for introspect and tests.
  *
  * @returns A snapshot of role presence for the given backing, or `undefined`
  * if the backing has no registered roles.

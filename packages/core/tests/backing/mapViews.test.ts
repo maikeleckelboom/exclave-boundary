@@ -2,23 +2,30 @@ import { describe, expect, it } from "vitest";
 
 import { allocateShared } from "../../src/backing/allocate-shared";
 import { mapViews } from "../../src/backing/map-views";
-import { type SeqlokError } from "../../src/errors/error";
 import { planLayout } from "../../src/plan/layout";
 import { defineSpec } from "../../src/spec/define";
 
 /**
- * Type guard to identify Seqlok specific errors.
+ * Type guard to identify Seqlok-shaped errors.
  * Validates the presence of `name`, `message`, and `code` properties.
  */
-export function isSeqlokError(x: unknown): x is SeqlokError {
+export function isSeqlokError(
+  x: unknown,
+): x is { name?: string; message?: string; code?: string } {
   if (typeof x !== "object" || x === null) {
     return false;
   }
-  const obj = x as Record<string, unknown>;
+
+  const obj = x as {
+    name?: unknown;
+    message?: unknown;
+    code?: unknown;
+  };
+
   return (
     obj.name === "SeqlokError" &&
     typeof obj.message === "string" &&
-    "code" in obj
+    typeof obj.code === "string"
   );
 }
 
@@ -68,17 +75,17 @@ describe("Map Views: Runtime Behavior & Validation", () => {
     let thrown: unknown;
     try {
       mapViews(plan, backing);
-    } catch (e: unknown) {
+    } catch (e) {
       thrown = e;
     }
 
     expect(isSeqlokError(thrown)).toBe(true);
 
-    if (isSeqlokError(thrown)) {
-      expect(thrown.code).toBe("backing.allocUndersized");
-      expect(thrown.message).toMatch(/smaller than required|undersized/i);
-    } else {
-      throw new Error("Expected mapViews to throw a SeqlokError");
+    if (!isSeqlokError(thrown)) {
+      throw new Error("Expected mapViews to throw a Seqlok-shaped error");
     }
+
+    expect(thrown.code).toBe("backing.allocUndersized");
+    expect(thrown.message).toMatch(/smaller than required|undersized/i);
   });
 });

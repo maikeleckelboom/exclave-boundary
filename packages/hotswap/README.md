@@ -5,7 +5,7 @@ single logical slot without audio glitches.
 
 - Formally specified in TLA+ (`HotSwapProtocol.tla`)
 - Implemented in TypeScript and mirrored in C++
-- Tested with **golden flows** and **property-based invariants**
+- Tested with **canonical flows** and **property-based invariants**
 
 This package does **not** know what audio is. It only knows about:
 
@@ -184,7 +184,7 @@ const slot: EngineSlot = {
   swapState: null,
 };
 
-// Called on the audio thread when host has staged a new engine:
+// Called on the audio thread when integration has staged a new engine:
 function beginSwap(
   engineKind: EngineKind,
   newEngine: EngineHandle,
@@ -241,7 +241,7 @@ function processBlock(output: Float32Array[], blockFrames: number): void {
 
     case "runBothForCrossfade": {
       if (!next) {
-        // Should not happen if host respected the contract.
+        // Should not happen if integration respected the contract.
         processEngine(current, output, blockFrames);
         break;
       }
@@ -307,7 +307,7 @@ The implementation is guarded by:
 
 - **Conformance vectors** (`tests/hotswap.conformance.test.ts`)
 
-  - Golden flows for specific `(fadeFrames, preWarmBlocks)` combos.
+  - Canonical flows for specific `(fadeFrames, preWarmBlocks)` combos.
 
 - **Property-based tests** (`tests/hotswap.properties.test.ts`)
 

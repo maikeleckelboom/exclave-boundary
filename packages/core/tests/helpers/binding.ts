@@ -1,5 +1,3 @@
-// File: packages/core/tests/helpers/binding.ts
-
 import {
   allocateShared,
   bindController,
@@ -46,7 +44,6 @@ export function bindingsFromSpec<S extends SpecInput>(
   const handoff = buildHandoff(plan, backing);
   const received = receiveHandoff(handoff);
 
-  // Note: updated for the new signature: (spec, plan, backing, options?)
   const ctl = bindController(spec, plan, backing, options?.controller);
   const proc = bindProcessor(received, options?.processor);
 

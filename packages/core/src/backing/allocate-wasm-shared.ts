@@ -14,8 +14,8 @@
  * @internal
  */
 
-import { createError } from "../errors/error";
-import { throwEnvUnsupported } from "../errors/helpers";
+import { createBackingError } from "../errors/backing";
+import { createEnvError } from "../errors/env";
 
 import type { WasmSharedBacking } from "./types";
 import type { Plan } from "../plan/types";
@@ -32,15 +32,11 @@ function toSharedBuffer(buf: ArrayBuffer, where: string): SharedArrayBuffer {
   const isShared = sharedAvailable && buf instanceof SharedArrayBuffer;
 
   if (!isShared) {
-    throw createError(
-      "backing.wasmMemoryNotShared",
-      "Wasm memory is not shared",
-      {
-        plane: "wasm",
-        shared: false,
-        where,
-      },
-    );
+    throw createBackingError("wasmMemoryNotShared", {
+      plane: "wasm",
+      shared: false,
+      where,
+    });
   }
 
   return buf as SharedArrayBuffer;
@@ -70,9 +66,8 @@ function ensureWasmCapacity(
   try {
     memory.grow(pagesNeeded);
   } catch (cause) {
-    throw createError(
-      "backing.allocUndersized",
-      "Failed to grow WebAssembly.Memory to required size",
+    throw createBackingError(
+      "allocUndersized",
       {
         plane: "all",
         requestedBytes: totalBytes,
@@ -103,10 +98,10 @@ export function allocateWasmShared<S extends SpecInput>(
     typeof WebAssembly === "undefined" ||
     typeof WebAssembly.Memory === "undefined"
   ) {
-    throwEnvUnsupported(
-      "WebAssembly.Memory",
-      "WebAssembly or WebAssembly.Memory is not defined",
-    );
+    throw createEnvError("unsupported", {
+      feature: "WebAssembly.Memory",
+      reason: "WebAssembly or WebAssembly.Memory is not defined",
+    });
   }
 
   let memory: WebAssembly.Memory;
@@ -128,9 +123,8 @@ export function allocateWasmShared<S extends SpecInput>(
         shared: true,
       });
     } catch (cause) {
-      throw createError(
-        "backing.wasmMemoryNotShared",
-        "Failed to attach shared WebAssembly.Memory",
+      throw createBackingError(
+        "wasmMemoryNotShared",
         {
           plane: "wasm",
           shared: false,
@@ -144,16 +138,12 @@ export function allocateWasmShared<S extends SpecInput>(
   const sharedBuf = toSharedBuffer(memory.buffer, "allocateWasmShared");
 
   if (sharedBuf.byteLength < plan.bytesTotal) {
-    throw createError(
-      "backing.allocUndersized",
-      "Wasm shared memory undersized",
-      {
-        plane: "all",
-        requestedBytes: plan.bytesTotal,
-        allocatedBytes: sharedBuf.byteLength,
-        where: "allocateWasmShared",
-      },
-    );
+    throw createBackingError("allocUndersized", {
+      plane: "all",
+      requestedBytes: plan.bytesTotal,
+      allocatedBytes: sharedBuf.byteLength,
+      where: "allocateWasmShared",
+    });
   }
 
   return { kind: "wasm-shared", memory };

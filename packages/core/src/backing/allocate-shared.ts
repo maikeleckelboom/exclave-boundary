@@ -12,8 +12,8 @@
  * @internal
  */
 
-import { createError } from "../errors/error";
-import { throwEnvUnsupported } from "../errors/helpers";
+import { createBackingError } from "../errors/backing";
+import { createEnvError } from "../errors/env";
 
 import type { SharedBacking } from "./types";
 import type { Plan } from "../plan/types";
@@ -40,19 +40,18 @@ export function allocateShared<S extends SpecInput>(
   plan: Plan<S>,
 ): SharedBacking {
   if (typeof SharedArrayBuffer === "undefined") {
-    throwEnvUnsupported(
-      "SharedArrayBuffer",
-      "missing SharedArrayBuffer (check COOP/COEP for browsers)",
-    );
+    throw createEnvError("unsupported", {
+      feature: "SharedArrayBuffer",
+      reason: "missing SharedArrayBuffer (check COOP/COEP for browsers)",
+    });
   }
 
   try {
     const sab = new SharedArrayBuffer(plan.bytesTotal);
     return { kind: "shared", sab };
   } catch (cause) {
-    throw createError(
-      "backing.allocFailed",
-      "Failed to allocate SharedArrayBuffer",
+    throw createBackingError(
+      "allocFailed",
       {
         plane: "all",
         requestedBytes: plan.bytesTotal,

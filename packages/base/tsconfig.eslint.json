@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/base-eslint.tsbuildinfo"
+  },
+  "include": ["src/**/*", "tests/**/*", "*.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

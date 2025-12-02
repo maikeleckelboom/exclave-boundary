@@ -61,7 +61,7 @@ Re-run `pnpm -F @seqlok/core run bench:report` whenever you change benches or to
 
 Benches are organized by "what decision they inform" rather than by module name:
 
-- [`bench/seqlock.bench.ts`](./seqlock.bench.ts)
+- [`bench/seqlock.bench.ts`](seqlock.bench.ts)
   Micro-benchmarks for the seqlock primitive:
 
   - `publish uncontended`

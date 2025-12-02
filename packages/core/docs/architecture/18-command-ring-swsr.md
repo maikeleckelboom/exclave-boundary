@@ -224,13 +224,13 @@ Instead:
 
 ---
 
-## 7. Golden Flows
+## 7. Canonical Flows
 
 This section defines "golden" end-to-end sequences for the ring.
 
 These scenarios will be reflected in both tests and higher-level docs.
 
-### 7.1 Golden Flow 1 – Load and Play Track
+### 7.1 Canonical Flow 1 – Load and Play Track
 
 **Goal:** UI requests a new track; processor eventually plays it.
 
@@ -256,7 +256,7 @@ These scenarios will be reflected in both tests and higher-level docs.
 
 The ring delivers the **event**, Seqlok meters corroborate the **state**.
 
-### 7.2 Golden Flow 2 – Engine Swap via SwapTicket
+### 7.2 Canonical Flow 2 – Engine Swap via SwapTicket
 
 **Goal:** Seamlessly swap from Engine A → Engine B using the hysteresis protocol.
 
@@ -307,7 +307,7 @@ Key invariant enforced by the ring:
 - No "half-seen" swaps: either the ticket is processed or it isn't, but it won't
   vanish silently.
 
-### 7.3 Golden Flow 3 – High-frequency Nudge / Coalescing
+### 7.3 Canonical Flow 3 – High-frequency Nudge / Coalescing
 
 **Goal:** Handle rapid UI tweaks (e.g. jog wheel nudges) without flooding the ring.
 
@@ -357,4 +357,4 @@ For v0.3.0, the goal is a small, auditable SWSR primitive with:
 
 - Clear invariants.
 - Documented backpressure.
-- A few well-specified golden flows that Dekzer and other apps can lean on.
+- A few well-specified canonical flows that Dekzer and other apps can lean on.

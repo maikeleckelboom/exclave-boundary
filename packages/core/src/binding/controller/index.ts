@@ -4,7 +4,7 @@
  *
  * @remarks
  * - Bridges `defineSpec` + Plan + Backing into a typed `ControllerBinding`.
- * - Matches the explicit golden flow:
+ * - Matches the explicit canonical flow:
  *
  *   defineSpec → planLayout → allocateShared → buildHandoff →
  *   receiveHandoff → bindController / bindProcessor

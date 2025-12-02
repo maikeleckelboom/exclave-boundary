@@ -1,5 +1,6 @@
 import { bench, describe } from "vitest";
 
+import { MICRO_BENCH_OPTS } from "../../../scripts/vitest/bench-presets";
 import {
   allocateShared,
   bindController,
@@ -9,7 +10,6 @@ import {
   planLayout,
   receiveHandoff,
 } from "../src";
-import { MICRO_BENCH_OPTS } from "../vitest.config";
 
 /**
  * @fileoverview

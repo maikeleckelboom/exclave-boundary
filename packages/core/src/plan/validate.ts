@@ -8,8 +8,10 @@
  * - Handles packing of parameters and meters into memory planes.
  */
 
-import { createError } from "../errors/error";
-import { BYTES_PER_ELEM, type PlaneKey } from "../primitives/planes";
+import { BYTES_PER_ELEM, type PlaneKey } from "@seqlok/primitives";
+
+import { createPlanError } from "../errors/plan";
+import { createSpecError } from "../errors/spec";
 
 import type { EntrySlot, LockStrideBytes, PlaneByteLengths } from "./types";
 import type {
@@ -62,20 +64,16 @@ const MAX_ARRAY_LENGTH = 1_000_000; // tune as needed
 
 function assertArrayLength(key: string, length: number): void {
   if (!Number.isFinite(length) || length <= 0) {
-    throw createError(
-      "spec.arrayInvalid",
-      "Array length must be positive and finite",
-      {
-        where: "plan.planLayout",
-        key,
-        length,
-        reason: "nonPositive",
-      },
-    );
+    throw createSpecError("arrayInvalid", {
+      where: "plan.planLayout",
+      key,
+      length,
+      reason: "nonPositive",
+    });
   }
 
   if (!Number.isInteger(length)) {
-    throw createError("spec.arrayInvalid", "Array length must be an integer", {
+    throw createSpecError("arrayInvalid", {
       where: "plan.planLayout",
       key,
       length,
@@ -84,16 +82,12 @@ function assertArrayLength(key: string, length: number): void {
   }
 
   if (length > MAX_ARRAY_LENGTH) {
-    throw createError(
-      "spec.builderInvalid",
-      "Array length exceeds supported maximum",
-      {
-        where: "plan.planLayout",
-        reason: "overflowRisk",
-        key,
-        detail: String(length),
-      },
-    );
+    throw createSpecError("builderInvalid", {
+      where: "plan.planLayout",
+      reason: "overflowRisk",
+      key,
+      detail: String(length),
+    });
   }
 }
 
@@ -106,7 +100,6 @@ function assertArrayLength(key: string, length: number): void {
  * Id handling is left to the spec builder; `planLayout` will
  * auto-generate an anonymous id if none is provided.
  */
-
 export function assertValidSpecForPlanning(spec: SpecInput): void {
   const paramsObj = spec.params ?? {};
   const metersObj = spec.meters ?? {};
@@ -115,27 +108,19 @@ export function assertValidSpecForPlanning(spec: SpecInput): void {
   const meterKeys = Object.keys(metersObj);
 
   if (paramKeys.length === 0 && meterKeys.length === 0) {
-    throw createError(
-      "spec.builderInvalid",
-      "Spec must define at least one param or meter",
-      {
-        where: "plan.planLayout",
-        reason: "emptyParams",
-      },
-    );
+    throw createSpecError("builderInvalid", {
+      where: "plan.planLayout",
+      reason: "emptyParams",
+    });
   }
 
   // Cross-section duplicate key: same name in params and meters.
   for (const key of paramKeys) {
     if (key in metersObj) {
-      throw createError(
-        "spec.duplicateKey",
-        "Key is used for both param and meter",
-        {
-          section: "params",
-          key,
-        },
-      );
+      throw createSpecError("duplicateKey", {
+        section: "params",
+        key,
+      });
     }
   }
 }
@@ -165,7 +150,7 @@ export function planeOfParam(def: ParamDef): PlaneKey {
 
     default: {
       const kind = (def as { kind?: unknown }).kind;
-      throw createError("spec.builderInvalid", "Invalid param kind", {
+      throw createSpecError("builderInvalid", {
         where: "plan.planeOfParam",
         reason: "invalidKind",
         detail: typeof kind === "string" ? kind : String(kind),
@@ -199,7 +184,7 @@ export function planeOfMeter(def: MeterDef): "MF32" | "MF64" | "MU32" {
 
     default: {
       const kind = (def as { kind?: unknown }).kind;
-      throw createError("spec.builderInvalid", "Invalid meter kind", {
+      throw createSpecError("builderInvalid", {
         where: "plan.planeOfMeter",
         reason: "invalidKind",
         detail: typeof kind === "string" ? kind : String(kind),
@@ -272,7 +257,8 @@ export function packParamSlots(params: Readonly<Record<string, ParamDef>>): {
       offset = PB;
       PB += length * elemBytes;
     } else {
-      throw createError("plan.failed", "Unexpected param plane", {
+      throw createPlanError("failed", {
+        where: "plan.packParamSlots",
         detail: plane,
       });
     }
@@ -314,7 +300,8 @@ export function packMeterSlots(meters: Readonly<Record<string, MeterDef>>): {
       offset = MU32;
       MU32 += length * elemBytes;
     } else {
-      throw createError("plan.failed", "Unexpected meter plane", {
+      throw createPlanError("failed", {
+        where: "plan.packMeterSlots",
         detail: plane,
       });
     }

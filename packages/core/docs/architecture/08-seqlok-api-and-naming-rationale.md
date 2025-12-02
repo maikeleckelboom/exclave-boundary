@@ -628,7 +628,7 @@ the same thread.
 
 ## 5. Handoff & verification semantics
 
-The v2 golden flow is:
+The v2 canonical flow is:
 
 - main side:
 

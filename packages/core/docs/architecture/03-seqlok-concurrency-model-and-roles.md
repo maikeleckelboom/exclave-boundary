@@ -38,7 +38,7 @@ Processor:
   - writes meters
 
 Observers / Consumers:
-  - read meters (via Controller bindings or observer-style helpers)
+  - read meters (via controller bindings or dedicated observer bindings from `bindObserver`)
 ```
 
 If you remember only one thing:
@@ -58,7 +58,7 @@ The **Controller** typically lives on the main thread (browser) or a host thread
 - Never writes meters
 - Never calls `within` / `publish` (those are processor-side semantics)
 
-Example (golden flow up to the Controller binding):
+Example (canonical flow up to the Controller binding):
 
 ```ts
 import {
@@ -137,7 +137,7 @@ The Processor is **“the device brain”**: runs tight loops, does DSP / simula
 - UI graphs
 - Logging/metrics jobs
 - Secondary workers doing analysis
-- Future `bindObserver`-style bindings in `@seqlok/compose`
+- Observer bindings via `bindObserver` (see ADR-00Z)
 
 They should:
 

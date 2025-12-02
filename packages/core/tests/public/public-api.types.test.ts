@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import * as seqlok from "../../src";
 
 describe("Public API Surface (Runtime Exports)", () => {
+  it("does not define a default export", () => {
+    expect("default" in seqlok).toBe(false);
+  });
+
   it("exports the expected value symbols and nothing else", () => {
     const runtimeExports = Object.keys(seqlok).sort();
 
@@ -17,6 +21,7 @@ describe("Public API Surface (Runtime Exports)", () => {
       "allocateShared",
       "allocateSharedPartitioned",
       "allocateWasmShared",
+      "describeViews",
 
       // BINDING
       "bindController",
@@ -28,13 +33,13 @@ describe("Public API Surface (Runtime Exports)", () => {
       "receiveHandoff",
       "verifyHandoff",
 
-      // ERRORS + HEALTH
-      "SeqlokError",
-      "isSeqlokError",
-      "getErrorMeta",
-      "getErrorMessage",
-      "isErrorCode",
-      "interpretHealth",
+      // ERRORS
+      "BACKING_ERRORS",
+      "BINDING_ERRORS",
+      "ENV_ERRORS",
+      "HANDOFF_ERRORS",
+      "PLAN_ERRORS",
+      "SPEC_ERRORS",
 
       // ENUM UTILITIES
       "enumArrayToLabels",
@@ -44,15 +49,11 @@ describe("Public API Surface (Runtime Exports)", () => {
       "enumLabelsToArray",
       "enumPaletteFor",
 
-      // SWSR RING
-      "SWSR_HEADER_WORDS",
-      "SWSR_HEADER_WRITE_INDEX",
-      "SWSR_HEADER_READ_INDEX",
-      "SWSR_HEADER_WRITE_SEQ",
-      "SWSR_HEADER_DROPPED",
-      "allocateSwsrRing",
-      "bindSwsrRingProducer",
-      "bindSwsrRingConsumer",
+      // ENV
+      "probeEnv",
+      "summarizeEnv",
+      "assertSabSupportFromSummary",
+      "assertSabSupport",
 
       // CONTEXT
       "createSharedContext",
@@ -61,33 +62,28 @@ describe("Public API Surface (Runtime Exports)", () => {
     expect(runtimeExports).toEqual(expectedExports);
   });
 
-  it("wires error and health helpers through the public surface", () => {
-    // Pick a diagnostics code to exercise the path end-to-end.
-    const code = "diagnostics.counterInvalid";
+  /*
+    it("wires SeqlokError and interpretHealth through the public surface", () => {
+      const error = new seqlok.SeqlokError(
+        "introspect.counterInvalid",
+        "Counter name is invalid",
+        { where: "public-api.types.test" },
+        {
+          severity: "warning",
+          recoverable: true,
+          boundarySafe: false,
+        },
+      );
 
-    // The code should be recognized by the public isErrorCode helper.
-    expect(seqlok.isErrorCode(code)).toBe(true);
+      expect(error).toBeInstanceOf(seqlok.SeqlokError);
+      expect(seqlok.isSeqlokError(error)).toBe(true);
 
-    // Meta should come back with the expected basic shape.
-    const meta = seqlok.getErrorMeta(code);
-    expect(meta.severity).toBe("warning");
-    expect(meta.recoverable).toBe(true);
-    expect(meta.boundarySafe).toBe(false);
+      const health = seqlok.interpretHealth(error.meta);
 
-    // InterpretHealth should be callable via the public surface and
-    // return a structured status + label + hint.
-    const health = seqlok.interpretHealth(meta);
-
-    // Narrow: we do not re-specify the exact mapping here, only that
-    // it returns a known status and operator-facing strings.
-    expect(["fatal", "error", "warning"]).toContain(health.status);
-    expect(typeof health.label).toBe("string");
-    expect(health.label.length).toBeGreaterThan(0);
-    expect(typeof health.hint).toBe("string");
-    expect(health.hint?.length).toBeGreaterThan(0);
-  });
-
-  it("does not define a default export", () => {
-    expect("default" in seqlok).toBe(false);
-  });
+      expect(["fatal", "error", "warning"]).toContain(health.status);
+      expect(health.label.length).toBeGreaterThan(0);
+      expect(typeof health.label).toBe("string");
+      expect(typeof health.hint === "string").toBe(true);
+    });
+  */
 });

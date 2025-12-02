@@ -141,7 +141,7 @@ Shape of the controller snapshot wrapper:
 ```ts
 import { tryRead } from "../primitives/seqlock";
 import { createError } from "../errors/error";
-import { incrementCounter } from "../diagnostics/counters";
+import { incrementCounter } from "../introspect/counters";
 
 interface SnapshotOptions {
   readonly spinBudget: number;
@@ -249,7 +249,7 @@ When you document this in the API reference, a condensed version of the above is
  * - `degrade: 'stale'` → continuity via last-known-good snapshots.
  * - `degrade: 'zeroed'` → continuity via sentinel values.
  *
- * Lower budgets → faster failure detection (good for diagnostics).
+ * Lower budgets → faster failure detection (good for introspect).
  * Higher budgets → better success rates under contention (good for production),
  * at the cost of more work per snapshot in worst cases.
  *

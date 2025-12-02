@@ -93,13 +93,13 @@ Bindings are where we:
 
 ```
 // diagnostics/counters.ts (already exists conceptually)
-export type DiagnosticsCounterName =
+export type IntrospectCounterName =
   | 'degradedSnapshots'
   | 'spinBudgetExhausted'
   | 'retryBudgetExhausted';
 
 export function incrementCounter(
-  name: DiagnosticsCounterName,
+  name: IntrospectCounterName,
   delta: number = 1,
 ): void;
 ```
@@ -116,7 +116,7 @@ Canonical wrapper (shape):
 // controller.snapshot.ts (shape only)
 import { tryRead } from "../primitives/seqlock";
 import { createError } from "../errors";
-import { incrementCounter } from "../diagnostics/counters";
+import { incrementCounter } from "../introspect/counters";
 
 interface SnapshotOptions {
   readonly spinBudget: number;
@@ -201,7 +201,7 @@ Canonical pattern:
 // processor.impl.ts (shape only)
 import { tryRead } from "../primitives/seqlock";
 import { createError } from "../errors";
-import { incrementCounter } from "../diagnostics/counters";
+import { incrementCounter } from "../introspect/counters";
 
 export function makeWithin<S>(
   spinBudget: number,
@@ -254,7 +254,7 @@ Diagnostics is **fully downstream**:
 The important building block for scenarios is:
 
 ```ts
-// diagnostics/run-with-health.ts (shape only)
+// introspect/run-with-health.ts (shape only)
 
 export interface DiagnosticsThresholds {
   readonly degradedSnapshots?: number;
@@ -263,7 +263,7 @@ export interface DiagnosticsThresholds {
 }
 
 export interface ThresholdViolation {
-  readonly metric: DiagnosticsCounterName;
+  readonly metric: IntrospectCounterName;
   readonly actual: number;
   readonly threshold: number;
 }
@@ -279,9 +279,9 @@ export interface RunWithDiagnosticsResult<T> {
   readonly boundarySafe: boolean;
   readonly docsUrl: string | undefined;
 
-  readonly diagnosticsSession: DiagnosticsSession;
-  readonly diagnosticsCounters: DiagnosticsCountersSnapshot;
-  readonly diagnosticsExportJson: string;
+  readonly introspectSession: DiagnosticsSession;
+  readonly introspectCounters: IntrospectCountersSnapshot;
+  readonly introspectExportJson: string;
   readonly thresholdViolations: readonly ThresholdViolation[];
 }
 
@@ -311,7 +311,7 @@ Threshold checking happens entirely on **snapshotted counters**:
 
 ```ts
 function checkDiagnosticsThresholds(
-  counters: DiagnosticsCountersSnapshot,
+  counters: IntrospectCountersSnapshot,
   thresholds: DiagnosticsThresholds | undefined,
 ): ThresholdViolation[] {
   if (!thresholds) return [];

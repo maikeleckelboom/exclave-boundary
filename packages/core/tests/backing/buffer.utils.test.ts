@@ -1,3 +1,4 @@
+import { type PlaneKey } from "@seqlok/primitives";
 import { describe, expect, it } from "vitest";
 
 import { getBackingBuffer } from "../../src/backing/buffers";
@@ -11,7 +12,17 @@ import type {
   WasmSharedBacking,
 } from "../../src/backing/types";
 import type { PlaneByteLengths } from "../../src/plan/types";
-import type { PlaneKey } from "../../src/primitives/planes";
+
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error(
+    `Error(core/tests/helpers/capture-error.ts): Expected function to throw.`,
+  );
+}
 
 const WASM_PAGE_SIZE = 64 * 1024;
 
@@ -80,8 +91,17 @@ describe("Backing Buffer Utilities: Retrieval Strategies", () => {
     };
 
     // getBackingBuffer must fail because there is no single "shared buffer" for the whole backing
-    expect(() => getBackingBuffer(split)).toThrow(
-      /partitioned.*no single SharedArrayBuffer/i,
+    const thrown = captureError(() => getBackingBuffer(split));
+
+    const err = thrown as {
+      code?: string;
+      details?: { where?: string; detail?: string };
+    };
+
+    expect(err.code).toBe("internal.assertionFailed");
+    expect(err.details?.where).toBe("backing.getBackingBuffer");
+    expect(err.details?.detail).toMatch(
+      /partitioned backing has no single SharedArrayBuffer/i,
     );
 
     // Helper should correctly resolve specific plane buffers

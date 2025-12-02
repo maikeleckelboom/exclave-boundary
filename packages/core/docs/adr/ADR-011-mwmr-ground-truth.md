@@ -273,7 +273,7 @@ class MPSCIntentBus {
 
 ```ts
 // ─────────────────────────────────────────────────────────
-// Domain Setup (Golden Flow)
+// Domain Setup (Canonical Flow)
 // ─────────────────────────────────────────────────────────
 const deckSpec = defineSpec({
   /* ... */
@@ -374,7 +374,7 @@ function renderParticles() {
 
 **Key properties:**
 
-- **Golden flow**: `defineSpec → planLayout → allocateShared → buildHandoff` (ADR-001)
+- **Canonical flow**: `defineSpec → planLayout → allocateShared → buildHandoff` (ADR-001)
 - **Main, MIDI**: Observers + ring producers (no writes to planes)
 - **Deck worker**: Single controller + ring consumer (only params writer)
 - **AudioWorklet**: Single processor (only meter writer)
