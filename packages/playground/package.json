@@ -24,21 +24,27 @@
     "@seqlok/hotswap": "workspace:*",
     "@seqlok/integration": "workspace:*",
     "@seqlok/introspect": "workspace:*",
-    "@seqlok/primitives": "workspace:*"
+    "@seqlok/primitives": "workspace:*",
+    "@tailwindcss/vite": "catalog:",
+    "reka-ui": "catalog:",
+    "tailwindcss": "catalog:",
+    "unplugin-vue-components": "catalog:",
+    "vue": "catalog:",
+    "vue-router": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@vitejs/plugin-vue": "^6.0.2",
+    "@vitejs/plugin-vue": "catalog:",
     "eslint": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "eslint-plugin-regex": "catalog:",
     "globals": "catalog:",
     "rimraf": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
-    "tsx": "catalog:"
+    "vitest": "catalog:"
   }
 }

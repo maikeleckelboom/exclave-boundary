@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-zinc-950 text-zinc-50 antialiased;
+    scrollbar-width: none;
+
+    scrollbar-color: theme("colors.gray.400") transparent;
+
+    &::-webkit-scrollbar-track {
+    }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}

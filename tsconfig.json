@@ -13,6 +13,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/commands" },
     { "path": "./packages/hotswap" },
-    { "path": "./packages/integration" }
+    { "path": "./packages/integration" },
+    { "path": "./packages/playground/tsconfig.node.json" }
   ]
 }

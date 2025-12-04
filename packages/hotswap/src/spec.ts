@@ -64,11 +64,18 @@ export type SwapStepKind =
 /**
  * Compact RT ticket: description of a swap that is safe to copy into
  * an audio-thread-owned slot (no heap, all numeric).
+ *
+ * @remarks
+ * - This type is the host/RT contract; it is safe to pass by value.
+ * - `atFrame` is carried on the ticket, but not interpreted by
+ *   {@link stepSwapStateRT}. Callers are responsible for only
+ *   installing tickets (via {@link initSwapStateRT}) once the
+ *   scheduled time has been reached (e.g. via a transport / slicer).
  */
 export interface SwapTicketRT<EngineKind extends number> {
   /**
-   * Host-chosen numeric ID. 0 means "no ticket".
-   * Host can map this back to a string / UUID out of band.
+   * Host-chosen numeric ID. 0 means "no ticket". Host can map this
+   * back to a string / UUID out of band.
    *
    * Enforced at the type level via `TicketId` and at runtime via
    * `createTicketId` and `initSwapStateRT`.

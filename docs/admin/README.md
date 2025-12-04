@@ -17,7 +17,6 @@ Core files:
 
 - `rd-log-2025.md` – running R&D log for 2025
 - `rd-log-2026.md` – next year once the calendar flips
-- `release-checklist.md` – (planned) steps to cut a release safely
 - `governance.md` – (planned) notes on roles, decisions and process
 
 More files can appear here as the project grows.  

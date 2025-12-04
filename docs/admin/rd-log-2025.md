@@ -139,3 +139,45 @@ hotswap forward into `dev` so the new error system becomes the baseline.
 Updated the top-level README and architecture wording to emphasize Seqlok as
 a generic real-time substrate rather than a single-client solution, and lined
 up the next commands/hotswap work on top of the cleaned-up dev branch.
+
+## 2025-12-03 (7h)
+
+[playground, hotswap UI] 3.5h  
+Refined the Hotswap Lab Vue playground into a proper three-panel layout
+(Config panel, Progress viewport, Inspector). Extracted `HotswapViewport`,
+`HotswapConfigPanel`, and `HotswapInspector` components and wired them against
+the composable. Added zoom + follow controls, improved phase band rendering,
+added an overview minimap with loop/step transport controls, and polished the
+A/B engine markers so the swap feels like a proper deck timeline.
+
+[perf, scroll/animation] 2h  
+Profiled the viewport with Chrome DevTools and hunted down layout thrash and
+forced reflows. Introduced cached geometry for the scroll container, rAF-throttled
+scroll handlers, and pointer-based scrubbing that auto-scrolls near edges.
+Switched playback from frame-based stepping to a time-based rAF loop, so
+GC / UI stalls no longer cause visible pauses in the swap animation.
+
+[ghost DJ, data model & AI arch] 1.5h  
+Drafted `ghost-dj-data-model.md` to formalize the session logging and state
+representation for Ghost DJ: track features, timeline event schema, and the
+state/action view over a session. Explored how large-context cloud models
+(Gemini-style) fit into the architecture as an offline/nearline policy planner,
+with Seqlok providing the hard real-time execution layer via scheduled
+commands.
+
+## 2025-12-04 (4h)
+
+[docs, alignment] 1.5h  
+Re-aligned the core documentation with the current Seqlok codebase. Rewrote the
+Seqlok Primer to match the layered package layout and the final canonical flow,
+removed or collapsed outdated planning/DoD/critical-path matrices, and trimmed
+the Gravity Well docs down to a small set of evergreen files. Cleaned up references 
+so nothing points at the old monolithic core or obsolete error/interop plans.
+
+[playground, commands lab] 1.5h  
+Extended `@seqlok/playground` with Vue Router and a tabbed layout in `App.vue`,
+splitting the Hotswap Lab and the new Command Ring Lab into separate routes.
+Scaffolded the commands playground: `CommandRingLab`, `CommandRingConfig`,
+`CommandRingVisualizer`, `CommandRingMetrics`, `CommandRingEventLog`, and the
+`useCommandRingLab` composable. Wired the new components into the router and
+ensured the playground builds cleanly with the expanded commands/hotswap UI.

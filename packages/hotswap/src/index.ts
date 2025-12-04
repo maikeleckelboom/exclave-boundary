@@ -33,14 +33,6 @@ export {
   type SwapStepDecisionRT,
 } from "./spec";
 
-export {
-  linearFade,
-  equalPowerFade,
-  createSwapGenerator,
-  type FadeCoefficients,
-  type SwapGeneratorInput,
-} from "./generator";
-
 export { HOTSWAP_ERRORS, createHotswapError } from "./errors/hotswap";
 
 export type {
