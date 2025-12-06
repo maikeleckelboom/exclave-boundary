@@ -3,7 +3,7 @@ import type {
   SwapStepKind,
   SwapTicketRT,
   TicketId,
-} from "../src/spec";
+} from "../../src/spec";
 
 export interface SwapTestVector {
   readonly name: string;
@@ -31,7 +31,6 @@ export const swapTestVectors: SwapTestVector[] = [
     },
     blockFrames: 128,
     expectedTransitions: [
-      // spawn → prime → crossfade → retire → idle
       { phase: "spawn", kind: "runCurrentOnly" },
       { phase: "prime", kind: "runCurrentOnly" },
       { phase: "crossfade", kind: "runBothForCrossfade" },
@@ -50,7 +49,6 @@ export const swapTestVectors: SwapTestVector[] = [
     },
     blockFrames: 128,
     expectedTransitions: [
-      // spawn, prime, 2×prewarm, 2×crossfade, retire, idle
       { phase: "spawn", kind: "runCurrentOnly" },
       { phase: "prime", kind: "runCurrentOnly" },
       { phase: "prewarm", kind: "runCurrentAndPrewarmNext" },

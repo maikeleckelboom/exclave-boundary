@@ -37,7 +37,7 @@ export interface CommandsRingOverflowDetails extends ErrorDetails {
   /**
    * Logical identifier for the mailbox / endpoint whose ring overflowed.
    *
-   * @example "engine-A", "deck-1-transport"
+   * @example "engine-A", "lane-1-transport"
    */
   readonly mailboxId: string;
 
@@ -63,7 +63,7 @@ export interface CommandsMailboxClosedDetails extends ErrorDetails {
   /**
    * Logical identifier for the mailbox / endpoint.
    *
-   * @example "engine-A", "deck-1-transport"
+   * @example "engine-A", "lane-1-transport"
    */
   readonly mailboxId: string;
 }

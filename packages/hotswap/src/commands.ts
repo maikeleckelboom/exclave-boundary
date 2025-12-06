@@ -1,5 +1,3 @@
-// File: packages/hotswap/src/commands.ts
-
 /**
  * @fileoverview
  * Hotswap command union and codec for delivering RT swap tickets

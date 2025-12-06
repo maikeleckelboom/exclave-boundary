@@ -1,414 +1,29 @@
 /**
- * @file deck.engine-bank.integration.test.ts
+ * @file lane.engine-bank.integration.test.ts
  *
- * Engine-bank level integration tests for the Seqlok deck hot-swap pipeline.
+ * Engine-bank level integration tests for the Seqlok lane hot-swap pipeline.
  *
- * This test extends the deck.timeline harness with a tiny EngineBank that
+ * This test extends the lane.timeline harness with a tiny EngineBank that
  * renders constant-valued engines (A = 1.0, B = 2.0, C = 3.0) so we can assert
  * sample-level crossfade semantics without touching Web Audio.
  */
 
-import { createCommandMailbox } from "@seqlok/commands";
-import {
-  createHotswapCommandCodec,
-  createTicketId,
-  HOTSWAP_COMMAND_TAG_INSTALL,
-  HOTSWAP_COMMAND_WORDS_PER_SLOT,
-  type HotswapCommand,
-  type SwapStepDecisionRT,
-  type SwapTicketRT,
-} from "@seqlok/hotswap";
+import { createTicketId, type SwapTicketRT } from "@seqlok/hotswap";
 import { describe, expect, it } from "vitest";
 
+import { scheduleSwap } from "../src";
 import {
-  createHotswapSlotDriver,
-  createSlicerState,
-  processTimelineBlock,
-  scheduleSwap,
-  type HotswapSchedulerConfig,
-  type TimelineCommand,
-  type TimelineDriver,
-  type TimelineProcessCallbacks,
-} from "../src";
-
-import type { SwsrRingLayout } from "@seqlok/primitives";
-
-/**
- * Minimal engine kind enum for testing the hot-swap protocol.
- */
-enum EngineKind {
-  None = 0,
-  A = 1,
-  B = 2,
-  C = 3,
-}
-
-/**
- * Simple engine abstraction: render into a Float32Array for N frames.
- */
-interface EngineInstance {
-  readonly kind: EngineKind;
-  render(dst: Float32Array, frames: number): void;
-}
-
-/**
- * Test engine that outputs a constant value.
- *
- * A = 1.0, B = 2.0, C = 3.0 so crossfade math becomes easy to reason about:
- * output = currentGain * A + nextGain * B/C.
- */
-class ConstantEngine implements EngineInstance {
-  constructor(
-    public readonly kind: EngineKind,
-    private readonly value: number,
-  ) {}
-
-  render(dst: Float32Array, frames: number): void {
-    for (let i = 0; i < frames; i += 1) {
-      dst[i] = this.value;
-    }
-  }
-}
-
-/**
- * EngineBank indirection so the deck never talks to engines directly.
- */
-interface EngineBank<K extends number> {
-  get(kind: K): EngineInstance | null;
-  unregister(kind: K): void;
-}
-
-class SimpleEngineBank implements EngineBank<EngineKind> {
-  private readonly map = new Map<EngineKind, EngineInstance>();
-
-  register(engine: EngineInstance): void {
-    this.map.set(engine.kind, engine);
-  }
-
-  unregister(kind: EngineKind): void {
-    this.map.delete(kind);
-  }
-
-  get(kind: EngineKind): EngineInstance | null {
-    return this.map.get(kind) ?? null;
-  }
-}
-
-/**
- * Audio block + decision snapshot for assertions.
- */
-interface RecordedAudioBlock {
-  readonly blockIndex: number;
-  readonly segmentIndex: number;
-  readonly samples: Float32Array;
-  readonly decision: SwapStepDecisionRT<EngineKind>;
-}
-
-/**
- * Integration harness: stitches together mailbox + hotswap + timeline +
- * a tiny EngineBank and exposes helper methods for the tests.
- */
-interface DeckEngineHarness {
-  readonly timeline: TimelineDriver<EngineKind>;
-  readonly bank: SimpleEngineBank;
-  readonly pendingRTCommands: TimelineCommand<EngineKind>[];
-  readonly recordedAudio: RecordedAudioBlock[];
-  readonly schedulerConfig: HotswapSchedulerConfig<
-    EngineKind,
-    HotswapCommand<EngineKind>
-  >;
-
-  simulateBlock(blockFrames: number): void;
-
-  runUntilSwapComplete(
-    blockFrames: number,
-    maxBlocks: number,
-  ): { completed: boolean; blocksRun: number };
-}
-
-function createDeckEngineHarness(): DeckEngineHarness {
-  const codec = createHotswapCommandCodec<EngineKind>();
-
-  const layout: SwsrRingLayout = {
-    capacity: 16,
-    wordsPerSlot: HOTSWAP_COMMAND_WORDS_PER_SLOT,
-  };
-
-  const mailbox = createCommandMailbox<HotswapCommand<EngineKind>>({
-    mailboxId: "deck-0",
-    codec,
-    layout,
-  });
-
-  const hotswapSlot = createHotswapSlotDriver<EngineKind>();
-
-  const timeline: TimelineDriver<EngineKind> = {
-    frame: 0,
-    isPlaying: true,
-    slicer: createSlicerState<TimelineCommand<EngineKind>>(),
-    hotswapSlot,
-  };
-
-  const schedulerConfig: HotswapSchedulerConfig<
-    EngineKind,
-    HotswapCommand<EngineKind>
-  > = {
-    mailboxId: "deck-0",
-    producer: mailbox.producer,
-    encodeInstallSwap(
-      ticket: SwapTicketRT<EngineKind>,
-    ): HotswapCommand<EngineKind> {
-      return { tag: HOTSWAP_COMMAND_TAG_INSTALL, ticket };
-    },
-  };
-
-  // Engine bank with constant engines: A = 1, B = 2, C = 3.
-  const bank = new SimpleEngineBank();
-  bank.register(new ConstantEngine(EngineKind.A, 1.0));
-  bank.register(new ConstantEngine(EngineKind.B, 2.0));
-  bank.register(new ConstantEngine(EngineKind.C, 3.0));
-
-  const pendingRTCommands: TimelineCommand<EngineKind>[] = [];
-  const recordedAudio: RecordedAudioBlock[] = [];
-
-  let activeEngineKind: EngineKind = EngineKind.A;
-  let blockIndex = 0;
-
-  // Crossfade runtime state, maintained entirely in the harness. We treat the
-  // crossfade as a linear ramp over ticket.fadeFrames.
-  let crossfadeFramesElapsed = 0;
-  let lastPhase: string | null = null;
-
-  function getActiveTicketFadeFrames(): number {
-    const ticket = hotswapSlot.state?.ticket ?? null;
-    if (ticket === null) {
-      return 0;
-    }
-    return ticket.fadeFrames;
-  }
-
-  function mixCrossfade(
-    dst: Float32Array,
-    frames: number,
-    status: SwapStepDecisionRT<EngineKind>["status"],
-  ): void {
-    const current = bank.get(status.activeEngineKind);
-    const next = bank.get(status.nextEngineKind);
-
-    const totalFadeFrames = getActiveTicketFadeFrames();
-    if (totalFadeFrames <= 0) {
-      // Degenerate case: no fade, just jump to next engine.
-      if (next !== null) {
-        next.render(dst, frames);
-      } else if (current !== null) {
-        current.render(dst, frames);
-      } else {
-        for (let i = 0; i < frames; i += 1) {
-          dst[i] = 0;
-        }
-      }
-      return;
-    }
-
-    const currentBuf = new Float32Array(frames);
-    const nextBuf = new Float32Array(frames);
-
-    if (current !== null) {
-      current.render(currentBuf, frames);
-    } else {
-      for (let i = 0; i < frames; i += 1) {
-        currentBuf[i] = 0;
-      }
-    }
-
-    if (next !== null) {
-      next.render(nextBuf, frames);
-    } else {
-      for (let i = 0; i < frames; i += 1) {
-        nextBuf[i] = 0;
-      }
-    }
-
-    const segmentStart = crossfadeFramesElapsed;
-    const segmentEnd = segmentStart + frames;
-
-    for (let i = 0; i < frames; i += 1) {
-      const globalFrame = segmentStart + i;
-      const clampedFrame =
-        globalFrame >= totalFadeFrames ? totalFadeFrames : globalFrame;
-      const progress =
-        totalFadeFrames === 0 ? 1 : clampedFrame / totalFadeFrames;
-
-      const currentGain = 1 - progress;
-      const nextGain = progress;
-
-      const currentSample = currentBuf[i] ?? 0;
-      const nextSample = nextBuf[i] ?? 0;
-
-      dst[i] = currentSample * currentGain + nextSample * nextGain;
-    }
-
-    crossfadeFramesElapsed = segmentEnd;
-  }
-
-  function simulateBlock(blockFrames: number): void {
-    const currentBlockIndex = blockIndex;
-    let segmentIndex = 0;
-
-    // Drain mailbox into pendingRTCommands.
-    mailbox.consumer.drain({
-      onCommand(command: HotswapCommand<EngineKind>): void {
-        const { ticket } = command;
-        pendingRTCommands.push({
-          atFrame: ticket.atFrame,
-          priority: 0,
-          payload: {
-            kind: "installSwap",
-            ticket,
-          },
-        });
-      },
-    });
-
-    const blockStart = timeline.frame;
-    const blockEnd = blockStart + blockFrames;
-
-    const drainedCommands: TimelineCommand<EngineKind>[] = [];
-
-    for (let i = pendingRTCommands.length - 1; i >= 0; i -= 1) {
-      const cmd = pendingRTCommands[i];
-      if (cmd === undefined) {
-        // noUncheckedIndexedAccess support
-        continue;
-      }
-      if (cmd.atFrame < blockEnd) {
-        drainedCommands.push(cmd);
-        pendingRTCommands.splice(i, 1);
-      }
-    }
-
-    drainedCommands.sort((a, b) => {
-      if (a.atFrame !== b.atFrame) {
-        return a.atFrame - b.atFrame;
-      }
-      return a.priority - b.priority;
-    });
-
-    const callbacks: TimelineProcessCallbacks<EngineKind> = {
-      renderSegment(frames: number): void {
-        const currentNextKind: EngineKind = hotswapSlot.hasState
-          ? (hotswapSlot.state?.ticket.engineKind ?? EngineKind.None)
-          : EngineKind.None;
-
-        const decision = hotswapSlot.stepBlock(
-          frames,
-          activeEngineKind,
-          currentNextKind,
-          EngineKind.None,
-        );
-
-        // Ignore zero-length segments for audio recording: they are protocol
-        // artifacts and should not produce samples.
-        if (frames > 0) {
-          const samples = new Float32Array(frames);
-
-          if (decision.status.phase === "crossfade") {
-            if (lastPhase !== "crossfade") {
-              crossfadeFramesElapsed = 0;
-            }
-            mixCrossfade(samples, frames, decision.status);
-          } else if (decision.kind === "runCurrentAndPrewarmNext") {
-            const current = bank.get(decision.status.activeEngineKind);
-            if (current !== null) {
-              current.render(samples, frames);
-            } else {
-              for (let i = 0; i < frames; i += 1) {
-                samples[i] = 0;
-              }
-            }
-
-            const next = bank.get(decision.status.nextEngineKind);
-            if (next !== null) {
-              const scratch = new Float32Array(frames);
-              next.render(scratch, frames);
-              // scratch is intentionally discarded: prewarm only
-            }
-          } else {
-            const current = bank.get(decision.status.activeEngineKind);
-            if (current !== null) {
-              current.render(samples, frames);
-            } else {
-              for (let i = 0; i < frames; i += 1) {
-                samples[i] = 0;
-              }
-            }
-          }
-
-          recordedAudio.push({
-            blockIndex: currentBlockIndex,
-            segmentIndex,
-            samples,
-            decision,
-          });
-
-          segmentIndex += 1;
-        }
-
-        lastPhase = decision.status.phase;
-
-        if (decision.kind === "retireNow") {
-          activeEngineKind = decision.status.nextEngineKind;
-          crossfadeFramesElapsed = 0;
-        }
-      },
-    };
-
-    processTimelineBlock(timeline, blockFrames, drainedCommands, callbacks);
-    blockIndex += 1;
-  }
-
-  function runUntilSwapComplete(
-    blockFrames: number,
-    maxBlocks: number,
-  ): { completed: boolean; blocksRun: number } {
-    let blocksRun = 0;
-    let sawNonIdlePhase = false;
-
-    for (let i = 0; i < maxBlocks; i += 1) {
-      simulateBlock(blockFrames);
-      blocksRun += 1;
-
-      const lastBlock = recordedAudio[recordedAudio.length - 1];
-      if (lastBlock !== undefined) {
-        const phase = lastBlock.decision.status.phase;
-        if (phase !== "idle") {
-          sawNonIdlePhase = true;
-        } else if (sawNonIdlePhase) {
-          return { completed: true, blocksRun };
-        }
-      }
-    }
-
-    return { completed: false, blocksRun };
-  }
-
-  return {
-    timeline,
-    bank,
-    pendingRTCommands,
-    recordedAudio,
-    schedulerConfig,
-    simulateBlock,
-    runUntilSwapComplete,
-  };
-}
+  createLaneEngineHarness,
+  EngineKind,
+  type RecordedAudioBlock,
+} from "./util/create-lane-engine-harness";
 
 /**
  * Sample-level semantics for typical swaps.
  */
-describe("deck engine bank integration: sample-level crossfade semantics", () => {
+describe("lane engine bank integration: sample-level crossfade semantics", () => {
   it("without any swap scheduled, output equals current engine value", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { recordedAudio } = harness;
     const blockFrames = 64;
 
@@ -431,7 +46,7 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
   });
 
   it("during prewarm, output equals only current (next is rendered but discarded)", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 64;
 
@@ -460,7 +75,7 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
   });
 
   it("during crossfade, output is weighted sum between engine A and B", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 64;
 
@@ -517,7 +132,7 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
   });
 
   it("after retire, only next engine is active", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 64;
 
@@ -556,7 +171,7 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
   });
 
   it("multi-block crossfade yields a monotonic gain envelope", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 32;
 
@@ -605,7 +220,7 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
   });
 
   it("zero-length segments produce no samples", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 128;
 
@@ -626,7 +241,7 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
   });
 
   it("handles same-engine swap (A→A) with correct sample values", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 64;
 
@@ -656,9 +271,9 @@ describe("deck engine bank integration: sample-level crossfade semantics", () =>
 /**
  * Edge-case semantics and failure modes.
  */
-describe("deck engine bank integration: edge cases", () => {
+describe("lane engine bank integration: edge cases", () => {
   it("handles engine returning null (silent output)", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { bank, schedulerConfig, recordedAudio } = harness;
 
     // Remove engine B: simulates missing engine in the bank.
@@ -698,7 +313,7 @@ describe("deck engine bank integration: edge cases", () => {
   });
 
   it("very short fadeFrames produces rapid but smooth transition", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 128;
 
@@ -733,12 +348,12 @@ describe("deck engine bank integration: edge cases", () => {
 
 /**
  * Higher-order semantics: overlapping and sequential swaps.
- * These are marked skip until the runtime policy for overlapping swaps
- * (reject vs queue) is fully implemented.
+ * Overlapping test stays skipped until the runtime policy for overlapping swaps
+ * (reject vs queue) is fully implemented at the scheduler level.
  */
-describe("deck engine bank integration: higher-order swaps", () => {
-  it.skip("rejects overlapping swaps: second ticket to C never takes effect during A→B", () => {
-    const harness = createDeckEngineHarness();
+describe("lane engine bank integration: higher-order swaps", () => {
+  it("rejects overlapping swaps: second ticket to C never takes effect during A→B", () => {
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio } = harness;
     const blockFrames = 64;
 
@@ -778,7 +393,7 @@ describe("deck engine bank integration: higher-order swaps", () => {
 
     expect(touchedC).toBe(false);
 
-    // After retire, deck should be running pure B (2.0).
+    // After retire, lane should be running pure B (2.0).
     let sawRetire = false;
     const postRetireBlocks: RecordedAudioBlock[] = [];
 
@@ -803,7 +418,7 @@ describe("deck engine bank integration: higher-order swaps", () => {
   });
 
   it("supports sequential swaps A→B→C without regressing engines", () => {
-    const harness = createDeckEngineHarness();
+    const harness = createLaneEngineHarness();
     const { schedulerConfig, recordedAudio, timeline } = harness;
     const blockFrames = 64;
 

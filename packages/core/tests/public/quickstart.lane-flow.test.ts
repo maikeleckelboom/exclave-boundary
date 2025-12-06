@@ -10,10 +10,10 @@ import {
   receiveHandoff,
 } from "../../src";
 
-describe("public quickstart: deck controller ↔ processor flow", () => {
+describe("public quickstart: lane controller ↔ processor flow", () => {
   it("wires params and meters over a SharedArrayBuffer", () => {
     const spec = defineSpec(({ param, meter }) => ({
-      id: "deck",
+      id: "lane",
       params: {
         timeRatio: param.f32({ min: 0.25, max: 4 }),
         eqBands: param.f32.array({ length: 8 }),
@@ -50,6 +50,7 @@ describe("public quickstart: deck controller ↔ processor flow", () => {
     processor.params.within((view) => {
       expect(view.timeRatio).toBeCloseTo(1.5);
       expect(view.eqBands.length).toBe(8);
+      // enum → numeric index in processor view
       expect(view.mode === 0 || view.mode === 1).toBe(true);
     });
 
@@ -64,7 +65,8 @@ describe("public quickstart: deck controller ↔ processor flow", () => {
         }
       });
 
-      writer.set("framesProcessed", 128);
+      // Scalar meter: write via the named function, not a generic setter
+      writer.framesProcessed(128);
     });
 
     // Controller observes meters coherently
@@ -79,5 +81,8 @@ describe("public quickstart: deck controller ↔ processor flow", () => {
     expect(rms).toBeCloseTo(0.5);
     expect(peak).toBeCloseTo(1.0);
     expect(framesProcessed).toBe(128);
+
+    controller.dispose();
+    processor.dispose();
   });
 });

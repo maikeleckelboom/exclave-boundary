@@ -1,14 +1,16 @@
-# Deck Hot-Swap Integration (Canonical Flow)
+# Lane Hot-Swap Integration (Canonical Flow)
 
-This documents the end-to-end path a typical "deck" uses to install and run an engine hot-swap. The integration test
-at [`tests/deck.timeline.integration.test.ts`](../tests/deck.timeline.integration.test.ts) serves as the executable
+This documents the end-to-end path a typical "lane" uses to install and run an engine hot-swap. The integration test
+at [`tests/lane.timeline.integration.test.ts`](../tests/lane.timeline.integration.test.ts) serves as the executable
 specification for this flow.
 
 ## Overview
 
 ```
+
 scheduleSwap → mailbox (SWSR ring) → RT drain → TimelineCommand → processTimelineBlock → HotswapSlotDriver.stepBlock → decisions
-```
+
+````
 
 ## 1. Host Side (Non-RT)
 
@@ -23,11 +25,11 @@ import {
 const ticket: SwapTicketRT<EngineKind> = {
   ticketId: createTicketId(1),  // Unique, non-zero ticket identifier
   engineKind: EngineKind.B,     // Target engine to swap to
-  atFrame: 256,                 // Absolute frame on the deck's timeline
+  atFrame: 256,                 // Absolute frame on the lane's timeline
   fadeFrames: 256,              // Crossfade duration in frames
   preWarmBlocks: 2,             // Blocks to run both engines before crossfade
 };
-```
+````
 
 ### Configure and call scheduleSwap
 
@@ -46,7 +48,7 @@ import {
 
 const codec = createHotswapCommandCodec<EngineKind>();
 const mailbox = createCommandMailbox<HotswapCommand<EngineKind>>({
-  mailboxId: "deck-0",
+  mailboxId: "lane-0",
   codec,
   layout: {
     capacity: 16,
@@ -58,24 +60,29 @@ const schedulerConfig: HotswapSchedulerConfig<
   EngineKind,
   HotswapCommand<EngineKind>
 > = {
-  mailboxId: "deck-0",
+  mailboxId: "lane-0",
   producer: mailbox.producer,
   encodeInstallSwap(ticket) {
     return {tag: HOTSWAP_COMMAND_TAG_INSTALL, ticket};
   },
 };
 
+// Minimal usage: fire-and-forget.
+// Level 2.5 semantics guarantee that invalid / overlapping tickets
+// are either rejected at this boundary or ignored by the slot.
+// See "Multi-Swap Behavior" below.
 scheduleSwap(schedulerConfig, ticket);
 ```
 
-`scheduleSwap` validates the ticket using the RT protocol and enqueues a `HotswapCommand` into the deck's
-`CommandMailbox`. Invalid tickets are rejected before they hit the RT path.
+`scheduleSwap` validates the ticket according to the RT protocol and enqueues a `HotswapCommand` into the lane's
+`CommandMailbox`. Invalid tickets are rejected before they hit the RT path (via validation error or status, depending on
+version). Overlapping tickets for the same lane are governed by the **Reject While Busy** policy described below.
 
 ## 2. RT Side (Per Audio Block)
 
-### Deck state
+### Lane state
 
-Each deck owns:
+Each lane owns:
 
 ```ts
 import {
@@ -167,6 +174,10 @@ function processAudioBlock(blockFrames: number): void {
     applyCommandSideEffects(cmd) {
       // Called at exact segment boundaries when a TimelineCommand applies.
       // For "installSwap" this installs the ticket into hotswapSlot.
+      //
+      // The Level 2.5 "Reject While Busy" policy is enforced by the
+      // slot driver: once a ticket is active, overlapping installs
+      // for the same lane are ignored until the slot returns to idle.
     },
   };
 
@@ -176,7 +187,7 @@ function processAudioBlock(blockFrames: number): void {
 
 ## 3. Engine Application
 
-The integration test only records `SwapStepDecisionRT<EngineKind>` values. A real deck replaces that recording with
+The integration test only records `SwapStepDecisionRT<EngineKind>` values. A real lane replaces that recording with
 calls into its engine bank:
 
 ```ts
@@ -240,26 +251,92 @@ function applyDecisionToEngines(
 }
 ```
 
-## Protocol Guarantees
+## 4. Multi-Swap Behavior (Sequential + Overlapping)
 
-The hot-swap protocol (formally verified via TLA+) guarantees:
+### 4.1 Sequential swaps (A→B→C)
 
-- **At most 2 engines active** per slot (current + next)
-- **Eventual idle**: Any accepted swap eventually reaches `phase: "idle"`
-- **No audio gap**: During crossfade, both engines render every block
-- **Monotonic progress**: Progress value never decreases during a swap
-- **Cancellation via replacement**: Issue a new swap to cancel an in-flight one
+Sequential swaps on a single lane are supported and tested via the engine-bank harness:
 
-## Test Coverage
+* First swap A→B runs through `prewarm → crossfade → retire → idle`.
+* Once the lane has idled on B, a second swap B→C is scheduled at `atFrame = timeline.frame`.
+* The engine-bank integration asserts:
+
+  * There is an idle plateau with `activeEngineKind === B`, then an idle plateau with `activeEngineKind === C`.
+  * Idle engine identity is monotone: once you have idled on B, you never idle on A again.
+
+This pattern generalizes: as long as each swap is scheduled after the previous one has completed, the lane behaves as a
+simple A→B→C→… progression.
+
+### 4.2 Overlapping swaps (Reject While Busy)
+
+For Level 2.5, the lane hot-swap integration uses the **Reject While Busy** policy for overlapping swaps on the **same
+lane**:
+
+* While a ticket is in-flight (`hotswapSlot` phase is not `"idle"`), the lane is considered **swap-busy**.
+* Any additional swap ticket for that lane, issued via `scheduleSwap`, **must not take effect** until the slot returns
+  to idle.
+* In the current implementation, this is enforced at the slot/integration layer:
+
+  * The slot maintains at most one active ticket.
+  * Overlapping `installSwap` commands for the same lane are ignored while a ticket is active.
+
+The integration tests enforce:
+
+* During an A→B swap, a second ticket B→C scheduled while A→B is in progress:
+
+  * Never appears as `activeEngineKind === C`.
+  * Never appears as `nextEngineKind === C`.
+* The final idle state is indistinguishable from a single A→B swap:
+
+  * Final idle engine is B.
+  * Engine-bank output for the idle plateau is ≈ 2.0 (for the constant-engine harness).
+
+From a controller’s perspective:
+
+* **Sequential intent** (A→B then, once settled, B→C) is fully supported.
+* **Overlapping intent** (spam swaps while a fade is in progress) is not interpreted as “cancel-by-replacement” at the
+  lane layer; extra tickets are effectively rejected/ignored until the current swap completes.
+
+Higher-level schedulers (e.g. Ghost DJ planners) can implement richer policies (queueing, coalescing, “last-writer
+wins”) on top by controlling when they call `scheduleSwap`.
+
+## 5. Protocol Guarantees
+
+The underlying hot-swap protocol (formally verified via TLA+ at the slot/timeline level) guarantees:
+
+* **At most 2 engines active** per slot (current + next).
+* **Eventual idle**: Any accepted ticket eventually reaches `phase: "idle"` once the host stops injecting new tickets.
+* **No audio gap**: During crossfade, both engines render every block.
+* **Monotonic progress**: `progress` never decreases during a swap.
+* **Timeline-level replacement capability:** At the raw timeline-command level, it is possible to project replacement
+  commands that supersede older ones before they apply.
+
+  * The Level 2.5 lane integration, as exercised here via `scheduleSwap`, chooses the **Reject While Busy** policy
+    instead of exposing mid-flight cancel-by-replacement directly.
+
+In other words:
+
+* Slot/timeline core: small, two-engine, monotone state machine with replacement *capability*.
+* lane integration: conservative “one ticket at a time per lane; overlapping requests are ignored” behavior, to keep the
+  audio semantics predictable.
+
+## 6. Test Coverage
 
 The integration test suite covers:
 
-- **Happy path**: Full swap lifecycle (spawn → prime → prewarm → crossfade → retire → idle)
-- **Immediate swap**: atFrame = 0 with no prewarm
-- **Multi-block crossfade**: fadeFrames spanning multiple blocks
-- **Back-to-back swaps**: Cancel-by-replacement pattern
-- **Invalid tickets**: Defense-in-depth validation
-- **Edge cases**: Late commands, zero-frame segments, same-engine swaps
+* **Happy path:** Full swap lifecycle (spawn → prime → prewarm → crossfade → retire → idle).
+* **Immediate swap:** `atFrame = 0` with no prewarm.
+* **Multi-block crossfade:** `fadeFrames` spanning multiple blocks.
+* **Back-to-back swaps:**
 
-See [`tests/deck.timeline.integration.test.ts`](../tests/deck.timeline.integration.test.ts) for the executable
-specification.
+  * Sequential swaps at distinct `atFrame` values.
+  * Overlapping swap attempts under the Reject-While-Busy policy:
+
+    * Overlapping ticket does not perturb the in-flight swap.
+    * Protocol still converges to idle with the original ticket’s engine.
+* **Invalid tickets:** Defense-in-depth validation (e.g. `fadeFrames = 0`, negative `preWarmBlocks`, `ticketId = 0`).
+* **Edge cases:** Late commands, zero-frame segments, very short fades, same-engine swaps, command priority ordering.
+
+See [`tests/lane.timeline.integration.test.ts`](../tests/lane.timeline.integration.test.ts) and
+[`tests/lane.engine-bank.integration.test.ts`](../tests/lane.engine-bank.integration.test.ts) for the executable
+specification of the lane-level integration and engine semantics.

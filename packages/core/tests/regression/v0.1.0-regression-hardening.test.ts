@@ -20,7 +20,7 @@ describe("V0.1.0 Regression Hardening Checks", () => {
     const specB = defineSpec(({ param }) => ({
       params: {
         a: param.f32({ max: 1, min: 0 }),
-      }, // Swapped
+      },
     }));
 
     expect(hashSpec(specA)).toBe(hashSpec(specB));
@@ -49,7 +49,7 @@ describe("V0.1.0 Regression Hardening Checks", () => {
     const u32 = new Uint32Array(sab);
     const pair = createSeqPair(u32, 0, 1);
 
-    // 1. Writer crashes -> SEQ increments
+    // Writer crashes -> SEQ increments
     try {
       publish(pair, () => {
         throw new Error("Crash");
@@ -58,7 +58,7 @@ describe("V0.1.0 Regression Hardening Checks", () => {
       // intentionally ignored for this regression check
     }
 
-    // 2. Reader should not explode when invoked after the crash
+    // Reader should not explode when invoked after the crash
     const readStrategy = {
       spinBudget: 1,
       retryBudget: 1,

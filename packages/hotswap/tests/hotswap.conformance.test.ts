@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { swapTestVectors } from "./hotswap.vectors";
+import { swapTestVectors } from "./util/hotswap.vectors";
 import {
   initSwapStateRT,
   stepSwapStateRT,

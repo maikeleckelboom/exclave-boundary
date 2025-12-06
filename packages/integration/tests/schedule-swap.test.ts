@@ -1,10 +1,7 @@
 import { isSeqlokError, type SeqlokError } from "@seqlok/base";
 import { describe, expect, it } from "vitest";
 
-import {
-  type HotswapSchedulerConfig,
-  scheduleSwap,
-} from "../src/hotswap/schedule-swap";
+import { type HotswapSchedulerConfig, scheduleSwap } from "../src";
 
 import type { CommandProducer, CommandPushResult } from "@seqlok/commands";
 import type { SwapTicketRT, TicketId } from "@seqlok/hotswap";
@@ -174,7 +171,7 @@ describe("scheduleSwap", () => {
 
     try {
       scheduleSwap(cfg, ticket);
-      // Should not reach here.
+      // Expect to be unreachable
       expect(false).toBe(true);
     } catch (error) {
       expectCommandsError(error, "commands.ringOverflow");

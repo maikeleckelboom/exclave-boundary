@@ -100,12 +100,11 @@ describe("Control-Flow Narrowing: Real-Value Runtime Checks", () => {
   });
 });
 
-// TS 5.4+ typed array alias to keep assertions stable across library variations.
 type F32RO = Readonly<Float32Array>;
 
 describe("binding (compile-time contracts)", () => {
   interface S extends SpecInput {
-    readonly id: "deck";
+    readonly id: "lane";
     readonly params: {
       rate: { kind: "f32"; min: 0.25; max: 4 };
       coeffs: { kind: "f32.array"; length: 16 };

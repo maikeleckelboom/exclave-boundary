@@ -10,10 +10,10 @@ import {
   receiveHandoff,
 } from "../../src";
 
-describe("public quickstart: deck controller ↔ processor flow (partitioned backing)", () => {
+describe("public quickstart: lane controller ↔ processor flow (partitioned backing)", () => {
   it("wires params and meters over a partitioned SharedArrayBuffer backing", () => {
     const spec = defineSpec(({ param, meter }) => ({
-      id: "deck-partitioned",
+      id: "lane-partitioned",
       params: {
         timeRatio: param.f32({ min: 0.25, max: 4 }),
         eqBands: param.f32.array({ length: 8 }),
@@ -77,7 +77,7 @@ describe("public quickstart: deck controller ↔ processor flow (partitioned bac
       });
     });
 
-    // Controller snapshots meters
+    // Controller snapshots meters (full object)
     const meters = controller.meters.snapshot();
 
     expect(meters.rms).toBeCloseTo(0.5);

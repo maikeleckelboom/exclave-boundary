@@ -19,7 +19,7 @@ import type {
 describe("BindController / BindProcessor: Inference Contracts", () => {
   it("bindController returns correctly-typed params/meters", () => {
     const spec = defineSpec(({ param, meter }) => ({
-      id: "deck" as const,
+      id: "lane" as const,
       params: { rate: param.f32({ min: 0.25, max: 4 }) },
       meters: { fps: meter.f32() },
     }));

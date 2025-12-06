@@ -21,7 +21,7 @@ import type { CommandConsumer, CommandDrainStats } from "./mailbox";
  *
  * @remarks
  * Kept as a plain string to avoid ceremony. Host code can choose its own
- * naming scheme (e.g. "ui-main", "midi-bridge", "deck-1").
+ * naming scheme (e.g. "ui-main", "midi-bridge", "lane-1").
  */
 export type SourceId = string;
 

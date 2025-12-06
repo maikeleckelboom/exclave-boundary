@@ -57,7 +57,6 @@ function mapPushFailureToCommandsError(
     return createCommandsError("mailboxClosed", { mailboxId });
   }
 
-  // reason === "ringOverflow"
   return createCommandsError("ringOverflow", {
     mailboxId,
     capacity: result.capacity,

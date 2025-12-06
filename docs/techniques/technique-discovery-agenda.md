@@ -2,7 +2,7 @@
 
 |                  |            |
 |------------------|------------|
-| **Version**      | 0.1        |
+| **Version**      | 0.2        |
 | **Owner**        | Maikel     |
 | **Last updated** | 2025-12-06 |
 
@@ -100,7 +100,7 @@ These are relatively unexplored territories where you can discover and codify ne
 
 **The gap**: Everyone talks about "AI assistant," but almost nobody has **hard rules** for:
 
-- What an LLM/AI is allowed to do at 50 Hz under a tight budget
+- What an LLM/AI is allowed to do at audio callback rate under tight latency budgets
 - How commands from human + AI interleave under sample-accurate constraints
 - How to encode "authority modes" in a way you can prove safe
 
@@ -297,7 +297,7 @@ quarters.
 - It uses command ring + hotswap + session logs together
 - You can record + replay at least 5 practice sessions without divergence
 - Reflex path metrics show no degradation when reflection loop is active
-- *Future: plug in exact XRuns budget once discovered (e.g., "no glitches over 1h at buffer=128")*
+- Audio glitch budget validated: zero XRuns over 1h sessions at 128-sample buffers
 
 **Artifacts**:
 
@@ -388,12 +388,14 @@ validate a technique, we default to collecting:
 - Audio glitch counter (XRuns, missed deadlines)
 - Per-block processing time histogram (min/avg/p95/p99)
 - Hotswap events: duration, overlap, gain curves used
+- Buffer configuration: samples per block, sample rate, worst-case latency
 
 ### 7.2 Control / Ghost Interaction Metrics
 
 - Command ring stats: occupancy, overflow/underflow counts
 - Suggestion pipeline latency (candidate gen → UI)
 - Suggestion outcomes: accepted / rejected / ignored
+- Command validation failures: which invariants were violated
 
 ### 7.3 Set-Level / Planning Metrics
 
@@ -407,7 +409,47 @@ validate a technique, we default to collecting:
 
 ---
 
-## 8. Anti-Techniques & Pitfalls
+## 8. Real-Time Constraints & Budgets
+
+Understanding the actual timing constraints is critical for technique discovery.
+
+### 8.1 The Audio Callback Boundary
+
+**Hard real-time constraint**: Audio callback runs at ~344 Hz (128 samples @ 44.1 kHz) or ~375 Hz (128 samples @ 48
+kHz).
+
+This means:
+
+- **Budget per audio block**: ~2.9ms @ 44.1 kHz, ~2.67ms @ 48 kHz
+- **No blocking operations**: No network, no file I/O, no DB queries, no GC-heavy allocations
+- **Predictable worst-case**: Every operation in the audio path must have bounded execution time
+
+**The reflex path** operates at audio callback rate. This is 6–7× faster than typical UI/game loops (60 Hz / 16.7ms).
+
+### 8.2 Layered Timing Budgets
+
+| Layer                  | Rate       | Budget             | Allowed Operations                            |
+|------------------------|------------|--------------------|-----------------------------------------------|
+| **Audio callback**     | 300–375 Hz | ~2.7–2.9 ms        | DSP, command dequeue, state update            |
+| **Command submission** | Variable   | <1ms               | Command validation, ring enqueue              |
+| **UI/Render**          | 60 Hz      | ~16.7 ms           | React render, canvas draw                     |
+| **Ghost suggestion**   | Async      | Seconds to minutes | LLM calls, vector search, feature computation |
+
+**Critical rule**: Operations in faster layers cannot call into slower layers. The audio callback cannot wait for Ghost.
+
+### 8.3 Technique Validation Criteria
+
+When claiming "zero glitches" or "real-time safe," we mean:
+
+- **Zero XRuns** (audio underruns) over 1-hour sessions
+- **p99 latency** stays under 80% of budget (safety margin)
+- **Worst-case** measured and documented, not just average-case
+
+Any technique that claims to be "real-time safe" must provide these measurements.
+
+---
+
+## 9. Anti-Techniques & Pitfalls
 
 Not every clever hack qualifies as a technique. We explicitly do **not** count these as techniques:
 
@@ -417,48 +459,56 @@ Not every clever hack qualifies as a technique. We explicitly do **not** count t
 - **"Just use a bigger model"**
   - Relying on scaling an LLM instead of improving structure, invariants, or logs.
 
-- **LLM-in-the-loop at 50 Hz**
-  - Any design that puts network/LLM calls in the reflex path is automatically disqualified.
+- **LLM-in-the-loop at audio rate**
+  - Any design that puts network/LLM calls in the audio callback path is automatically disqualified.
 
 - **Unlogged magic**
   - Behaviours that can't be reconstructed from session logs and metrics.
+
+- **"Works on my machine" timing**
+  - Techniques that only succeed under best-case conditions, not worst-case validated budgets.
 
 **Pitfall pattern**:
 > "It works in this specific build on my machine"  
 > but:
 > - can't be explained cleanly,
 > - can't be tested,
-> - can't be replayed/logged.
+> - can't be replayed/logged,
+> - fails under load or on slower hardware.
 
 Those are allowed as temporary experiments, but they **never** graduate to "technique".
 
 ---
 
-## 9. Externalization Hooks (Papers, Talks, Theses)
+## 10. Externalization Hooks (Papers, Talks, Theses)
 
 Each technique cluster should eventually have at least one "export path":
 
 - **Systems angle**: Seqlok + command rings + hotswap
   - Target: real-time / systems / concurrency communities
+  - Framing: "Sub-3ms budget mixed-initiative control"
 
 - **AI/Planning angle**: Ghost, archetypes, macro planning
   - Target: human-AI collaboration, planning, MIR / creative AI
+  - Framing: "Long-horizon creative planning with real-time constraints"
 
 - **HCI/UX angle**: Co-performance interfaces, modes, suggestions
   - Target: CHI / NIME / interactive systems
+  - Framing: "Flow-preserving AI suggestions for performance contexts"
 
 This agenda is the internal source of truth; any external artifact (paper, thesis, TU Delft collab) should reference
 concrete techniques and metrics from here, not create new concepts off to the side.
 
 ---
 
-## 10. Next Actions
+## 11. Next Actions
 
 1. [ ] Review this document; mark any frontiers that feel most promising
 2. [ ] Ensure Phase 1 scope (one-deck lab) is on track with current Seqlok state
 3. [ ] Start treating lab sessions as "research notes": what worked, what didn't, why
 4. [ ] Pick one frontier from §2 to prototype alongside Phase 2 work
 5. [ ] Create a `docs/techniques/` folder and drop this file in as `technique-discovery-agenda.md`
+6. [ ] Establish baseline metrics for Phase 1: measure current XRun rate, per-block latency distribution
 
 ---
 

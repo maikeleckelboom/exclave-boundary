@@ -4,7 +4,7 @@
  *
  * @remarks
  * A "timeline" is a single monotonically advancing frame counter with
- * scheduled commands. Applications may interpret a timeline as a deck,
+ * scheduled commands. Applications may interpret a timeline as a lane,
  * track, control lane, etc., but Seqlok stays neutral here.
  */
 

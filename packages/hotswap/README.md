@@ -146,7 +146,7 @@ import {
 
 ## Typical usage in an audio driver
 
-Example for a single deck/slot in a worklet or native engine:
+Example for a single lane/slot in a worklet or native engine:
 
 ```ts
 import {

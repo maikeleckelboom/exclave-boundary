@@ -4,7 +4,6 @@ import { defineSpec } from "../../src";
 import { bindingsFromSpec } from "../helpers/binding";
 
 // This test ensures consistent memory layout for array parameters
-// DO NOT DELETE - this is a critical regression test for memory layout stability
 describe("Regression: Array offsets layout (do not delete)", () => {
   it("correctly reads multiple Float32 arrays when interleaved with scalars", () => {
     const spec = defineSpec(({ param }) => ({

@@ -7,7 +7,7 @@
  * (e.g., a playback lane or control lane) with commands scheduled at
  * absolute frame indices. This module:
  *
- * - knows nothing about audio, decks or engines
+ * - knows nothing about audio, lanes or engines
  * - slices blocks into "render N frames, then apply commands" segments
  * - is pure and RT-friendly
  */

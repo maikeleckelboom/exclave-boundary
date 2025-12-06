@@ -3,7 +3,7 @@ import { describe, expect, it, expectTypeOf } from "vitest";
 import { defineSpec } from "../../src/spec/define";
 
 describe("DSL: type inference & validation", () => {
-  it("preserves literal enum values with as const", () => {
+  it("preserves literal enum values with", () => {
     const _spec = defineSpec(({ param }) => ({
       id: "literal-enum",
       params: {
@@ -37,7 +37,7 @@ describe("DSL: type inference & validation", () => {
     const spec1 = defineSpec(({ param }) => ({
       id: "enum-scalar",
       params: {
-        mode: param.enum(["a", "b"] as const),
+        mode: param.enum(["a", "b"]),
       },
       meters: {},
     }));

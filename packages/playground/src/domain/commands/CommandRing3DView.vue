@@ -2,7 +2,7 @@
 /**
  * CommandRing3DView.vue
  *
- * Holographic HUD Edition - Smoothed & Optimized
+ * Holographic HUD Edition – focused on 3D ring only
  */
 import { computed, ref, watch, onBeforeUnmount, onMounted } from "vue";
 import type {
@@ -23,8 +23,8 @@ const props = defineProps<Props>();
 // --- Configuration ---
 const SLOT_WIDTH = 64;
 const SLOT_HEIGHT = 56;
-const MAX_PARTICLES = 25; // Hard cap on total particles in DOM
-const MAX_BURST_PARTICLES = 5; // Max particles to spawn per drain event
+const MAX_PARTICLES = 25;
+const MAX_BURST_PARTICLES = 5;
 
 // Rotation speed cap (degrees per millisecond)
 const ROTATE_SPEED_DEG_PER_MS = 0.18;
@@ -33,30 +33,30 @@ const ROTATE_SPEED_DEG_PER_MS = 0.18;
 const now = (): number =>
   typeof performance !== "undefined" ? performance.now() : Date.now();
 
-// --- State ---
+// --- Interaction / camera state ---
 const isDragging = ref(false);
 const lastPointerX = ref(0);
 const isAutoFollow = ref(true);
 
-// Physics state: visual vs target rotation
+// Physics state: visual vs target rotation (degrees)
 const visualRotation = ref(0);
 const targetRotation = ref(0);
 
 let animationFrameId: number | null = null;
 let lastFrameTime = now();
 
-// --- Dynamics State ---
+// --- Dynamics state ---
 const dropGlitchActive = ref(false);
 
-// --- Particle System ---
+// --- Particle system ---
 interface DropParticle {
-  id: number;
-  slotIndex: number;
-  opCode?: DemoOpCode;
-  colorClass: string;
-  transformString: string;
-  tumbleRotation: string;
-  fallDuration: string;
+  readonly id: number;
+  readonly slotIndex: number;
+  readonly opCode?: DemoOpCode;
+  readonly colorClass: string;
+  readonly transformString: string;
+  readonly tumbleRotation: string;
+  readonly fallDuration: string;
 }
 
 const particles = ref<DropParticle[]>([]);
@@ -64,7 +64,7 @@ let nextParticleId = 0;
 let lastTransition: string | null = null;
 const opCodeHistory = new Map<number, DemoOpCode>();
 
-// --- 1. Physics Loop (speed-limited follow) ---
+// --- 1. Physics loop (speed-limited follow) ---
 const stepPhysics = (timestamp: number) => {
   const dt = timestamp - lastFrameTime;
   lastFrameTime = timestamp;
@@ -104,15 +104,15 @@ onBeforeUnmount(() => {
   }
 });
 
-// --- 2. Data Logic ---
+// --- 2. Data / ring semantics ---
 
-// Clear history on capacity change
+// Clear opcode history on capacity change
 watch(
   () => props.capacity,
   () => opCodeHistory.clear(),
 );
 
-// Update opcode history
+// Update opcode history for consumed particle labels
 watch(
   () => props.slotViews,
   (slots) => {
@@ -125,10 +125,10 @@ watch(
   { deep: true, immediate: true },
 );
 
-// Per-slot angle
+// Per-slot angle in degrees
 const anglePerSlot = computed(() => 360 / props.capacity);
 
-// Watch write index: update targetRotation, not visualRotation
+// Follow write head with camera
 watch(
   () => props.snapshot.writeIndex,
   (newIndex, oldIndex) => {
@@ -148,7 +148,7 @@ watch(
   },
 );
 
-// Watch read index to spawn particles (throttled)
+// Spawn particles when read head advances (drain)
 watch(
   () => props.snapshot.readIndex,
   (newIdx, oldIdx) => {
@@ -162,7 +162,7 @@ watch(
 
     const toSpawn = Math.min(count, MAX_BURST_PARTICLES);
 
-    for (let i = 0; i < toSpawn; i++) {
+    for (let i = 0; i < toSpawn; i += 1) {
       const offset = i;
       const consumedIndex = (oldIdx + offset) % props.capacity;
       const cachedOpCode = opCodeHistory.get(consumedIndex);
@@ -207,17 +207,21 @@ function spawnParticle(slotIndex: number, opCode: DemoOpCode | undefined) {
     transformString,
     tumbleRotation,
     fallDuration: "0.8s",
-  });
+  } as DropParticle);
 
   setTimeout(() => {
     const idx = particles.value.findIndex((x) => x.id === id);
-    if (idx !== -1) particles.value.splice(idx, 1);
+    if (idx !== -1) {
+      particles.value.splice(idx, 1);
+    }
   }, 900);
 
-  if (particles.value.length > MAX_PARTICLES) particles.value.shift();
+  if (particles.value.length > MAX_PARTICLES) {
+    particles.value.shift();
+  }
 }
 
-// --- 3. Geometry & Camera ---
+// --- 3. Geometry & camera ---
 const radius = computed(() => {
   return Math.round((props.capacity * SLOT_WIDTH) / (2 * Math.PI)) + 20;
 });
@@ -230,15 +234,15 @@ const autoScale = computed(() => {
 
 // Angle cache for Z-sorting and opacity
 interface AngleInfo {
-  backFace: boolean;
-  opacity: number;
+  readonly backFace: boolean;
+  readonly opacity: number;
 }
 
 const angleCache = computed(() => {
   const result = new Map<number, AngleInfo>();
   const currentRot = visualRotation.value;
 
-  for (let index = 0; index < props.capacity; index++) {
+  for (let index = 0; index < props.capacity; index += 1) {
     const slotAngle = index * anglePerSlot.value;
     const netAngle = (slotAngle + currentRot) % 360;
     const normalized = netAngle < 0 ? netAngle + 360 : netAngle;
@@ -247,14 +251,65 @@ const angleCache = computed(() => {
 
     const rad = (netAngle * Math.PI) / 180;
     const visibility = Math.abs(Math.cos(rad));
-    const opacity = Math.min(1, Math.pow(visibility, 0.5) + 0.15);
+    let opacity = Math.min(1, Math.pow(visibility, 0.5) + 0.15);
+
+    if (backFace) {
+      // Still dim the far side, but keep commands visibly colored
+      opacity *= 0.7;
+    }
 
     result.set(index, { backFace, opacity });
   }
   return result;
 });
 
-// --- 4. Input Handling ---
+// Pending indices: contiguous span from readIndex over inFlight slots
+const pendingIndices = computed(() => {
+  const indices: number[] = [];
+  const capacityValue = props.capacity;
+  const inFlight = props.snapshot.inFlight;
+  const readIndex = props.snapshot.readIndex;
+
+  if (capacityValue <= 0 || inFlight <= 0) {
+    return indices;
+  }
+
+  for (let i = 0; i < inFlight; i += 1) {
+    indices.push((readIndex + i) % capacityValue);
+  }
+  return indices;
+});
+
+const pendingStartIndex = computed(() => {
+  const indices = pendingIndices.value;
+  return indices.length > 0 ? indices[0] : null;
+});
+
+const pendingEndIndex = computed(() => {
+  const indices = pendingIndices.value;
+  return indices.length > 0 ? indices[indices.length - 1] : null;
+});
+
+// Pending intensity based on backlog size
+const pendingIntensity = computed(() => {
+  const capacityValue = props.capacity;
+  const inFlight = props.snapshot.inFlight;
+
+  if (capacityValue <= 0 || inFlight <= 0) {
+    return 0;
+  }
+
+  const ratio = inFlight / capacityValue;
+
+  // Base glow even for tiny backlog, ramp up fairly quickly
+  const minOpacity = 0.35;
+  const maxOpacity = 1;
+  const clamped = Math.min(1, ratio * 2); // full by ~50% utilization
+
+  return minOpacity + (maxOpacity - minOpacity) * clamped;
+});
+
+// --- 4. Input handling ---
 const handlePointerDown = (e: PointerEvent) => {
   if (e.button !== 0 && e.pointerType === "mouse") return;
   isAutoFollow.value = false;
@@ -299,29 +354,29 @@ const toggleLock = () => {
   }
 };
 
-// Visual glitch trigger
+// Visual glitch trigger for overflow (drops)
 watch(
   () => props.snapshot.dropped,
   (newVal, oldVal) => {
     if (oldVal !== undefined && newVal > oldVal) {
       dropGlitchActive.value = true;
-      setTimeout(() => (dropGlitchActive.value = false), 150);
+      setTimeout(() => {
+        dropGlitchActive.value = false;
+      }, 150);
     }
   },
 );
 
-// --- 5. Style Helpers ---
-function getOpStyles(slot: SlotView, isBack: boolean) {
+// --- 5. Style helpers ---
+function getOpStyles(slot: SlotView, isBack: boolean): string {
   const { opCode, state } = slot;
 
-  if (isBack) {
-    if (state === "empty") {
+  // Empty slots: wireframe on back, subtle plate on front
+  if (state === "empty") {
+    if (isBack) {
       return "border-zinc-800/20 text-zinc-800/20 bg-transparent";
     }
-    return "border-zinc-800/40 text-zinc-700/40 bg-zinc-950/30";
-  }
 
-  if (state === "empty") {
     if (slot.isWriteHead) {
       return "border-amber-500/80 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.25)] ring-1 ring-amber-500/50";
     }
@@ -331,6 +386,7 @@ function getOpStyles(slot: SlotView, isBack: boolean) {
     return "border-zinc-800 text-zinc-700 bg-zinc-950/10";
   }
 
+  // Non-empty slots: always use op color, even on back side
   let base: string;
   switch (opCode) {
     case DemoOpCode.Ping:
@@ -374,22 +430,25 @@ function getOpLabel(opCode?: DemoOpCode): string {
   >
     <!-- Controls -->
     <div
-      class="absolute top-4 right-4 z-30 flex items-center gap-4 select-none"
+      class="absolute top-4 right-4 z-30 flex flex-col items-end gap-1 select-none"
     >
       <div
-        class="flex items-center gap-2 cursor-pointer group px-3 py-1 rounded-full bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-colors"
+        class="flex items-center gap-2 cursor-pointer px-3 py-1 rounded-full bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 transition-colors"
         @click="toggleLock"
       >
         <span
-          class="text-[9px] uppercase font-bold tracking-wider"
-          :class="isAutoFollow ? 'text-amber-500' : 'text-zinc-500'"
+          class="text-[9px] uppercase font-bold tracking-[0.18em]"
+          :class="isAutoFollow ? 'text-amber-400' : 'text-zinc-500'"
         >
-          {{ isAutoFollow ? "LOCKED" : "MANUAL" }}
+          {{ isAutoFollow ? "FOLLOW HEAD" : "FREE ORBIT" }}
         </span>
         <div
           class="w-1.5 h-1.5 rounded-full transition-colors"
-          :class="isAutoFollow ? 'bg-amber-500' : 'bg-zinc-600'"
-        ></div>
+          :class="isAutoFollow ? 'bg-amber-400' : 'bg-zinc-600'"
+        />
+      </div>
+      <div class="text-[9px] text-zinc-500/80">
+        Drag to orbit. FOLLOW keeps camera on write head.
       </div>
     </div>
 
@@ -405,7 +464,7 @@ function getOpLabel(opCode?: DemoOpCode): string {
         @pointerup="handlePointerUp"
         @pointercancel="handlePointerUp"
       >
-        <!-- The Ring Container: Rotated via JS Loop now, not CSS -->
+        <!-- The Ring Container: Rotated via JS loop -->
         <div
           class="ring-base"
           :style="{
@@ -454,37 +513,44 @@ function getOpLabel(opCode?: DemoOpCode): string {
               </span>
             </div>
 
-            <!-- HEAD INDICATOR: visible front, ghosted on back -->
+            <!-- WRITE HEAD / producer indicator (above slot) -->
             <div
               v-if="slot.isWriteHead"
-              class="absolute -top-20 left-1/2 -translate-x-1/2 flex flex-col items-center z-50 pointer-events-none transition-transform duration-100"
+              class="absolute bottom-full left-1/2 -translate-x-1/2 flex flex-col items-center z-50 pointer-events-none pb-4"
               :class="[
                 angleCache.get(slot.index)?.backFace
                   ? 'opacity-35'
                   : 'opacity-100',
                 dropGlitchActive &&
                 !(angleCache.get(slot.index)?.backFace ?? false)
-                  ? 'scale-125'
+                  ? 'scale-110'
                   : '',
               ]"
             >
-              <div
-                class="text-[9px] font-bold text-amber-400 tracking-widest uppercase mb-1 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]"
-              >
-                HEAD
+              <div class="flex flex-col items-center gap-0.5 mb-2">
+                <div
+                  class="text-[9px] font-bold text-amber-400 tracking-[0.18em] uppercase drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] text-center"
+                >
+                  WRITE HEAD
+                </div>
+                <div
+                  class="text-[8px] uppercase tracking-[0.16em] text-amber-300/80 text-center"
+                >
+                  producer
+                </div>
               </div>
               <div
-                class="w-2 h-2 bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,1)] rounded-full"
-              ></div>
+                class="w-2 h-2 bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,1)] rounded-full mb-1"
+              />
               <div
-                class="w-[1px] h-12 bg-gradient-to-b from-amber-500/80 to-transparent"
-              ></div>
+                class="w-px h-10 bg-gradient-to-t from-amber-500/80 to-transparent"
+              />
             </div>
 
-            <!-- TAIL INDICATOR: visible front, ghosted on back -->
+            <!-- READ HEAD / consumer indicator (below slot) -->
             <div
               v-if="slot.isReadHead"
-              class="absolute -bottom-20 left-1/2 -translate-x-1/2 flex flex-col-reverse items-center z-50 pointer-events-none"
+              class="absolute top-full left-1/2 -translate-x-1/2 flex flex-col items-center z-50 pointer-events-none pt-4"
               :class="[
                 angleCache.get(slot.index)?.backFace
                   ? 'opacity-35'
@@ -492,18 +558,40 @@ function getOpLabel(opCode?: DemoOpCode): string {
               ]"
             >
               <div
-                class="text-[9px] font-bold text-emerald-400 tracking-widest uppercase mt-1 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]"
-              >
-                TAIL
+                class="w-px h-10 bg-gradient-to-b from-emerald-500/80 to-transparent"
+              />
+              <div
+                class="w-2 h-2 bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)] rounded-full mt-1"
+              />
+              <div class="flex flex-col items-center gap-0.5 mt-2">
+                <div
+                  class="text-[9px] font-bold text-emerald-400 tracking-[0.18em] uppercase drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] text-center"
+                >
+                  READ HEAD
+                </div>
+                <div
+                  class="text-[8px] uppercase tracking-[0.16em] text-emerald-300/80 text-center"
+                >
+                  consumer
+                </div>
               </div>
-              <div
-                class="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]"
-              ></div>
-              <div
-                class="w-[1px] h-12 bg-gradient-to-t from-emerald-500/80 to-transparent"
-              ></div>
             </div>
           </div>
+
+          <!-- PENDING RING (floating backlog plane) -->
+          <div
+            v-for="index in pendingIndices"
+            :key="`pending-${index}`"
+            class="pending-ring-segment"
+            :class="{
+              'pending-ring-start': index === pendingStartIndex,
+              'pending-ring-end': index === pendingEndIndex,
+            }"
+            :style="{
+              transform: `rotateY(${index * anglePerSlot}deg) translateZ(${radius + 3}px) translateY(-70px)`,
+              opacity: pendingIntensity,
+            }"
+          />
 
           <!-- PARTICLES -->
           <div
@@ -554,13 +642,12 @@ function getOpLabel(opCode?: DemoOpCode): string {
   will-change: transform;
   cursor: grab;
 }
+
 .scene:active {
   cursor: grabbing;
 }
 
-/*
-   Movement is driven by JS requestAnimationFrame
-*/
+/* Movement is driven by JS requestAnimationFrame */
 .ring-base {
   width: 100%;
   height: 100%;
@@ -582,12 +669,61 @@ function getOpLabel(opCode?: DemoOpCode): string {
   justify-content: center;
   backface-visibility: visible;
   transform-style: preserve-3d;
-  /* Only animate appearance changes, not position (handled by parent ring rotation) */
   transition:
     opacity 0.2s,
     filter 0.2s,
     background-color 0.2s,
     border-color 0.2s;
+}
+
+/* Pending ring (read -> write span) */
+.pending-ring-segment {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+
+  width: 76px;
+  height: 2px;
+  margin-left: -38px;
+  margin-top: -1px;
+
+  border-radius: 9999px;
+  transform-style: preserve-3d;
+
+  /* flat rail; continuity comes from masks on the ends */
+  background: rgba(56, 189, 248, 0.8);
+  box-shadow:
+    0 0 4px rgba(56, 189, 248, 0.4),
+    0 0 18px rgba(56, 189, 248, 0.6);
+
+  pointer-events: none;
+}
+
+/* fade-in at the start (near read head) */
+.pending-ring-start {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 35%,
+    black 100%
+  );
+  mask-image: linear-gradient(to right, transparent 0%, black 35%, black 100%);
+}
+
+/* gentle taper at the far end, stays visually connected */
+.pending-ring-end {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 0.2) 0%,
+    black 40%,
+    black 100%
+  );
+  mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 0.2) 0%,
+    black 40%,
+    black 100%
+  );
 }
 
 .falling-container {

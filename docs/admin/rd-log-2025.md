@@ -171,7 +171,7 @@ commands.
 Re-aligned the core documentation with the current Seqlok codebase. Rewrote the
 Seqlok Primer to match the layered package layout and the final canonical flow,
 removed or collapsed outdated planning/DoD/critical-path matrices, and trimmed
-the Gravity Well docs down to a small set of evergreen files. Cleaned up references 
+the Gravity Well docs down to a small set of evergreen files. Cleaned up references
 so nothing points at the old monolithic core or obsolete error/interop plans.
 
 [playground, commands lab] 1.5h  
@@ -182,3 +182,24 @@ Scaffolded the commands playground: `CommandRingLab`, `CommandRingConfig`,
 `useCommandRingLab` composable. Wired the new components into the router and
 ensured the playground builds cleanly with the expanded commands/hotswap UI.
 
+## 2025-12-06 (6h)
+
+[hotswap, multi-swap] 3h  
+Finished Level 2.5 multi-swap behavior for lanes. Locked in **Reject-While-Busy** as the policy at the host/integration
+boundary: `scheduleSwap` now returns a `SwapResult` with `accepted` and `reason` (`"lane-busy"` vs `"invalid-ticket"`),
+and uses an `isLaneBusy` callback so overlapping requests never enqueue a second ticket while a swap is in flight.
+Extended the lane engine-bank harness and added an overlaps integration test (A→B plus mid-swap B→C) to prove C never
+appears in decisions or audio and that the final idle plateau matches a pure A→B swap. Left the TLA+ extension and
+lane-level observability (counters / introspect surface) as explicit follow-ups to 2.5.
+
+[substrate, naming] 1.5h  
+Evicted “deck” from the Seqlok substrate in favor of **lane**. Updated core specs, hotswap/integration harnesses, and
+tests so public IDs and narratives are lane-centric while keeping DJ “deck” terminology scoped to Dekzer-level docs.
+Cleaned up the duplicated mailbox/timeline drain code between the lane timeline and engine-bank harnesses by extracting
+a shared helper, keeping the hot path identical while reducing test noise.
+
+[docs, alignment] 1.5h  
+Brought the hot-swap docs in line with the new behavior and naming. Updated `HOTSWAP_INTEGRATION.md` to describe the
+lane-centric flow and engine-bank application, refreshed the `hotswap-multi-swap-requirements.md` spec to mark overlaps
+(2.5-O1) as PASS under Reject-While-Busy, and wired in references to the new `lane.timeline` and `lane.engine-bank`
+integration tests so Level 2.5 is backed by explicit, greppable scenarios rather than hand-wavy prose.

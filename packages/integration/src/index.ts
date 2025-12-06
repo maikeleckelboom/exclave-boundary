@@ -16,7 +16,7 @@
  * - Exposes `stepBlock` to advance the protocol each audio block and
  *   drive the hot/cold engines and crossFade according to the protocol.
  *
- * Intended to be constructed once per deck/slot on the RT side
+ * Intended to be constructed once per lane/slot on the RT side
  * (audio worklet, audio thread, or dedicated worker), then reused
  * for the lifetime of that slot.
  */

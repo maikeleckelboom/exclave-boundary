@@ -80,6 +80,17 @@ export function createHotswapSlotDriver<
     },
 
     acceptTicket(ticket: SwapTicketRT<EngineKind>): void {
+      // Reject While Busy:
+      // - If there is an active ticket in any non-idle phase, we do NOT
+      //   overwrite it. The second ticket is effectively ignored.
+      // - Once the protocol reaches `retire` and steps to `idle`, it clears
+      //   `state.hasTicket`, and new tickets are allowed again.
+      if (hasState && state?.hasTicket) {
+        // Busy: keep the existing swap; ignore the overlapping ticket.
+        return;
+      }
+
+      // Idle (no state or no active ticket): accept a new swap.
       state = initSwapStateRT(ticket);
       hasState = true;
     },

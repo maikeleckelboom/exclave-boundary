@@ -1,10 +1,8 @@
 import { describe, it, expectTypeOf } from "vitest";
 
+import { type MeterValueFor, type ParamValueFor } from "../../src";
+
 import type { SpecInput } from "../../src/spec/types";
-import type {
-  MeterValueFor,
-  ParamValueFor,
-} from "packages/core/src/binding/common/types";
 
 type F32RO = Readonly<Float32Array>;
 type I32RO = Readonly<Int32Array>;

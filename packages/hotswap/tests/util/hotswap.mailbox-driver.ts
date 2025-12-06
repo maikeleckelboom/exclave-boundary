@@ -4,13 +4,13 @@ import {
   createHotswapCommandCodec,
   HOTSWAP_COMMAND_WORDS_PER_SLOT,
   type HotswapCommand,
-} from "../src/commands";
+} from "../../src/commands";
 import {
   initSwapStateRT,
   stepSwapStateRT,
   type SwapStateRT,
   type SwapStepKind,
-} from "../src/spec";
+} from "../../src/spec";
 
 /**
  * Configuration for the mailbox-backed hotswap driver used in tests.

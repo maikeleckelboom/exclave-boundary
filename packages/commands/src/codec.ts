@@ -21,7 +21,7 @@ export interface DecodeErrorUnknownCommand {
   /**
    * Raw command type / discriminant observed during decoding.
    *
-   * @example "deck.play", "engine.setTimeRatio", "0x12"
+   * @example "lane.play", "engine.setTimeRatio", "0x12"
    */
   readonly commandType: string;
 }

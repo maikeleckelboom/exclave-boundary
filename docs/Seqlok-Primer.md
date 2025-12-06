@@ -417,6 +417,126 @@ At the logical level, param reads are coherent: you never see `volume` from fram
 
 ---
 
+## Observer Role & Ergonomics
+
+`bindObserver` is the third binding role in Seqlok, alongside `bindController` and `bindProcessor`. It exists for **read-only consumers** that need to see the same truth as the engine, but must never mutate it.
+
+At a high level:
+
+* **Controller** – host authority
+  Writes params, reads meters, applies `rangePolicy`, drives UI and transport.
+* **Processor** – real-time engine
+  Reads params via `within(...)`, publishes meters via `publish(...)`, runs on the audio/RT thread.
+* **Observer** – passive tap
+  Reads params and meters, never writes; ideal for dev tools, dashboards, analytics, and “assistant” logic.
+
+The core code keeps observer intentionally *thin*; ergonomics can be layered in product code (`@seqlok/integration`, playground, apps).
+
+### Host vs Worker Observers
+
+`bindObserver` has two main usage patterns:
+
+* **Host / main thread**: `bindObserver(sharedContext)`
+  The binding has access to the `Spec` and can map enum indices back to **label strings**. Host-side snapshots therefore look similar to controller snapshots:
+
+  * scalar `f32` / `i32` params → `number`
+  * scalar `bool` params → `boolean`
+  * scalar `enum` params → **string label** (e.g. `"playing"`, `"stopped"`)
+
+* **Worker / AudioWorklet**: `bindObserver(receivedHandoff)`
+  The binding only has the `Plan` + backing, *not* the `Spec`. Enum labels are unknown here, so enum scalars are exposed as **raw numeric indices**:
+
+  * scalar `enum` params → `number` index (`0`, `1`, `2`, …)
+
+Meters are always numeric/boolean on all bindings; they have no enum notion.
+
+This split is deliberate:
+
+* Host observers are **spec-aware** and human-friendly.
+* Worker observers are **spec-agnostic**, minimal, and safe to ship across handoffs.
+
+### Snapshot vs `within(...)`
+
+Observer exposes a subset of the controller/processor surfaces:
+
+* `observer.params.snapshot()` / `snapshot(keys...)`
+* `observer.params.within(cb)`
+* `observer.meters.snapshot()` / `snapshot(keys...)`
+* `observer.params.version()` / `observer.meters.version()`
+
+Design intent:
+
+* `snapshot(...)` is for **low-frequency, allocation-tolerant** consumers:
+
+  * React/Vue UIs
+  * Devtools overlays
+  * Logging/telemetry exporters
+
+* `within(cb)` is for **tight, coherent reads** that want processor-like semantics without running on the RT thread:
+
+  * diagnostics that need consistent multi-param views
+  * analysis/assistant code that derives extra state from the raw params
+
+Arrays returned by observer are **ephemeral views** into the backing:
+
+* You may read from them inside the `snapshot` / `within` call.
+* You must not stash them and read later; the underlying memory is reused.
+
+### Coherence and Degrade Policy
+
+Observer coherence is governed by the same seqlock machinery as controller/processor, but can have **its own policy**:
+
+* `spinBudget` × `retryBudget` – how hard the observer spins on the seqlock.
+* `degrade` – what to do when budgets are exhausted:
+
+  * `'returnLatest'` – return the last successful snapshot (good for UI).
+  * `'throw'` – surface failures (good for tests and diagnostics).
+
+Typical patterns:
+
+* UI / HUD observers:
+
+  * global `degrade: "returnLatest"` – slightly stale is fine, freezing is not.
+* Diagnostics / testing observers:
+
+  * `degrade: "throw"` on meters to catch pathological contention early.
+
+Observers get their *own* budgets; they do not alter controller/processor behaviour.
+
+### When to Use Observer
+
+Use `bindObserver` when:
+
+* The consumer must **never write** params or push commands.
+* You want to run **analysis, visualization, or assistant logic** off the hot path.
+* You have **multiple passive consumers** (Pilot, dashboards, log recorders) that should not contend for a controller binding.
+
+Stay with `bindController` when:
+
+* The code owns **write authority** (UI, automation, host transport).
+* You want the fully ergonomic host view (enum labels, `update`, `stage`, `hydrate`).
+
+Stay with `bindProcessor` when:
+
+* The code runs in the **RT/DSP loop** and must remain zero-alloc and zero-block.
+
+### Facade Pattern (Integration / Playground)
+
+In higher layers (e.g. `@seqlok/integration`, `@seqlok/playground`), it is often useful to wrap a raw observer in a **narrow domain facade**:
+
+* Name just the params/meters a feature cares about (e.g. “deck transport view”).
+* Normalize enum indices to labels on the worker side if needed.
+* Add derived fields (e.g. `beatPhase`, `isClipping`, `engineUtilization`).
+
+Example shape:
+
+* Core: `bindObserver(...)` returns a generic binding.
+* Integration: `createDeckObserver(observer)` returns `{ snapshot(): DeckObserverSnapshot }`.
+* UI / Pilot tools only talk to `DeckObserverSnapshot`, not the raw binding.
+
+This keeps `@seqlok/core` small and generic, while giving products room to grow ergonomic, domain-specific observer APIs on top.
+
+
 ### `@seqlok/commands`
 
 Command dispatch layer built on SWSR rings. This is where “one-shot” events live: transport, seeking, swaps, etc.
@@ -880,3 +1000,4 @@ For exact details, the source of truth is:
 * Package source code in `packages/*`
 * Public API surfaces (`index.ts` in each package)
 * Error registry export tooling in `@seqlok/introspect`
+

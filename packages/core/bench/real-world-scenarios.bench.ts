@@ -15,7 +15,7 @@ import {
  * @fileoverview
  * Parameter operations under mixed controller/processor load.
  *
- * Uses a DJ-style deck spec (transport, filter, EQ, meters) to exercise
+ * Uses a DJ-style lane spec (transport, filter, EQ, meters) to exercise
  * realistic hot paths on both sides of the binding.
  */
 

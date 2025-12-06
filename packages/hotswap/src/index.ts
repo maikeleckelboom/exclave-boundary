@@ -4,7 +4,7 @@
  *
  * - RT protocol (`spec.ts`)
  * - Command codec for transport (`commands.ts`)
- * - Non-RT helpers (`generator.ts`)
+ * - Host-side scheduling (`schedule-swap.ts`)
  * - Error domain (`errors/hotswap.ts`)
  */
 
@@ -42,3 +42,15 @@ export type {
   HotswapErrorFactory,
   HotswapInvalidTicketDetails,
 } from "./errors/hotswap";
+
+/**
+ * Host-side scheduling helpers.
+ *
+ * - `scheduleSwap` implements Level 2.5 Reject-While-Busy
+ * - `SwapResult` reports acceptance/rejection reasons
+ */
+export {
+  scheduleSwap,
+  type HotswapSchedulerConfig,
+  type SwapResult,
+} from "./schedule-swap";

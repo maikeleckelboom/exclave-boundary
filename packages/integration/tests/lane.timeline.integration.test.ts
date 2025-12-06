@@ -1,7 +1,7 @@
 /**
- * @file deck.timeline.integration.test.ts
+ * @file lane.timeline.integration.test.ts
  *
- * End-to-end integration test for the Seqlok deck hot-swap happy path.
+ * End-to-end integration test for the Seqlok lane hot-swap happy path.
  *
  * This test stitches together three layers:
  *   1. Commands layer: CommandMailbox + HotswapCommandCodec
@@ -24,271 +24,28 @@
  *     - Eventually the swap reaches phase: "idle" with activeEngineKind === ticket.engineKind
  */
 
-import { createCommandMailbox } from "@seqlok/commands";
 import {
-  createHotswapCommandCodec,
   createTicketId,
-  HOTSWAP_COMMAND_TAG_INSTALL,
-  HOTSWAP_COMMAND_WORDS_PER_SLOT,
-  type HotswapCommand,
-  type SwapStepDecisionRT,
   type SwapTicketRT,
   type TicketId,
 } from "@seqlok/hotswap";
 import { describe, expect, it } from "vitest";
 
+import { scheduleSwap } from "../src";
 import {
-  createHotswapSlotDriver,
-  createSlicerState,
-  processTimelineBlock,
-  scheduleSwap,
-  type HotswapSchedulerConfig,
-  type TimelineCommand,
-  type TimelineDriver,
-  type TimelineProcessCallbacks,
-} from "../src";
+  createLaneTimelineHarness,
+  EngineKind,
+} from "./util/create-lane-timeline-harness";
 
-import type { SwsrRingLayout } from "@seqlok/primitives";
-
-// Test Domain Types
-
-/**
- * Minimal engine kind enum for testing the hot-swap protocol.
- * None is the sentinel indicating "no engine", A is the initial engine,
- * and B is the target engine we swap to.
- */
-enum EngineKind {
-  None = 0,
-  A = 1,
-  B = 2,
-}
-
-/**
- * Recorded step decision for post-hoc assertion.
- */
-interface RecordedStep {
-  readonly blockIndex: number;
-  readonly segmentIndex: number;
-  readonly segmentFrames: number;
-  readonly decision: SwapStepDecisionRT<EngineKind>;
-}
-
-/**
- * Recorded command application for tracking timeline command side effects.
- */
-interface RecordedCommand {
-  readonly blockIndex: number;
-  readonly command: TimelineCommand<EngineKind>;
-}
-
-// Test Harness
-
-interface DeckTimelineHarness {
-  readonly timeline: TimelineDriver<EngineKind>;
-  readonly pendingRTCommands: TimelineCommand<EngineKind>[];
-  readonly recordedSteps: RecordedStep[];
-  readonly recordedCommands: RecordedCommand[];
-  readonly schedulerConfig: HotswapSchedulerConfig<
-    EngineKind,
-    HotswapCommand<EngineKind>
-  >;
-
-  /**
-   * Simulates a single audio block on the RT side.
-   * Drains pending commands, processes the timeline block, and records all
-   * hotswap step decisions made during segment rendering.
-   */
-  simulateBlock(blockFrames: number): void;
-
-  /**
-   * Runs the RT simulation until the swap completes (returns to idle phase
-   * with the target engine active) or maxBlocks is exceeded.
-   */
-  runUntilSwapComplete(
-    blockFrames: number,
-    maxBlocks: number,
-  ): { completed: boolean; blocksRun: number };
-}
-
-function createDeckTimelineHarness(): DeckTimelineHarness {
-  // Set up real CommandMailbox with hotswap codec
-  const codec = createHotswapCommandCodec<EngineKind>();
-  const layout: SwsrRingLayout = {
-    capacity: 16,
-    wordsPerSlot: HOTSWAP_COMMAND_WORDS_PER_SLOT,
-  };
-  const mailbox = createCommandMailbox<HotswapCommand<EngineKind>>({
-    mailboxId: "deck-0",
-    codec,
-    layout,
-  });
-
-  // Create real HotswapSlotDriver
-  const hotswapSlot = createHotswapSlotDriver<EngineKind>();
-
-  // Create TimelineDriver with real slot driver
-  const timeline: TimelineDriver<EngineKind> = {
-    frame: 0,
-    isPlaying: true,
-    slicer: createSlicerState<TimelineCommand<EngineKind>>(),
-    hotswapSlot,
-  };
-
-  // Scheduler configuration for host-side scheduling
-  const schedulerConfig: HotswapSchedulerConfig<
-    EngineKind,
-    HotswapCommand<EngineKind>
-  > = {
-    mailboxId: "deck-0",
-    producer: mailbox.producer,
-    encodeInstallSwap(
-      ticket: SwapTicketRT<EngineKind>,
-    ): HotswapCommand<EngineKind> {
-      return { tag: HOTSWAP_COMMAND_TAG_INSTALL, ticket };
-    },
-  };
-
-  // Pending RT commands queue.
-  //
-  // Normally this is fed only by mailbox.consumer.drain (installSwap), but tests
-  // may push additional commands directly to exercise priority and ordering.
-  const pendingRTCommands: TimelineCommand<EngineKind>[] = [];
-
-  // Recording arrays for assertions
-  const recordedSteps: RecordedStep[] = [];
-  const recordedCommands: RecordedCommand[] = [];
-
-  // Track current active engine (starts with A)
-  let activeEngineKind: EngineKind = EngineKind.A;
-  let blockIndex = 0;
-
-  function simulateBlock(blockFrames: number): void {
-    const currentBlockIndex = blockIndex;
-    let segmentIndex = 0;
-
-    // Drain mailbox and project HotswapCommand → TimelineCommand.
-    // This is the true E2E path: scheduleSwap enqueues to mailbox,
-    // RT side drains mailbox and creates timeline commands.
-    mailbox.consumer.drain({
-      onCommand(command: HotswapCommand<EngineKind>): void {
-        const { ticket } = command;
-        pendingRTCommands.push({
-          atFrame: ticket.atFrame,
-          priority: 0,
-          payload: {
-            kind: "installSwap",
-            ticket,
-          },
-        });
-      },
-    });
-
-    const blockStart = timeline.frame;
-    const blockEnd = blockStart + blockFrames;
-    const drainedCommands: TimelineCommand<EngineKind>[] = [];
-
-    // Drain pending RT commands that fall into this block
-    for (let i = pendingRTCommands.length - 1; i >= 0; i -= 1) {
-      const cmd = pendingRTCommands[i];
-      if (cmd !== undefined && cmd.atFrame < blockEnd) {
-        drainedCommands.push(cmd);
-        pendingRTCommands.splice(i, 1);
-      }
-    }
-
-    drainedCommands.sort((a, b) => {
-      if (a.atFrame !== b.atFrame) {
-        return a.atFrame - b.atFrame;
-      }
-      return a.priority - b.priority;
-    });
-
-    const callbacks: TimelineProcessCallbacks<EngineKind> = {
-      renderSegment(frames: number): void {
-        const currentNextKind: EngineKind = hotswapSlot.hasState
-          ? (hotswapSlot.state?.ticket.engineKind ?? EngineKind.None)
-          : EngineKind.None;
-
-        const decision = hotswapSlot.stepBlock(
-          frames,
-          activeEngineKind,
-          currentNextKind,
-          EngineKind.None,
-        );
-
-        recordedSteps.push({
-          blockIndex: currentBlockIndex,
-          segmentIndex,
-          segmentFrames: frames,
-          decision,
-        });
-
-        if (decision.kind === "retireNow") {
-          activeEngineKind = currentNextKind;
-        }
-
-        segmentIndex += 1;
-      },
-      applyCommandSideEffects(cmd: TimelineCommand<EngineKind>): void {
-        recordedCommands.push({
-          blockIndex: currentBlockIndex,
-          command: cmd,
-        });
-      },
-    };
-
-    processTimelineBlock(timeline, blockFrames, drainedCommands, callbacks);
-    blockIndex += 1;
-  }
-
-  function runUntilSwapComplete(
-    blockFrames: number,
-    maxBlocks: number,
-  ): { completed: boolean; blocksRun: number } {
-    let blocksRun = 0;
-    let sawNonIdlePhase = false;
-
-    for (let i = 0; i < maxBlocks; i++) {
-      simulateBlock(blockFrames);
-      blocksRun += 1;
-
-      // Check the last recorded step
-      const lastStep = recordedSteps[recordedSteps.length - 1];
-      if (lastStep !== undefined) {
-        const phase = lastStep.decision.status.phase;
-        if (phase !== "idle") {
-          sawNonIdlePhase = true;
-        } else if (sawNonIdlePhase) {
-          // We saw non-idle phases and now returned to idle = completed
-          return { completed: true, blocksRun };
-        }
-      }
-    }
-
-    return { completed: false, blocksRun };
-  }
-
-  return {
-    timeline,
-    pendingRTCommands,
-    recordedSteps,
-    recordedCommands,
-    schedulerConfig,
-    simulateBlock,
-    runUntilSwapComplete,
-  };
-}
-
-// Test Suite
-
-describe("deck timeline integration: scheduleSwap → mailbox → timeline → hotswap slot", () => {
+describe("lane timeline integration: scheduleSwap → mailbox → timeline → hotswap slot", () => {
   it("completes a full hot-swap cycle from idle to swap to idle", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 128;
+    // const swapAfterBlocks = 2
     const atFrame = 256; // Swap starts after 2 blocks
-    const fadeFrames = 256; // 2 blocks of crossfade
+    const fadeFrames = blockFrames * 2; // 2 blocks of crossfade
     const preWarmBlocks = 2;
 
     const ticket: SwapTicketRT<EngineKind> = {
@@ -345,7 +102,7 @@ describe("deck timeline integration: scheduleSwap → mailbox → timeline → h
   });
 
   it("handles immediate swap at frame 0", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -375,7 +132,7 @@ describe("deck timeline integration: scheduleSwap → mailbox → timeline → h
   });
 
   it("correctly counts prewarm blocks", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 128;
@@ -403,7 +160,7 @@ describe("deck timeline integration: scheduleSwap → mailbox → timeline → h
   });
 
   it("handles multi-block crossfade", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -437,7 +194,7 @@ describe("deck timeline integration: scheduleSwap → mailbox → timeline → h
   });
 
   it("records installSwap command via applyCommandSideEffects", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedCommands } = harness;
 
     const blockFrames = 128;
@@ -463,7 +220,7 @@ describe("deck timeline integration: scheduleSwap → mailbox → timeline → h
   });
 
   it("properly advances timeline.frame across blocks", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { timeline, schedulerConfig } = harness;
 
     const blockFrames = 128;
@@ -490,9 +247,9 @@ describe("deck timeline integration: scheduleSwap → mailbox → timeline → h
   });
 });
 
-describe("deck timeline integration: edge cases", () => {
+describe("lane timeline integration: edge cases", () => {
   it("handles late command (atFrame already passed)", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { timeline, schedulerConfig, recordedCommands } = harness;
 
     const blockFrames = 128;
@@ -518,7 +275,7 @@ describe("deck timeline integration: edge cases", () => {
   });
 
   it("maintains slot state across multiple blocks", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { timeline, schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -549,12 +306,16 @@ describe("deck timeline integration: edge cases", () => {
   });
 });
 
-// Back-to-back swaps: "cancel by replacement" pattern
-// Per TLA+ spec, this is the cancellation mechanism—issue a new swap to
-// replace the in-flight one. At 4 swaps/second, this is viable for real DJ use.
-describe("deck timeline integration: back-to-back swaps", () => {
-  it("replaces in-flight swap with new swap (cancel-by-replacement)", () => {
-    const harness = createDeckTimelineHarness();
+// Back-to-back swaps and overlapping policy.
+//
+// Current runtime policy is "reject while busy" at the HotswapSlot level:
+//   - Sequential swaps A→B→C are allowed if tickets are scheduled such that
+//     each swap completes before the next one's atFrame.
+//   - Overlapping attempts while a swap is in-flight must be ignored and must
+//     not perturb the current swap or get the protocol stuck.
+describe("lane timeline integration: back-to-back swaps", () => {
+  it("ignores overlapping replacement while swap is busy (reject-while-busy)", () => {
+    const harness = createLaneTimelineHarness();
     const { timeline, schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -567,6 +328,7 @@ describe("deck timeline integration: back-to-back swaps", () => {
       preWarmBlocks: 4,
     };
 
+    // Start A→B and advance into a non-idle phase so the slot is "busy".
     scheduleSwap(schedulerConfig, ticketAtoB);
 
     harness.simulateBlock(blockFrames);
@@ -574,36 +336,43 @@ describe("deck timeline integration: back-to-back swaps", () => {
     harness.simulateBlock(blockFrames);
 
     const midSwapStep = recordedSteps[recordedSteps.length - 1];
-    expect(midSwapStep?.decision.status.phase).toBe("prewarm");
+    expect(midSwapStep).toBeDefined();
+    expect(midSwapStep?.decision.status.phase).not.toBe("idle");
     expect(timeline.hotswapSlot.state?.ticket.ticketId).toBe(
       ticketAtoB.ticketId,
     );
 
+    const overlapAtFrame = timeline.frame;
+
     const ticketBtoA: SwapTicketRT<EngineKind> = {
       ticketId: createTicketId(101),
       engineKind: EngineKind.A,
-      atFrame: timeline.frame,
+      atFrame: overlapAtFrame,
       fadeFrames: 64,
       preWarmBlocks: 0,
     };
 
+    // This overlapping ticket should be ignored by HotswapSlotDriver.acceptTicket.
     scheduleSwap(schedulerConfig, ticketBtoA);
 
     const { completed } = harness.runUntilSwapComplete(blockFrames, 50);
     expect(completed).toBe(true);
 
-    // Protocol must converge back to idle with the replacement ticket's engine active
+    // Protocol must converge back to idle with the original ticket's engine active.
     const finalStep = recordedSteps[recordedSteps.length - 1];
+    expect(finalStep).toBeDefined();
     expect(finalStep?.decision.status.phase).toBe("idle");
-    expect(finalStep?.decision.status.activeEngineKind).toBe(EngineKind.A);
+    expect(finalStep?.decision.status.activeEngineKind).toBe(EngineKind.B);
 
-    expect(timeline.hotswapSlot.state?.ticket.ticketId).toBe(
-      ticketBtoA.ticketId,
+    // Overlapping replacement must never latch engine A as the "next" engine.
+    const stepsWithNextA = recordedSteps.filter(
+      (s) => s.decision.status.nextEngineKind === EngineKind.A,
     );
+    expect(stepsWithNextA.length).toBe(0);
   });
 
   it("handles rapid successive swaps (stress test at DJ tempo)", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 128;
@@ -635,8 +404,8 @@ describe("deck timeline integration: back-to-back swaps", () => {
     expect(finalStep?.decision.status.phase).toBe("idle");
   });
 
-  it("replacement during crossfade completes cleanly", () => {
-    const harness = createDeckTimelineHarness();
+  it("overlapping replacement during crossfade keeps original swap and completes cleanly", () => {
+    const harness = createLaneTimelineHarness();
     const { timeline, schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -651,6 +420,7 @@ describe("deck timeline integration: back-to-back swaps", () => {
 
     scheduleSwap(schedulerConfig, ticket1);
 
+    // Drive until we are definitely in crossfade.
     for (let i = 0; i < 5; i++) {
       harness.simulateBlock(blockFrames);
     }
@@ -660,38 +430,47 @@ describe("deck timeline integration: back-to-back swaps", () => {
     );
     expect(crossfadeStep).toBeDefined();
 
+    const overlapAtFrame = timeline.frame;
+
     const ticket2: SwapTicketRT<EngineKind> = {
       ticketId: createTicketId(301),
       engineKind: EngineKind.A,
-      atFrame: timeline.frame,
+      atFrame: overlapAtFrame,
       fadeFrames: 64,
       preWarmBlocks: 0,
     };
 
+    // This is an overlapping replacement attempt during crossfade.
     scheduleSwap(schedulerConfig, ticket2);
 
     const { completed } = harness.runUntilSwapComplete(blockFrames, 50);
     expect(completed).toBe(true);
 
-    // Protocol must converge: replacement during crossfade still reaches idle
+    // Protocol must converge: we end idle with the original ticket's engine.
     const finalStep = recordedSteps[recordedSteps.length - 1];
-    expect(finalStep?.decision.status.activeEngineKind).toBe(EngineKind.A);
+    expect(finalStep).toBeDefined();
+    expect(finalStep?.decision.status.phase).toBe("idle");
+    expect(finalStep?.decision.status.activeEngineKind).toBe(EngineKind.B);
+
+    // And we never staged a B→A swap at the protocol level.
+    const stepsWithNextA = recordedSteps.filter(
+      (s) => s.decision.status.nextEngineKind === EngineKind.A,
+    );
+    expect(stepsWithNextA.length).toBe(0);
   });
 });
 
-// Invalid ticket rejection: defense in depth
-// Invalid ticket rejection: defense in depth
-
-describe("deck timeline integration: invalid ticket rejection", () => {
+describe("lane timeline integration: invalid ticket rejection", () => {
   it("rejects ticket with fadeFrames = 0", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig } = harness;
 
     const invalidTicket: SwapTicketRT<EngineKind> = {
       ticketId: createTicketId(10),
       engineKind: EngineKind.B,
       atFrame: 0,
-      fadeFrames: 0, // Invalid: must be >= 1
+      // Invalid: must be >= 1
+      fadeFrames: 0,
       preWarmBlocks: 0,
     };
 
@@ -701,7 +480,7 @@ describe("deck timeline integration: invalid ticket rejection", () => {
   });
 
   it("rejects ticket with negative preWarmBlocks", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig } = harness;
 
     const invalidTicket: SwapTicketRT<EngineKind> = {
@@ -718,7 +497,7 @@ describe("deck timeline integration: invalid ticket rejection", () => {
   });
 
   it("rejects ticket with ticketId = 0", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig } = harness;
 
     // Test-only: bypass createTicketId to verify scheduleSwap's own validation
@@ -742,11 +521,9 @@ describe("deck timeline integration: invalid ticket rejection", () => {
   });
 });
 
-// Additional edge cases
-
-describe("deck timeline integration: additional edge cases", () => {
+describe("lane timeline integration: additional edge cases", () => {
   it("handles zero-frame segment (command at exact block start)", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 128;
@@ -771,7 +548,7 @@ describe("deck timeline integration: additional edge cases", () => {
   });
 
   it("completes very short swap within single block", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 256;
@@ -802,7 +579,7 @@ describe("deck timeline integration: additional edge cases", () => {
   });
 
   it("handles same-engine swap (A→A re-init scenario)", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -834,7 +611,7 @@ describe("deck timeline integration: additional edge cases", () => {
   });
 
   it("maintains progress in [0, 1] bounds throughout swap", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { schedulerConfig, recordedSteps } = harness;
 
     const blockFrames = 64;
@@ -869,7 +646,7 @@ describe("deck timeline integration: additional edge cases", () => {
   });
 
   it("handles multiple commands at same frame with different priorities", () => {
-    const harness = createDeckTimelineHarness();
+    const harness = createLaneTimelineHarness();
     const { pendingRTCommands, schedulerConfig, recordedCommands, timeline } =
       harness;
 
@@ -887,10 +664,10 @@ describe("deck timeline integration: additional edge cases", () => {
 
     // Add a non-mailbox command (stop) at the same frame to test priority ordering
     // The installSwap comes from mailbox drain, stopCmd is pushed directly
-    const stopCmd: TimelineCommand<EngineKind> = {
+    const stopCmd = {
       atFrame: 64,
       priority: 10,
-      payload: { kind: "stop" },
+      payload: { kind: "stop" as const },
     };
     pendingRTCommands.push(stopCmd);
 

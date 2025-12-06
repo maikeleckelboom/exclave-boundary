@@ -7,7 +7,7 @@ import type {
 import type { SpecInput } from "../../src/spec/types";
 
 interface S extends SpecInput {
-  readonly id: "deck";
+  readonly id: "lane";
   readonly params: {
     readonly coeffs: {
       readonly kind: "f32.array";
