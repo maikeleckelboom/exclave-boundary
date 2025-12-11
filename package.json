@@ -62,9 +62,7 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
-  },
-  "dependencies": {
+    "vitest": "catalog:",
     "@tailwindcss/vite": "catalog:"
   }
 }

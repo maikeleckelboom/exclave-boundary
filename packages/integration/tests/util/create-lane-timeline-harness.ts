@@ -8,10 +8,10 @@
  * or audio samples.
  */
 
-import { createLaneRuntimeCore } from "./create-lane-runtime-core";
-import { drainMailboxAndPendingCommands } from "./timeline-rt-drain";
 import {
+  createLaneRuntimeCore,
   processTimelineBlock,
+  drainHotswapMailboxIntoTimeline,
   type TimelineCommand,
   type TimelineDriver,
   type TimelineProcessCallbacks,
@@ -23,20 +23,13 @@ import type {
   HotswapSchedulerConfig,
 } from "@seqlok/hotswap";
 
-/**
- * Minimal engine kind enum for testing the hot-swap protocol.
- * None is the sentinel indicating "no engine", A is the initial engine,
- * and B is the target engine we swap to.
- */
 export enum EngineKind {
   None = 0,
   A = 1,
   B = 2,
+  C = 3,
 }
 
-/**
- * Recorded step decision for post-hoc assertion.
- */
 export interface RecordedStep {
   readonly blockIndex: number;
   readonly segmentIndex: number;
@@ -44,17 +37,11 @@ export interface RecordedStep {
   readonly decision: SwapStepDecisionRT<EngineKind>;
 }
 
-/**
- * Recorded command application for tracking timeline command side effects.
- */
 export interface RecordedCommand {
   readonly blockIndex: number;
   readonly command: TimelineCommand<EngineKind>;
 }
 
-/**
- * Test harness surface for lane.timeline integration tests.
- */
 export interface LaneTimelineHarness {
   readonly timeline: TimelineDriver<EngineKind>;
   readonly pendingRTCommands: TimelineCommand<EngineKind>[];
@@ -81,7 +68,6 @@ export function createLaneTimelineHarness(): LaneTimelineHarness {
   const recordedSteps: RecordedStep[] = [];
   const recordedCommands: RecordedCommand[] = [];
 
-  // Track current active engine (starts with A).
   let activeEngineKind: EngineKind = EngineKind.A;
   let blockIndex = 0;
 
@@ -89,12 +75,12 @@ export function createLaneTimelineHarness(): LaneTimelineHarness {
     const currentBlockIndex = blockIndex;
     let segmentIndex = 0;
 
-    const drainedCommands = drainMailboxAndPendingCommands(
-      mailbox,
-      pendingRTCommands,
+    const drainedCommands = drainHotswapMailboxIntoTimeline({
+      mailboxConsumer: mailbox.consumer,
+      pendingCommands: pendingRTCommands,
       timeline,
       blockFrames,
-    );
+    });
 
     const callbacks: TimelineProcessCallbacks<EngineKind> = {
       renderSegment(frames: number): void {
@@ -117,12 +103,12 @@ export function createLaneTimelineHarness(): LaneTimelineHarness {
         });
 
         if (decision.kind === "retireNow") {
-          // IMPORTANT: adopt the ticket's engine as the new active engine.
           activeEngineKind = currentNextKind;
         }
 
         segmentIndex += 1;
       },
+
       applyCommandSideEffects(cmd: TimelineCommand<EngineKind>): void {
         recordedCommands.push({
           blockIndex: currentBlockIndex,
@@ -147,14 +133,15 @@ export function createLaneTimelineHarness(): LaneTimelineHarness {
       blocksRun += 1;
 
       const lastStep = recordedSteps[recordedSteps.length - 1];
-      if (lastStep !== undefined) {
-        const phase = lastStep.decision.status.phase;
-        if (phase !== "idle") {
-          sawNonIdlePhase = true;
-        } else if (sawNonIdlePhase) {
-          // We saw non-idle phases and now returned to idle = completed.
-          return { completed: true, blocksRun };
-        }
+      if (lastStep === undefined) {
+        continue;
+      }
+
+      const phase = lastStep.decision.status.phase;
+      if (phase !== "idle") {
+        sawNonIdlePhase = true;
+      } else if (sawNonIdlePhase) {
+        return { completed: true, blocksRun };
       }
     }
 

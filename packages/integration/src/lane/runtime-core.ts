@@ -10,30 +10,21 @@ import {
 
 import {
   createHotswapSlotDriver,
-  createSlicerState,
+  type HotswapSlotDriver,
+} from "../hotswap/slot-driver";
+import {
   type TimelineCommand,
   type TimelineDriver,
-} from "../../src";
+} from "../transport/timeline-driver";
+import { createSlicerState } from "../transport/timeline-slicer";
 
-/**
- * Runtime core for a single lane:
- *
- * - CommandMailbox (SWSR ring)
- * - HotswapSlotDriver
- * - TimelineDriver
- * - Host-side HotswapSchedulerConfig (for scheduleSwap)
- *
- * This is generic in EngineKindEnum so different harnesses
- * (timeline-only vs engine-bank) can plug in their own engine enums.
- */
 export interface LaneRuntimeCore<EngineKindEnum extends number> {
   readonly mailbox: {
     readonly producer: ReturnType<typeof createCommandMailbox>["producer"];
     readonly consumer: ReturnType<typeof createCommandMailbox>["consumer"];
   };
-
   readonly timeline: TimelineDriver<EngineKindEnum>;
-  readonly hotswapSlot: ReturnType<typeof createHotswapSlotDriver>;
+  readonly hotswapSlot: HotswapSlotDriver<EngineKindEnum>;
   readonly schedulerConfig: HotswapSchedulerConfig<
     EngineKindEnum,
     HotswapCommand<EngineKindEnum>
@@ -41,14 +32,12 @@ export interface LaneRuntimeCore<EngineKindEnum extends number> {
 }
 
 /**
- * Construct a lane runtime core for tests.
+ * Canonical “lane substrate”:
  *
- * This mirrors what a real lane would wire up:
- * - Mailbox with hotswap command codec
- * - Timeline driver with hotswap slot
- * - Scheduler config that:
- *   - encodes installSwap commands into the mailbox
- *   - enforces Level 2.5 "reject-while-busy" using isLaneBusy
+ * - allocates a command mailbox for the lane
+ * - wires a TimelineDriver to a HotswapSlotDriver
+ * - builds a HotswapSchedulerConfig that enqueues install-swap commands
+ * - defines the lane-busy policy (“non-idle swap state → busy”)
  */
 export function createLaneRuntimeCore<EngineKindEnum extends number>(
   mailboxId: string,
@@ -87,22 +76,6 @@ export function createLaneRuntimeCore<EngineKindEnum extends number>(
         ticket,
       };
     },
-
-    /**
-     * Level 2.5 "Reject While Busy" hook.
-     *
-     * For the tests we approximate "lane busy" as:
-     *   - there is slot state, AND
-     *   - the current phase is non-idle.
-     *
-     * This lets us:
-     *   - reject overlapping swaps while a fade is in-flight, and
-     *   - accept a new swap once we have idled on the previous ticket
-     *     (so A→B→C sequential swaps work).
-     *
-     * In a real host, this would be driven by a lane-status mirror
-     * updated from the RT thread (e.g. via introspect snapshots).
-     */
     isLaneBusy(): boolean {
       const state = hotswapSlot.state;
       if (state === null) {

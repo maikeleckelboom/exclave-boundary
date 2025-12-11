@@ -32,7 +32,6 @@ export type { HotswapSlotDriver } from "./hotswap/slot-driver";
  * into a hotswap slot driver.
  */
 
-// Pure slicer primitives (timeline-agnostic)
 export type {
   ScheduledCommandBase,
   BlockSegment,
@@ -44,10 +43,27 @@ export {
   sliceBlock,
 } from "./transport/timeline-slicer";
 
-// Timeline + hotswap wiring
 export type {
   TimelineCommand,
   TimelineDriver,
   TimelineProcessCallbacks,
 } from "./transport/timeline-driver";
 export { processTimelineBlock } from "./transport/timeline-driver";
+export {
+  createLaneRuntimeCore,
+  type LaneRuntimeCore,
+} from "./lane/runtime-core";
+export {
+  type EngineInstance,
+  type EngineBank,
+  SimpleEngineBank,
+} from "./lane/engine-bank";
+export {
+  drainHotswapMailboxIntoTimeline,
+  type HotswapDrainContext,
+} from "./lane/hotswap-timeline-drain";
+export type {
+  LaneProcessorPlugin,
+  LaneObserverPlugin,
+  LanePluginPack,
+} from "./lane/lane-plugins";

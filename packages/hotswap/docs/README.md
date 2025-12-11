@@ -59,10 +59,6 @@ start there.
 - [archive/stretch-engine-config-v0-design.md](./archive/stretch-engine-config-v0-design.md)  
   Older stretch-engine configuration design kept for historical context.
 
-- [archive/test-vectors.json](./archive/test-vectors.json)  
-  Golden test vectors for swap sequences. TS, C++, and any other impls must
-  agree on these.
-
 ---
 
 ## 2. Who should read what?

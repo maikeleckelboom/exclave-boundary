@@ -8,13 +8,15 @@
  * semantics without touching Web Audio.
  */
 
-import { createLaneRuntimeCore } from "./create-lane-runtime-core";
-import { drainMailboxAndPendingCommands } from "./timeline-rt-drain";
 import {
+  createLaneRuntimeCore,
   processTimelineBlock,
+  drainHotswapMailboxIntoTimeline,
   type TimelineCommand,
   type TimelineDriver,
   type TimelineProcessCallbacks,
+  type EngineInstance,
+  SimpleEngineBank,
 } from "../../src";
 
 import type {
@@ -23,15 +25,6 @@ import type {
   HotswapSchedulerConfig,
 } from "@seqlok/hotswap";
 
-/**
- * Engine identifiers used in the tests.
- *
- * None is the sentinel, A/B/C are concrete engines with constant sample
- * values. The exact mapping is:
- *   - A = 1.0
- *   - B = 2.0
- *   - C = 3.0
- */
 export enum EngineKind {
   None = 0,
   A = 1,
@@ -39,21 +32,7 @@ export enum EngineKind {
   C = 3,
 }
 
-/**
- * Simple engine abstraction: renders into a Float32Array for N frames.
- */
-export interface EngineInstance {
-  readonly kind: EngineKind;
-  render(dst: Float32Array, frames: number): void;
-}
-
-/**
- * Test engine that outputs a constant value.
- *
- * With A/B/C mapped to 1/2/3, crossfade math becomes easy to reason about:
- *   output = currentGain * A + nextGain * B/C.
- */
-export class ConstantEngine implements EngineInstance {
+export class ConstantEngine implements EngineInstance<EngineKind> {
   constructor(
     public readonly kind: EngineKind,
     private readonly value: number,
@@ -66,33 +45,6 @@ export class ConstantEngine implements EngineInstance {
   }
 }
 
-/**
- * EngineBank indirection so the lane never talks to engines directly.
- */
-export interface EngineBank<K extends number> {
-  get(kind: K): EngineInstance | null;
-  unregister(kind: K): void;
-}
-
-export class SimpleEngineBank implements EngineBank<EngineKind> {
-  private readonly map = new Map<EngineKind, EngineInstance>();
-
-  register(engine: EngineInstance): void {
-    this.map.set(engine.kind, engine);
-  }
-
-  unregister(kind: EngineKind): void {
-    this.map.delete(kind);
-  }
-
-  get(kind: EngineKind): EngineInstance | null {
-    return this.map.get(kind) ?? null;
-  }
-}
-
-/**
- * Audio block + decision snapshot for sample-level assertions.
- */
 export interface RecordedAudioBlock {
   readonly blockIndex: number;
   readonly segmentIndex: number;
@@ -100,12 +52,9 @@ export interface RecordedAudioBlock {
   readonly decision: SwapStepDecisionRT<EngineKind>;
 }
 
-/**
- * Public harness surface for engine-bank integration tests.
- */
 export interface LaneEngineHarness {
   readonly timeline: TimelineDriver<EngineKind>;
-  readonly bank: SimpleEngineBank;
+  readonly bank: SimpleEngineBank<EngineKind, EngineInstance<EngineKind>>;
   readonly pendingRTCommands: TimelineCommand<EngineKind>[];
   readonly recordedAudio: RecordedAudioBlock[];
   readonly schedulerConfig: HotswapSchedulerConfig<
@@ -121,18 +70,12 @@ export interface LaneEngineHarness {
   ): { completed: boolean; blocksRun: number };
 }
 
-/**`
- * Builds a lane engine harness:
- *   - underlying lane runtime (mailbox + timeline + scheduler)
- *   - constant-valued engine bank
- *   - crossfade mixer that interprets SwapStepDecisionRT as gains
- */
 export function createLaneEngineHarness(): LaneEngineHarness {
   const { mailbox, timeline, schedulerConfig } =
     createLaneRuntimeCore<EngineKind>("lane-0");
 
-  // Engine bank with constant engines: A = 1, B = 2, C = 3.
-  const bank = new SimpleEngineBank();
+  const bank = new SimpleEngineBank<EngineKind, EngineInstance<EngineKind>>();
+
   bank.register(new ConstantEngine(EngineKind.A, 1.0));
   bank.register(new ConstantEngine(EngineKind.B, 2.0));
   bank.register(new ConstantEngine(EngineKind.C, 3.0));
@@ -156,6 +99,21 @@ export function createLaneEngineHarness(): LaneEngineHarness {
     return ticket.fadeFrames;
   }
 
+  function renderEngine(
+    engine: EngineInstance<EngineKind> | null,
+    dst: Float32Array,
+    frames: number,
+  ): void {
+    if (engine !== null) {
+      engine.render(dst, frames);
+      return;
+    }
+
+    for (let i = 0; i < frames; i += 1) {
+      dst[i] = 0;
+    }
+  }
+
   function mixCrossfade(
     dst: Float32Array,
     frames: number,
@@ -166,55 +124,31 @@ export function createLaneEngineHarness(): LaneEngineHarness {
 
     const totalFadeFrames = getActiveTicketFadeFrames();
     if (totalFadeFrames <= 0) {
-      // Degenerate case: no fade, just jump to next engine.
-      if (next !== null) {
-        next.render(dst, frames);
-      } else if (current !== null) {
-        current.render(dst, frames);
-      } else {
-        for (let i = 0; i < frames; i += 1) {
-          dst[i] = 0;
-        }
-      }
+      renderEngine(next ?? current, dst, frames);
       return;
     }
 
-    const currentBuf = new Float32Array(frames);
-    const nextBuf = new Float32Array(frames);
+    const currentSamples = new Float32Array(frames);
+    const nextSamples = new Float32Array(frames);
 
-    if (current !== null) {
-      current.render(currentBuf, frames);
-    } else {
-      for (let i = 0; i < frames; i += 1) {
-        currentBuf[i] = 0;
-      }
-    }
-
-    if (next !== null) {
-      next.render(nextBuf, frames);
-    } else {
-      for (let i = 0; i < frames; i += 1) {
-        nextBuf[i] = 0;
-      }
-    }
+    renderEngine(current, currentSamples, frames);
+    renderEngine(next, nextSamples, frames);
 
     const segmentStart = crossfadeFramesElapsed;
     const segmentEnd = segmentStart + frames;
+    const localFadeFrames = totalFadeFrames - 1;
 
-    for (let i = 0; i < frames; i += 1) {
-      const globalFrame = segmentStart + i;
-      const clampedFrame =
-        globalFrame >= totalFadeFrames ? totalFadeFrames : globalFrame;
-      const progress =
-        totalFadeFrames === 0 ? 1 : clampedFrame / totalFadeFrames;
+    for (let frameIndex = 0; frameIndex < frames; frameIndex += 1) {
+      const absoluteFrame = segmentStart + frameIndex;
+      const t = Math.min(1, Math.max(0, absoluteFrame / localFadeFrames));
 
-      const currentGain = 1 - progress;
-      const nextGain = progress;
+      const gainCurrent = 1 - t;
+      const gainNext = t;
 
-      const currentSample = currentBuf[i] ?? 0;
-      const nextSample = nextBuf[i] ?? 0;
+      const currentSample = currentSamples[frameIndex] ?? 0;
+      const nextSample = nextSamples[frameIndex] ?? 0;
 
-      dst[i] = currentSample * currentGain + nextSample * nextGain;
+      dst[frameIndex] = gainCurrent * currentSample + gainNext * nextSample;
     }
 
     crossfadeFramesElapsed = segmentEnd;
@@ -224,12 +158,12 @@ export function createLaneEngineHarness(): LaneEngineHarness {
     const currentBlockIndex = blockIndex;
     let segmentIndex = 0;
 
-    const drainedCommands = drainMailboxAndPendingCommands(
-      mailbox,
-      pendingRTCommands,
+    const drainedCommands = drainHotswapMailboxIntoTimeline({
+      mailboxConsumer: mailbox.consumer,
+      pendingCommands: pendingRTCommands,
       timeline,
       blockFrames,
-    );
+    });
 
     const callbacks: TimelineProcessCallbacks<EngineKind> = {
       renderSegment(frames: number): void {
@@ -244,60 +178,44 @@ export function createLaneEngineHarness(): LaneEngineHarness {
           EngineKind.None,
         );
 
-        // Ignore zero-length segments for audio recording: they are protocol
-        // artifacts and should not produce samples.
-        if (frames > 0) {
-          const samples = new Float32Array(frames);
+        const samples = new Float32Array(frames);
 
-          if (decision.status.phase === "crossfade") {
-            if (lastPhase !== "crossfade") {
-              crossfadeFramesElapsed = 0;
-            }
-            mixCrossfade(samples, frames, decision.status);
-          } else if (decision.kind === "runCurrentAndPrewarmNext") {
-            const current = bank.get(decision.status.activeEngineKind);
-            if (current !== null) {
-              current.render(samples, frames);
-            } else {
-              for (let i = 0; i < frames; i += 1) {
-                samples[i] = 0;
-              }
-            }
-
-            const next = bank.get(decision.status.nextEngineKind);
-            if (next !== null) {
-              const scratch = new Float32Array(frames);
-              next.render(scratch, frames);
-              // scratch is intentionally discarded: prewarm only
-            }
-          } else {
-            const current = bank.get(decision.status.activeEngineKind);
-            if (current !== null) {
-              current.render(samples, frames);
-            } else {
-              for (let i = 0; i < frames; i += 1) {
-                samples[i] = 0;
-              }
-            }
+        if (decision.status.phase === "crossfade") {
+          if (lastPhase !== "crossfade") {
+            crossfadeFramesElapsed = 0;
           }
+          mixCrossfade(samples, frames, decision.status);
+        } else if (decision.kind === "runCurrentAndPrewarmNext") {
+          const current = bank.get(decision.status.activeEngineKind);
+          renderEngine(current, samples, frames);
 
-          recordedAudio.push({
-            blockIndex: currentBlockIndex,
-            segmentIndex,
-            samples,
-            decision,
-          });
+          const next = bank.get(decision.status.nextEngineKind);
+          if (next !== null) {
+            const throwaway = new Float32Array(frames);
+            renderEngine(next, throwaway, frames);
+          }
+        } else {
+          const current = bank.get(decision.status.activeEngineKind);
+          renderEngine(current, samples, frames);
+        }
 
-          segmentIndex += 1;
+        recordedAudio.push({
+          blockIndex: currentBlockIndex,
+          segmentIndex,
+          samples,
+          decision,
+        });
+
+        if (decision.kind === "retireNow") {
+          activeEngineKind = currentNextKind;
         }
 
         lastPhase = decision.status.phase;
+        segmentIndex += 1;
+      },
 
-        if (decision.kind === "retireNow") {
-          // IMPORTANT: adopt the next engine as the new active engine.
-          activeEngineKind = decision.status.nextEngineKind;
-          crossfadeFramesElapsed = 0;
-        }
+      applyCommandSideEffects(): void {
+        // No-op in this harness: we only care about audio and decisions.
       },
     };
 
@@ -317,13 +235,15 @@ export function createLaneEngineHarness(): LaneEngineHarness {
       blocksRun += 1;
 
       const lastBlock = recordedAudio[recordedAudio.length - 1];
-      if (lastBlock !== undefined) {
-        const phase = lastBlock.decision.status.phase;
-        if (phase !== "idle") {
-          sawNonIdlePhase = true;
-        } else if (sawNonIdlePhase) {
-          return { completed: true, blocksRun };
-        }
+      if (lastBlock === undefined) {
+        continue;
+      }
+
+      const phase = lastBlock.decision.status.phase;
+      if (phase !== "idle") {
+        sawNonIdlePhase = true;
+      } else if (sawNonIdlePhase) {
+        return { completed: true, blocksRun };
       }
     }
 

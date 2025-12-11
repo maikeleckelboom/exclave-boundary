@@ -32,7 +32,7 @@ catalog:
   vite: ^7.2.6
   vitest: 4.0.13
   vue: 3.5.25
-  "vue-router": ^4.6.3
+  vue-router: ^4.6.3
 
 catalogMode: prefer
 
@@ -43,3 +43,6 @@ onlyBuiltDependencies:
   - simple-git-hooks
   - unrs-resolver
   - vue-demi
+
+overrides:
+  hotswap: link:../../maikel/.local/share/pnpm/global/5/node_modules/@seqlok/hotswap

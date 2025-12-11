@@ -61,29 +61,4 @@ describe("Public API Surface (Runtime Exports)", () => {
 
     expect(runtimeExports).toEqual(expectedExports);
   });
-
-  /*
-    it("wires SeqlokError and interpretHealth through the public surface", () => {
-      const error = new seqlok.SeqlokError(
-        "introspect.counterInvalid",
-        "Counter name is invalid",
-        { where: "public-api.types.test" },
-        {
-          severity: "warning",
-          recoverable: true,
-          boundarySafe: false,
-        },
-      );
-
-      expect(error).toBeInstanceOf(seqlok.SeqlokError);
-      expect(seqlok.isSeqlokError(error)).toBe(true);
-
-      const health = seqlok.interpretHealth(error.meta);
-
-      expect(["fatal", "error", "warning"]).toContain(health.status);
-      expect(health.label.length).toBeGreaterThan(0);
-      expect(typeof health.label).toBe("string");
-      expect(typeof health.hint === "string").toBe(true);
-    });
-  */
 });

@@ -22,35 +22,28 @@ import type { ObserverBinding, ObserverOptions } from "../common/types";
 
 const EMPTY_PARAM_DEFS: Readonly<Record<string, ParamDef>> = {};
 
+interface NormalizedObserverSource<S extends SpecInput> {
+  readonly plan: Plan<S>;
+  readonly backing: Backing;
+  readonly defs: Readonly<Record<string, ParamDef>>;
+}
+
 /**
- * Bind a read-only observer to the shared state (Worker / Handoff variant).
+ * Bind a read-only observer to the shared state (high-level variant).
  *
  * @remarks
- * - Used in AudioWorklets or Workers receiving a handoff.
- * - Enums are surfaced as raw numeric indices because the full Spec definition
- *   (and thus label strings) is not present in the Handoff.
+ * - If `source` is a `SharedContext`, enums are surfaced as string labels
+ *   because the Spec (and labels) are available.
+ * - If `source` is a `ReceivedHandoff`, enums are surfaced as numeric indices
+ *   because the Spec is not present on the remote side.
  */
 export function bindObserver<S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+  source: ReceivedHandoff<S> | SharedContext<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 
 /**
- * Bind a read-only observer to the shared state (Host / Context variant).
- *
- * @remarks
- * - Used on the main thread where `SharedContext` is available.
- * - Enums are surfaced as string labels because the Spec is available.
- */
-
-export function bindObserver<S extends SpecInput>(
-  // eslint-disable-next-line @typescript-eslint/unified-signatures
-  context: SharedContext<S>,
-  options?: ObserverOptions,
-): ObserverBinding<S>;
-
-/**
- * Bind a read-only observer to the shared state (Host / Explicit variant).
+ * Bind a read-only observer to the shared state (Host / explicit low-level variant).
  *
  * @remarks
  * - Low-level injection if you are managing resources manually.
@@ -71,10 +64,20 @@ export function bindObserver<S extends SpecInput>(
   arg3?: Backing,
   arg4?: ObserverOptions,
 ): ObserverBinding<S> {
+  const { plan, backing, defs } = normalizeSource(arg1, arg2, arg3);
+  const options = getOptions(arg1, arg2, arg4);
+
+  return observerImpl(plan, backing, defs, options);
+}
+
+function normalizeSource<S extends SpecInput>(
+  arg1: ReceivedHandoff<S> | SharedContext<S> | S,
+  arg2?: ObserverOptions | Plan<S>,
+  arg3?: Backing,
+): NormalizedObserverSource<S> {
   // Case 1: ReceivedHandoff (Worker / remote side)
   if (isReceivedHandoff<S>(arg1)) {
     const received = arg1;
-    const options = arg2 as ObserverOptions | undefined;
 
     const backing: Backing =
       received.packing === "shared"
@@ -84,28 +87,56 @@ export function bindObserver<S extends SpecInput>(
             planes: received.planes,
           };
 
-    // No spec on the remote side: enums remain numeric indices.
-    return observerImpl(received.plan, backing, EMPTY_PARAM_DEFS, options);
+    return {
+      plan: received.plan,
+      backing,
+      defs: EMPTY_PARAM_DEFS,
+    };
   }
 
   // Case 2: SharedContext (Host ergonomic)
   if (isSharedContext<S>(arg1)) {
     const ctx = arg1;
-    const options = arg2 as ObserverOptions | undefined;
     const defs: Readonly<Record<string, ParamDef>> = ctx.spec.params ?? {};
 
-    return observerImpl(ctx.plan, ctx.backing, defs, options);
+    return {
+      plan: ctx.plan,
+      backing: ctx.backing,
+      defs,
+    };
   }
 
   // Case 3: Explicit triple (Host low-level)
   const spec = arg1;
   const plan = arg2 as Plan<S>;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const backing = arg3!;
-  const options = arg4;
+
+  if (arg3 === undefined) {
+    throw new Error(
+      "bindObserver: backing is required when binding from (spec, plan, backing).",
+    );
+  }
+
+  const backing = arg3;
   const defs: Readonly<Record<string, ParamDef>> = spec.params ?? {};
 
-  return observerImpl(plan, backing, defs, options);
+  return {
+    plan,
+    backing,
+    defs,
+  };
+}
+
+function getOptions<S extends SpecInput>(
+  arg1: ReceivedHandoff<S> | SharedContext<S> | S,
+  arg2?: ObserverOptions | Plan<S>,
+  arg4?: ObserverOptions,
+): ObserverOptions | undefined {
+  if (isReceivedHandoff<S>(arg1) || isSharedContext<S>(arg1)) {
+    return arg2 as ObserverOptions | undefined;
+  }
+
+  // Explicit triple variant: options is the 4th argument.
+  return arg4;
 }
 
 function isReceivedHandoff<S extends SpecInput>(

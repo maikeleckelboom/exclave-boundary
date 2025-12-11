@@ -30,6 +30,9 @@ export { bindController } from "./binding/controller";
 export { bindProcessor } from "./binding/processor";
 export { bindObserver } from "./binding/observer";
 
+// ProcessorContext,
+// ObserverContext,
+
 // BINDING TYPES
 export type {
   ControllerBinding,

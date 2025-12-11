@@ -320,7 +320,7 @@ export type Ephemeral<T extends EphemeralTypedArray> = T & {
 /**
  * Alias for the full processor-side param shape, kept for readability.
  */
-export type RawParamShape<S extends SpecInput> = ParamShape<S>;
+// export type RawParamShape<S extends SpecInput> = ParamShape<S>;
 
 /**
  * Policy for handling out-of-range param writes on the controller side.
