@@ -3,52 +3,53 @@
  * Public observer binding factory.
  *
  * @remarks
- * - Bridges `ReceivedHandoff` or `SharedContext` into a typed `ObserverBinding`.
- * - Host-side (context/spec) observers can surface rich shapes (e.g. enum labels).
- * - Worker-side (handoff) observers fall back to numeric enum indices.
- * - Can be used in the same thread as the Controller OR in workers.
- * - Safe to have multiple observers on the same handoff.
+ * Binds a read-only observer to shared state using one of two input shapes:
+ * - **Handoff / ReceivedHandoff**: remote-side friendly; Spec is typically unavailable.
+ * - **SharedContext / (spec, plan, backing)**: host-side friendly; Spec is available.
+ *
+ * When the Spec is not available, param defs are empty and enum values remain numeric.
+ * Argument misuse throws `binding.invalidArgs`.
  */
 
 import { observerImpl } from "./impl";
 import { isSharedContext } from "../../context/guard";
+import { receiveHandoff } from "../../handoff/handoff";
+import { throwInvalidBindingArgs } from "../common/arg-errors";
+import {
+  backingFromReceived,
+  isHandoff,
+  isReceivedHandoff,
+} from "../common/handoff-source";
+import { getParamDefs } from "../common/param-defs";
 
 import type { Backing } from "../../backing/types";
 import type { SharedContext } from "../../context/types";
-import type { ReceivedHandoff } from "../../handoff/types";
+import type { Handoff, ReceivedHandoff } from "../../handoff/types";
 import type { Plan } from "../../plan/types";
-import type { ParamDef, SpecInput } from "../../spec/types";
+import type { SpecInput } from "../../spec/types";
+import type { ParamDefs } from "../common/param-defs";
 import type { ObserverBinding, ObserverOptions } from "../common/types";
 
-const EMPTY_PARAM_DEFS: Readonly<Record<string, ParamDef>> = {};
-
-interface NormalizedObserverSource<S extends SpecInput> {
-  readonly plan: Plan<S>;
-  readonly backing: Backing;
-  readonly defs: Readonly<Record<string, ParamDef>>;
-}
-
 /**
- * Bind a read-only observer to the shared state (high-level variant).
+ * Bind an observer from a high-level source.
  *
  * @remarks
- * - If `source` is a `SharedContext`, enums are surfaced as string labels
- *   because the Spec (and labels) are available.
- * - If `source` is a `ReceivedHandoff`, enums are surfaced as numeric indices
- *   because the Spec is not present on the remote side.
+ * - `SharedContext` surfaces host-side richness via Spec param defs.
+ * - `Handoff` / `ReceivedHandoff` binds from the embedded plan and shared memory only.
  */
-export function bindObserver<S extends SpecInput>(
-  source: ReceivedHandoff<S> | SharedContext<S>,
+export function bindObserver<const S extends SpecInput>(
+  source: Handoff<S> | ReceivedHandoff<S> | SharedContext<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 
 /**
- * Bind a read-only observer to the shared state (Host / explicit low-level variant).
+ * Bind an observer from explicit inputs.
  *
  * @remarks
- * - Low-level injection if you are managing resources manually.
+ * This form is useful in tests, custom hosts, or when you are composing bindings
+ * around a plan/backing that you already manage.
  */
-export function bindObserver<S extends SpecInput>(
+export function bindObserver<const S extends SpecInput>(
   spec: S,
   plan: Plan<S>,
   backing: Backing,
@@ -56,95 +57,84 @@ export function bindObserver<S extends SpecInput>(
 ): ObserverBinding<S>;
 
 /**
- * Implementation of bindObserver dispatching.
+ * Implementation of bindObserver overload dispatch.
  */
-export function bindObserver<S extends SpecInput>(
-  arg1: ReceivedHandoff<S> | SharedContext<S> | S,
+export function bindObserver<const S extends SpecInput>(
+  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg3?: Backing,
   arg4?: ObserverOptions,
 ): ObserverBinding<S> {
   const { plan, backing, defs } = normalizeSource(arg1, arg2, arg3);
   const options = getOptions(arg1, arg2, arg4);
-
   return observerImpl(plan, backing, defs, options);
 }
 
-function normalizeSource<S extends SpecInput>(
-  arg1: ReceivedHandoff<S> | SharedContext<S> | S,
+function normalizeSource<const S extends SpecInput>(
+  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg3?: Backing,
-): NormalizedObserverSource<S> {
-  // Case 1: ReceivedHandoff (Worker / remote side)
-  if (isReceivedHandoff<S>(arg1)) {
-    const received = arg1;
+): {
+  readonly plan: Plan<S>;
+  readonly backing: Backing;
+  readonly defs: ParamDefs;
+} {
+  if (isHandoff(arg1)) {
+    return normalizeFromReceived(receiveHandoff(arg1));
+  }
 
-    const backing: Backing =
-      received.packing === "shared"
-        ? { kind: "shared", sab: received.sab }
-        : {
-            kind: "shared-partitioned",
-            planes: received.planes,
-          };
+  if (isReceivedHandoff(arg1)) {
+    return normalizeFromReceived(arg1);
+  }
 
+  if (isSharedContext(arg1)) {
     return {
-      plan: received.plan,
-      backing,
-      defs: EMPTY_PARAM_DEFS,
+      plan: arg1.plan,
+      backing: arg1.backing,
+      defs: getParamDefs(arg1.spec),
     };
   }
 
-  // Case 2: SharedContext (Host ergonomic)
-  if (isSharedContext<S>(arg1)) {
-    const ctx = arg1;
-    const defs: Readonly<Record<string, ParamDef>> = ctx.spec.params ?? {};
-
-    return {
-      plan: ctx.plan,
-      backing: ctx.backing,
-      defs,
-    };
-  }
-
-  // Case 3: Explicit triple (Host low-level)
   const spec = arg1;
-  const plan = arg2 as Plan<S>;
+  const plan = arg2 as Plan<S> | undefined;
+
+  if (plan === undefined) {
+    throwInvalidBindingArgs("bindObserver", "missingPlan");
+  }
 
   if (arg3 === undefined) {
-    throw new Error(
-      "bindObserver: backing is required when binding from (spec, plan, backing).",
-    );
+    throwInvalidBindingArgs("bindObserver", "missingBacking");
   }
-
-  const backing = arg3;
-  const defs: Readonly<Record<string, ParamDef>> = spec.params ?? {};
 
   return {
     plan,
-    backing,
-    defs,
+    backing: arg3,
+    defs: getParamDefs(spec),
   };
 }
 
-function getOptions<S extends SpecInput>(
-  arg1: ReceivedHandoff<S> | SharedContext<S> | S,
+function normalizeFromReceived<const S extends SpecInput>(
+  received: ReceivedHandoff<S>,
+): {
+  readonly plan: Plan<S>;
+  readonly backing: Backing;
+  readonly defs: ParamDefs;
+} {
+  return {
+    plan: received.plan,
+    backing: backingFromReceived(received),
+    defs: getParamDefs(undefined),
+  };
+}
+
+function getOptions<const S extends SpecInput>(
+  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg4?: ObserverOptions,
 ): ObserverOptions | undefined {
-  if (isReceivedHandoff<S>(arg1) || isSharedContext<S>(arg1)) {
+  if (isHandoff(arg1) || isReceivedHandoff(arg1) || isSharedContext(arg1)) {
     return arg2 as ObserverOptions | undefined;
   }
 
-  // Explicit triple variant: options is the 4th argument.
   return arg4;
-}
-
-function isReceivedHandoff<S extends SpecInput>(
-  value: ReceivedHandoff<S> | SharedContext<S> | S,
-): value is ReceivedHandoff<S> {
-  return (
-    typeof value === "object" &&
-    "packing" in value &&
-    typeof (value as { packing: unknown }).packing === "string"
-  );
 }

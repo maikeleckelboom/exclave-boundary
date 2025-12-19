@@ -104,10 +104,24 @@ export interface BindingSnapshotRetryDetails
   readonly section: "params" | "meters";
 }
 
+/**
+ * Details for invalid arguments to bindController/bindObserver/bindProcessor.
+ * @remarks
+ * - `fn` is the name of the binding function.
+ * - `reason` is the specific error condition.
+ * - `signature` is the function signature of the binding function.
+ */
+export interface BindingInvalidArgsDetails extends ErrorDetails {
+  readonly fn: "bindController" | "bindObserver" | "bindProcessor";
+  readonly reason: "missingPlan" | "missingBacking";
+  readonly signature: string;
+}
+
 interface BindingDetailsByKey {
   readonly unknownKey: BindingUnknownKeyDetails;
   readonly paramRange: BindingParamRangeDetails;
   readonly paramInvalidValue: BindingInvalidValueDetails;
+  readonly invalidArgs: BindingInvalidArgsDetails;
   readonly shapeInvalid: BindingShapeDetails;
   readonly snapshotIntoTypeMismatch: BindingSnapshotIntoTypeMismatchDetails;
   readonly snapshotIntoLengthMismatch: BindingSnapshotIntoLengthMismatchDetails;
@@ -147,6 +161,10 @@ const BINDING_DEFS = {
   coherentRetryExhausted: {
     message: "Coherent retries exhausted",
     meta: { severity: "warning", recoverable: true, boundarySafe: false },
+  },
+  invalidArgs: {
+    message: "Invalid binding arguments",
+    meta: { severity: "error", recoverable: false, boundarySafe: true },
   },
 } as const;
 

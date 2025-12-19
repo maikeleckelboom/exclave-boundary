@@ -3,55 +3,50 @@
  * Public controller binding factory.
  *
  * @remarks
- * - Bridges `defineSpec` + Plan + Backing into a typed `ControllerBinding`.
- * - Matches the explicit canonical flow:
+ * Binds a controller to shared state using one of two input shapes:
+ * - **SharedContext**: the usual host-side path where the Spec is available.
+ * - **(spec, plan, backing)**: an explicit low-level path for advanced wiring/tests.
  *
- *   defineSpec → planLayout → allocateShared → buildHandoff →
- *   receiveHandoff → bindController / bindProcessor
- *
- * - The binding layer does not perform planning; callers are responsible
- *   for computing the Plan via `planLayout(spec)` and allocating a Backing
- *   from that Plan.
+ * Argument misuse (e.g. missing backing in the explicit form) throws `binding.invalidArgs`.
  */
 
 import { controllerImpl } from "./impl";
 import { isSharedContext } from "../../context/guard";
-
-export type { SharedContext } from "../../context/types";
+import { throwInvalidBindingArgs } from "../common/arg-errors";
+import { getParamDefs } from "../common/param-defs";
 
 import type { Backing } from "../../backing/types";
 import type { SharedContext } from "../../context/types";
 import type { Plan } from "../../plan/types";
 import type { SpecInput } from "../../spec/types";
+import type { ParamDefs } from "../common/param-defs";
 import type { ControllerBinding, ControllerOptions } from "../common/types";
 
+interface NormalizedControllerSource<S extends SpecInput> {
+  readonly plan: Plan<S>;
+  readonly backing: Backing;
+  readonly defs: ParamDefs;
+}
+
 /**
- * Bind a controller to a backing using an explicit Plan.
- *
- * @typeParam S - Spec type (inferred from `spec`)
- *
- * @param context
- * @param options - Optional controller configuration.
- *
- * @returns A typed controller binding for the given spec/plan/backing triple.
+ * Bind a controller from a SharedContext.
  *
  * @remarks
- * - This is the canonical controller API in `@seqlok/core`.
- * - The caller is responsible for:
- *   - Computing the plan once via `planLayout(spec)`.
- *   - Allocating a compatible backing via `allocateShared(plan)` (or a
- *     different backing factory that consumes `Plan<S>`).
- *   - Passing the same `spec`/`plan`/`backing` triple here.
- * - The binding layer does not re-derive layouts; mismatched
- *   spec/plan/backing triples are a contract violation.
+ * This is the standard host-side entrypoint. The Spec is available, so param defs
+ * are used for range policy and enum label support.
  */
-// 1) Host ergonomic: SharedContext
 export function bindController<const S extends SpecInput>(
   context: SharedContext<S>,
   options?: ControllerOptions,
 ): ControllerBinding<S>;
 
-// 2) Host low-level: explicit triple (existing public surface)
+/**
+ * Bind a controller from explicit inputs.
+ *
+ * @remarks
+ * This form is useful in tests, custom hosts, or when you are composing bindings
+ * around a plan/backing that you already manage.
+ */
 export function bindController<const S extends SpecInput>(
   spec: S,
   plan: Plan<S>,
@@ -59,26 +54,59 @@ export function bindController<const S extends SpecInput>(
   options?: ControllerOptions,
 ): ControllerBinding<S>;
 
-// 3) Implementation
+/**
+ * Implementation of bindController overload dispatch.
+ */
 export function bindController<const S extends SpecInput>(
   arg1: SharedContext<S> | S,
   arg2?: ControllerOptions | Plan<S>,
   arg3?: Backing,
   arg4?: ControllerOptions,
 ): ControllerBinding<S> {
-  if (isSharedContext<S>(arg1)) {
-    const ctx = arg1;
-    const options = arg2 as ControllerOptions | undefined;
-    const params = ctx.spec.params ?? {};
-    return controllerImpl(ctx.plan, ctx.backing, params, options);
+  const { plan, backing, defs } = normalizeSource(arg1, arg2, arg3);
+  const options = getOptions(arg1, arg2, arg4);
+  return controllerImpl(plan, backing, defs, options);
+}
+
+function normalizeSource<const S extends SpecInput>(
+  arg1: SharedContext<S> | S,
+  arg2?: ControllerOptions | Plan<S>,
+  arg3?: Backing,
+): NormalizedControllerSource<S> {
+  if (isSharedContext(arg1)) {
+    return {
+      plan: arg1.plan,
+      backing: arg1.backing,
+      defs: getParamDefs(arg1.spec),
+    };
   }
 
   const spec = arg1;
-  const plan = arg2 as Plan<S>;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const backing = arg3!;
-  const options = arg4;
-  const params = spec.params ?? {};
+  const plan = arg2 as Plan<S> | undefined;
 
-  return controllerImpl(plan, backing, params, options);
+  if (plan === undefined) {
+    throwInvalidBindingArgs("bindController", "missingPlan");
+  }
+
+  if (arg3 === undefined) {
+    throwInvalidBindingArgs("bindController", "missingBacking");
+  }
+
+  return {
+    plan,
+    backing: arg3,
+    defs: getParamDefs(spec),
+  };
+}
+
+function getOptions<const S extends SpecInput>(
+  arg1: SharedContext<S> | S,
+  arg2?: ControllerOptions | Plan<S>,
+  arg4?: ControllerOptions,
+): ControllerOptions | undefined {
+  if (isSharedContext(arg1)) {
+    return arg2 as ControllerOptions | undefined;
+  }
+
+  return arg4;
 }
