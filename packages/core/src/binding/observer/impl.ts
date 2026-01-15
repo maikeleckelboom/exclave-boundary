@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Observer binding implementation.

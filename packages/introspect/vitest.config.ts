@@ -7,5 +7,8 @@ export default defineConfig({
   resolve: {
     alias: createSeqlokWorkspaceAliases(),
   },
-  test: createSharedTestConfig(),
+  test: {
+    ...createSharedTestConfig(),
+    setupFiles: ["./vitest.setup.ts"],
+  },
 });

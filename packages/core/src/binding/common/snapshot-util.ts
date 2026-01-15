@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Shared helpers for snapshot implementations.

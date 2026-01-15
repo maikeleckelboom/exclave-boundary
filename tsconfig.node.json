@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "moduleResolution": "bundler",
+    "types": ["node"]
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "*.config.ts",
+    "*.config.mts",
+    "packages/*/vite.config.ts",
+    "packages/*/vitest.config.ts",
+    "packages/*/*.config.ts",
+    "packages/*/*.config.mts",
+    "packages/*/rollup*.config.mts",
+    "packages/*/tsup.config.ts"
+  ]
+}

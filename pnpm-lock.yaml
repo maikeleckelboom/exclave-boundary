@@ -274,31 +274,6 @@ importers:
         specifier: 'catalog:'
         version: 4.0.13(@types/debug@4.1.12)(@types/node@24.10.1)(happy-dom@20.0.11)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
 
-  packages/coprocessor-runtime:
-    dependencies:
-      '@seqlok/base':
-        specifier: workspace:*
-        version: link:../base
-    devDependencies:
-      rimraf:
-        specifier: ^6.0.1
-        version: 6.1.2
-      rollup:
-        specifier: ^4.54.0
-        version: 4.54.0
-      rollup-plugin-dts:
-        specifier: ^6.1.1
-        version: 6.3.0(rollup@4.54.0)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-      vite:
-        specifier: ^7.2.4
-        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
-      vitest:
-        specifier: ^4.0.13
-        version: 4.0.13(@types/debug@4.1.12)(@types/node@24.10.1)(happy-dom@20.0.11)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
-
   packages/core:
     dependencies:
       '@seqlok/base':
@@ -527,9 +502,6 @@ importers:
       '@seqlok/commands':
         specifier: workspace:*
         version: link:../commands
-      '@seqlok/coprocessor-runtime':
-        specifier: workspace:*
-        version: link:../coprocessor-runtime
       '@seqlok/core':
         specifier: workspace:*
         version: link:../core
@@ -542,6 +514,9 @@ importers:
       '@seqlok/streambuf':
         specifier: workspace:*
         version: link:../streambuf
+      '@seqlok/worklet-mount':
+        specifier: workspace:*
+        version: link:../worklet-mount
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -767,6 +742,34 @@ importers:
         version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
       vitest:
         specifier: 'catalog:'
+        version: 4.0.13(@types/debug@4.1.12)(@types/node@24.10.1)(happy-dom@20.0.11)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
+
+  packages/worklet-mount:
+    dependencies:
+      '@seqlok/base':
+        specifier: workspace:*
+        version: link:../base
+    devDependencies:
+      '@types/audioworklet':
+        specifier: ^0.0.92
+        version: 0.0.92
+      rimraf:
+        specifier: ^6.0.1
+        version: 6.1.2
+      rollup:
+        specifier: ^4.54.0
+        version: 4.54.0
+      rollup-plugin-dts:
+        specifier: ^6.1.1
+        version: 6.3.0(rollup@4.54.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.2.4
+        version: 7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
+      vitest:
+        specifier: ^4.0.13
         version: 4.0.13(@types/debug@4.1.12)(@types/node@24.10.1)(happy-dom@20.0.11)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)
 
 packages:
@@ -1487,6 +1490,9 @@ packages:
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
+
+  '@types/audioworklet@0.0.92':
+    resolution: {integrity: sha512-ykniYTjl1eqgkLeHLH2AAgj4rqdFZyxeVDtCopTTlcvgH7nOHNSn0KYXZPgc0Mx0TiUAwHNEzBWoJw/i8OETBg==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -4338,6 +4344,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
     optional: true
+
+  '@types/audioworklet@0.0.92': {}
 
   '@types/chai@5.2.3':
     dependencies:

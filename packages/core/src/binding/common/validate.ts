@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Shared validation and error helpers for binding implementations.

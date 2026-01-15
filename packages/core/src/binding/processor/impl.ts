@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Processor binding implementation for worker/worklet runtimes.

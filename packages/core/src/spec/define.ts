@@ -68,10 +68,8 @@ const normalizeRange = (
   const min = input?.min ?? defaults.min;
   const max = input?.max ?? defaults.max;
 
-  // Preserve legacy normalization surface.
   const range = createRangeInput(min, max);
 
-  // With `exactOptionalPropertyTypes`, we must OMIT keys rather than pass `undefined`.
   const validateOpts = {
     ...(opts.integer === true ? { integer: true } : {}),
     ...(opts.unsigned === true ? { unsigned: true } : {}),
@@ -277,7 +275,7 @@ const createBoolParam = (): BoolParamBuilder => {
 };
 
 /**
- * ✅ Bool meter builder with `.array(...)`.
+ * Bool meter builder with `.array(...)`.
  */
 const createBoolMeter = (): MeterBoolBuilder => {
   const scalar = () => ({ kind: "bool" as const });

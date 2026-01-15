@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Snapshot utilities for controller bindings.
@@ -57,7 +56,10 @@ function paramsSnapshotRaw(
   knownParamKeys: readonly string[],
   options?: {
     readonly keys: readonly string[];
-    readonly into?: Record<string, Float32Array | Int32Array | Uint32Array | Uint8Array>;
+    readonly into?: Record<
+      string,
+      Float32Array | Int32Array | Uint32Array | Uint8Array
+    >;
   },
 ): Record<
   string,
@@ -162,7 +164,10 @@ export function createParamSnapshot<S extends SpecInput>(
 
   return ((options?: {
     readonly keys?: readonly string[];
-    readonly into?: Record<string, Float32Array | Int32Array | Uint32Array | Uint8Array>;
+    readonly into?: Record<
+      string,
+      Float32Array | Int32Array | Uint32Array | Uint8Array
+    >;
   }) => {
     if (!options) {
       return paramsSnapshotRaw(defs, slots, views, allParamKeys);

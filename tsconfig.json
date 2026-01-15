@@ -8,14 +8,13 @@
   "files": [],
   "references": [
     { "path": "./packages/base" },
-    { "path": "./packages/coprocessor-runtime" },
+    { "path": "./packages/worklet-mount" },
     { "path": "./packages/primitives" },
     { "path": "./packages/introspect" },
     { "path": "./packages/core" },
     { "path": "./packages/commands" },
     { "path": "./packages/streambuf" },
     { "path": "./packages/hotswap" },
-    { "path": "./packages/integration" },
-    { "path": "./packages/playground/tsconfig.node.json" }
+    { "path": "./packages/integration" }
   ]
 }

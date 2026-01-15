@@ -1,4 +1,3 @@
-
 // File: packages/core/src/spec/kinds.ts
 
 /**

@@ -13,7 +13,6 @@ import {
   panic,
 } from "@seqlok/base";
 import { COMMANDS_ERRORS } from "@seqlok/commands";
-import { COPROCESSOR_RUNTIME_ERRORS } from "@seqlok/coprocessor-runtime";
 import {
   BACKING_ERRORS,
   BINDING_ERRORS,
@@ -25,6 +24,7 @@ import {
 import { HOTSWAP_ERRORS } from "@seqlok/hotswap";
 import { PRIMITIVES_ERRORS } from "@seqlok/primitives";
 import { STREAMBUF_ERRORS } from "@seqlok/streambuf";
+import { WORKLET_MOUNT_ERRORS } from "@seqlok/worklet-mount";
 
 import { INTROSPECT_ERRORS } from "./introspect";
 
@@ -49,7 +49,7 @@ type CommandsRegistry = typeof COMMANDS_ERRORS;
 type IntrospectRegistry = typeof INTROSPECT_ERRORS;
 type HotswapRegistry = typeof HOTSWAP_ERRORS;
 type StreamBufRegistry = typeof STREAMBUF_ERRORS;
-type CoprocessorRuntimeRegistry = typeof COPROCESSOR_RUNTIME_ERRORS;
+type WorkletMountRegistry = typeof WORKLET_MOUNT_ERRORS;
 
 /**
  * Registry map for a single domains.
@@ -72,7 +72,7 @@ export type DomainRegistry =
   | CommandsRegistry
   | HotswapRegistry
   | StreamBufRegistry
-  | CoprocessorRuntimeRegistry
+  | WorkletMountRegistry
   | IntrospectRegistry;
 
 /**
@@ -127,8 +127,8 @@ export function getRegistryForDomain(domain: DomainName): DomainRegistry {
     case "streambuf":
       return STREAMBUF_ERRORS;
 
-    case "coprocessorRuntime":
-      return COPROCESSOR_RUNTIME_ERRORS;
+    case "workletMount":
+      return WORKLET_MOUNT_ERRORS;
 
     default:
       // DomainName is currently just `string`,

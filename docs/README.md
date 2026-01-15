@@ -103,8 +103,9 @@ belong here.
 
 Seqlok is the substrate; Ghost DJ is one of the first serious clients.
 
-Product / host docs live under `docs/concept/` (or similar) so the
-substrate stays generic and portable. For example:
+Non-Seqlok product/host ideation docs are intentionally kept outside this repo (docs vault) to keep Seqlok docs focused.
+
+For example:
 
 - **[Ghost DJ data model](./concept/ghost-dj-data-model.md)**  
   Session log model, track features, event schema and how a set becomes

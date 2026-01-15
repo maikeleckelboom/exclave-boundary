@@ -7,7 +7,7 @@
  * - Returns a shared backing that can be mapped into typed views via `mapViews`.
  * - Throws structured errors when SAB allocation or support fails.
  *
- * @see {@link ../../docs/architecture/11-backing-and-plane-layout.md} for layout details
+ * @see {@link ../../docs/architecture/11-seqlok-backing-and-plane-layout.md} for layout details
  *
  * @internal
  */

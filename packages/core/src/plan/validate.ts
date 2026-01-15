@@ -1,4 +1,3 @@
-
 // File: packages/core/src/plan/validate.ts
 
 /**
@@ -141,6 +140,7 @@ type MeterDataPlane = "MF32" | "MF64" | "MU32";
  */
 function planeOfParam(def: ParamDef): ParamDataPlane {
   const entry = getParamKindEntry(def.kind);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!entry) {
     throw createSpecError("builderInvalid", {
       where: "plan.planeOfParam",
@@ -153,7 +153,6 @@ function planeOfParam(def: ParamDef): ParamDataPlane {
 
   // While we’re still in the “current planes only” slice:
   if (plane !== "PF32" && plane !== "PI32" && plane !== "PB") {
-    // Keep within existing error-system vocabulary (no new reason strings).
     throw createSpecError("builderInvalid", {
       where: "plan.planeOfParam",
       reason: "invalidKind",
@@ -172,6 +171,7 @@ function planeOfParam(def: ParamDef): ParamDataPlane {
  */
 function planeOfMeter(def: MeterDef): MeterDataPlane {
   const entry = getMeterKindEntry(def.kind);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!entry) {
     throw createSpecError("builderInvalid", {
       where: "plan.planeOfMeter",
@@ -264,7 +264,13 @@ export function packParamSlots(params: Readonly<Record<string, ParamDef>>): {
       });
     }
 
-    slots[key] = { kind: def.kind, plane, offset, length, bytesPerElement: elemBytes };
+    slots[key] = {
+      kind: def.kind,
+      plane,
+      offset,
+      length,
+      bytesPerElement: elemBytes,
+    };
   }
 
   return { slots, bytes: { PF32, PI32, PB } };
@@ -307,7 +313,13 @@ export function packMeterSlots(meters: Readonly<Record<string, MeterDef>>): {
       });
     }
 
-    slots[key] = { kind: def.kind, plane, offset, length, bytesPerElement: elemBytes };
+    slots[key] = {
+      kind: def.kind,
+      plane,
+      offset,
+      length,
+      bytesPerElement: elemBytes,
+    };
   }
 
   return { slots, bytes: { MF32, MF64, MU32 } };

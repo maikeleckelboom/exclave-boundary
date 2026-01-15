@@ -161,7 +161,7 @@ const HOTSWAP_DOMAIN_DESCRIPTOR: DomainDescriptor = buildDomainDescriptor(
 );
 
 const COPROCESSOR_RUNTIME_DOMAIN_DESCRIPTOR: DomainDescriptor =
-  buildDomainDescriptor("coprocessorRuntime", DOMAIN_IDS.coprocessorRuntime);
+  buildDomainDescriptor("workletMount", DOMAIN_IDS.workletMount);
 
 /**
  * All error domains exported by Seqlok.

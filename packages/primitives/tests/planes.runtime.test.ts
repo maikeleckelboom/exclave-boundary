@@ -10,14 +10,14 @@ describe("Planes Primitives: Constants & Alignment", () => {
   it("exposes all plane keys in a stable, expected order", () => {
     // The order of keys defines the iteration order for layout planning
     expect(ALL_PLANES).toEqual([
+      "MF64", // Meters: Float64
       "PF32", // Params: Float32
       "PI32", // Params: Int32
-      "PB", // Params: Byte/Bool
       "PU", // Params: Uint32 (Locks)
       "MF32", // Meters: Float32
-      "MF64", // Meters: Float64
       "MU32", // Meters: Uint32
       "MU", // Meters: Uint32 (Locks)
+      "PB", // Params: Byte/Bool
     ]);
   });
 

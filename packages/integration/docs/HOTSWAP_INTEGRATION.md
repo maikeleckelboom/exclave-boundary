@@ -289,7 +289,7 @@ function applyDecisionToEngines(
 ## 4. Multi-Swap Behavior (Sequential + Overlapping)
 
 For detailed multi-swap requirements and test specifications, see
-[`hotswap-multi-swap-requirements.md`](../../hotswap/docs/adr/hotswap-multi-swap-requirements.md).
+[`hotswap-multi-swap-requirements.md`](/packages/hotswap/docs/adr/hotswap-multi-swap-requirements.md).
 
 ### 4.1 Sequential swaps (A→B→C)
 

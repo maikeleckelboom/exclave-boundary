@@ -9,7 +9,7 @@
  *
  * @see {@link getBackingBuffer} - For single-buffer backings
  * @see {@link getPlaneBuffer} - For plane-specific access
- * @see {@link ../../docs/architecture/11-backing-and-plane-layout.md} for design
+ * @see {@link ../../docs/architecture/11-seqlok-backing-and-plane-layout.md} for design
  *
  * @internal
  */

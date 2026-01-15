@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Controller binding implementation.

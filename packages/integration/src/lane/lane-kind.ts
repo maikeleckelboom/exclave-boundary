@@ -30,7 +30,7 @@ export interface LaneKindConfig<
  * Static description of a lane kind (e.g. "stretch", "deck", "bus", "analyzer").
  *
  * This lives purely in the host / topology layer. It does not know about
- * AudioWorklet, coprocessor contracts, or shared-memory ABI.
+ * AudioWorklet, worklet-mount contracts, or shared-memory ABI.
  */
 export interface LaneKind<
   S extends SpecInput,

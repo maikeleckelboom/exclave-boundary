@@ -24,8 +24,12 @@ export const WINDOW_CLASS_KEYS: readonly WindowClassKey[] = [
 ];
 
 function classifyAxis(value: number): DensityKey {
-  if (value < 768) return "compact";
-  if (value < 1280) return "medium";
+  if (value < 768) {
+    return "compact";
+  }
+  if (value < 1280) {
+    return "medium";
+  }
   return "expanded";
 }
 

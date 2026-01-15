@@ -4,7 +4,7 @@
  */
 export const SEQLOK_PACKAGES = [
   "base",
-  "coprocessor-runtime",
+  "worklet-mount",
   "primitives",
   "streambuf",
   "core",

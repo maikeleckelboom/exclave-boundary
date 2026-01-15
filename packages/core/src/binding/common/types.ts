@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview
  * Binding-domains public types shared by controller and processor bindings.

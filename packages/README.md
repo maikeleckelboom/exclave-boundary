@@ -34,9 +34,9 @@ Each package is a node in a strict one-way dependency graph.
 - `@seqlok/hotswap`  
   Engine lifecycle and swap protocol built on top of core and commands
 
-- `@seqlok/coprocessor-runtime`  
-  A first-class runtime for AudioWorklet/WASM coprocessors  
-  Mount/protocol/kernel helpers used by lane processors
+- `@seqlok/worklet-mount`
+  AudioWorklet/WASM mount runtime (kernel + protocol + host helpers)
+  Canonical `wm:*` mount/ready/error/log boundary
 
 ### Tooling
 
@@ -87,7 +87,7 @@ flowchart LR
     commands
     streambuf
     hotswap
-    coprocessorRuntime
+    workletMount
   end
 
   subgraph Tooling
@@ -111,15 +111,15 @@ flowchart LR
   streambuf --> base
   hotswap --> commands
   hotswap --> core
-  coprocessorRuntime --> base
-  coprocessorRuntime --> diagnostics
+  workletMount --> base
+  workletMount --> diagnostics
 
 %% Host
   integration --> hotswap
   integration --> commands
   integration --> core
   integration --> streambuf
-  integration --> coprocessorRuntime
+  integration --> workletMount
   integration --> diagnostics
   integration --> introspect
   playground --> integration
@@ -133,7 +133,7 @@ flowchart LR
   introspect --> commands
   introspect --> streambuf
   introspect --> hotswap
-  introspect --> coprocessorRuntime
+  introspect --> workletMount
 ```
 
 ## Rules
