@@ -24,17 +24,21 @@ Think of ADRs as "git commits for architecture": short, focused, and historical.
 - `ADR-00F` – Controller params hydrate
 - `ADR-010` – Ring primitive ownership
 - `ADR-011` – MWMR ground truth
+- `ADR-014` – Nested spec DSL and key mirror contract
 
 ---
 
 ## What does **not** belong here
 
-| Type | Location |
-|------|----------|
-| Historical/superseded ADRs | [`../attic/adr/`](../attic/adr/) |
-| Design patterns & proposals | [`../patterns/`](../patterns/) |
-| Architecture guides | [`../architecture/`](../architecture/) |
-| User docs, API refs | Package-level `README.md` |
+## Live ADRs
+
+| ADR                                                         | Title                          | Scope                                                                     |
+|-------------------------------------------------------------|--------------------------------|---------------------------------------------------------------------------|
+| [ADR-00C](./ADR-00C-meter-writes-and-snapshot-into.md)      | Meter Writes & Snapshot `into` | Processor meter API, controller snapshot options                          |
+| [ADR-00F](./ADR-00F-controller-params-hydrate.md)           | Controller Params Hydrate      | Cold-path bulk param updates                                              |
+| [ADR-010](./ADR-010-ring-primitive-in-seqlok-core.md)       | Ring Primitive Ownership       | Package ownership: primitives → commands/streambuf → core                 |
+| [ADR-011](./ADR-011-mwmr-ground-truth.md)                   | MWMR Ground Truth              | System model and guardrails                                               |
+| [ADR-014](./ADR-014-lock-nested-spec-dsl-and-key-mirror.md) | Nested Spec DSL and Key Mirror | Authored spec contract, canonical key formation, ergonomic key projection |
 
 **Do not add to this folder:**
 
@@ -123,12 +127,12 @@ Live ADRs are the source of truth for current behavior.
 
 ## Live ADRs
 
-| ADR | Title | Scope |
-|-----|-------|-------|
-| [ADR-00C](./ADR-00C-meter-writes-and-snapshot-into.md) | Meter Writes & Snapshot `into` | Processor meter API, controller snapshot options |
-| [ADR-00F](./ADR-00F-controller-params-hydrate.md) | Controller Params Hydrate | Cold-path bulk param updates |
-| [ADR-010](./ADR-010-ring-primitive-in-seqlok-core.md) | Ring Primitive Ownership | Package ownership: primitives → commands/streambuf → core |
-| [ADR-011](./ADR-011-mwmr-ground-truth.md) | MWMR Ground Truth | System model and guardrails |
+| ADR                                                    | Title                          | Scope                                                     |
+|--------------------------------------------------------|--------------------------------|-----------------------------------------------------------|
+| [ADR-00C](./ADR-00C-meter-writes-and-snapshot-into.md) | Meter Writes & Snapshot `into` | Processor meter API, controller snapshot options          |
+| [ADR-00F](./ADR-00F-controller-params-hydrate.md)      | Controller Params Hydrate      | Cold-path bulk param updates                              |
+| [ADR-010](./ADR-010-ring-primitive-in-seqlok-core.md)  | Ring Primitive Ownership       | Package ownership: primitives → commands/streambuf → core |
+| [ADR-011](./ADR-011-mwmr-ground-truth.md)              | MWMR Ground Truth              | System model and guardrails                               |
 
 ---
 
@@ -136,7 +140,8 @@ Live ADRs are the source of truth for current behavior.
 
 Stale, superseded, or proposal-grade ADRs are preserved in [`../attic/adr/`](../attic/adr/INDEX.md).
 
-**Attic docs are historical, not normative.** They are kept for context and traceability but do not describe current system behavior or package ownership. See the attic index for the complete list of archived documents.
+**Attic docs are historical, not normative.** They are kept for context and traceability but do not describe current
+system behavior or package ownership. See the attic index for the complete list of archived documents.
 
 ---
 
@@ -144,7 +149,8 @@ Stale, superseded, or proposal-grade ADRs are preserved in [`../attic/adr/`](../
 
 Implementation patterns and design notes live in [`../patterns/`](../patterns/INDEX.md).
 
-**Patterns are not ADRs.** They are exploratory documents that may age out or be replaced over time. See the patterns index for current design notes.
+**Patterns are not ADRs.** They are exploratory documents that may age out or be replaced over time. See the patterns
+index for current design notes.
 
 ---
 
