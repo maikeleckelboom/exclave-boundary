@@ -1,4 +1,5 @@
 import {
+  acceptHandoff,
   allocateShared,
   bindController,
   bindProcessor,
@@ -6,22 +7,25 @@ import {
   defineSpec,
   planLayout,
   type ProcessorBinding,
-  acceptHandoff,
 } from "@seqlok/core";
 import { describe, expect, it } from "vitest";
 
-import type { LanePluginPack, LaneProcessorPlugin } from "../src"; // packages/integration/src/index.ts
+import type { LanePluginPack, LaneProcessorPlugin } from "../src";
 
-//
-// Spec: single scalar param "stretch.mix" (0..1), no meters.
-//
-
+/**
+ * Demo lane-plugin spec used by this test.
+ *
+ * The authored input remains structural. Semantic compilation lowers it to the
+ * canonical runtime key `stretch.mix`.
+ */
 const stretchDemoSpec = defineSpec({
   params: {
-    "stretch.mix": {
-      kind: "f32" as const,
-      min: 0,
-      max: 1,
+    stretch: {
+      mix: {
+        kind: "f32" as const,
+        min: 0,
+        max: 1,
+      },
     },
   },
   meters: {},
@@ -29,13 +33,22 @@ const stretchDemoSpec = defineSpec({
 
 type StretchDemoSpec = typeof stretchDemoSpec;
 
-//
-// Processor plugin: treat "stretch.mix" as simple wet gain on stereo.
-//
-
+/**
+ * Minimal processor plugin used to prove end-to-end parameter flow through the
+ * Seqlok lane pipeline.
+ *
+ * The plugin reads the canonical `stretch.mix` parameter once per block and
+ * applies it as a wet gain to the output buffers.
+ */
 const stretchMixProcessorPlugin: LaneProcessorPlugin<StretchDemoSpec> = {
   id: "stretch-mix-gain",
 
+  /**
+   * Attaches the processor-side runtime for the demo plugin.
+   *
+   * The returned handle exposes a single `processBlock` function because this
+   * test only needs deterministic block processing over caller-provided buffers.
+   */
   attachProcessor(binding: ProcessorBinding<StretchDemoSpec>): {
     readonly processBlock: (
       inputL: Float32Array,
@@ -46,6 +59,14 @@ const stretchMixProcessorPlugin: LaneProcessorPlugin<StretchDemoSpec> = {
     readonly dispose?: () => void;
   } {
     return {
+      /**
+       * Processes one audio block using the current coherent parameter snapshot.
+       *
+       * `stretch.mix` is interpreted as a simple wet gain:
+       * - `0` mutes the signal
+       * - `0.5` halves the signal
+       * - `1` passes the signal through unchanged
+       */
       processBlock(
         inputL: Float32Array,
         inputR: Float32Array,
@@ -54,14 +75,12 @@ const stretchMixProcessorPlugin: LaneProcessorPlugin<StretchDemoSpec> = {
       ): void {
         const frames = inputL.length;
 
-        // 1) Coherent param read for this block.
         let wet = 1;
 
         binding.params.within((params) => {
           wet = params["stretch.mix"];
         });
 
-        // 2) Apply wet gain (no dry path for this demo).
         const channels = inputR.length > 0 && outputR.length > 0 ? 2 : 1;
 
         if (channels >= 1) {
@@ -80,19 +99,20 @@ const stretchMixProcessorPlugin: LaneProcessorPlugin<StretchDemoSpec> = {
   },
 };
 
+/**
+ * Test-local plugin pack containing only the processor plugin under test.
+ */
 const stretchDemoPack: LanePluginPack<StretchDemoSpec> = {
   observers: [],
   processors: [stretchMixProcessorPlugin],
 };
 
-//
-// Test harness: real Seqlok pipeline + plugin driving actual buffers.
-//
-
 describe("LaneProcessorPlugin stretch.mix demo", () => {
   it("applies stretch.mix as a wet gain on stereo buffers", () => {
-    // Core Seqlok pipeline: spec → plan → backing → controller / handoff / processor
-
+    /**
+     * Build the real Seqlok runtime path:
+     * spec -> plan -> shared backing -> controller/handoff -> processor binding.
+     */
     const plan = planLayout(stretchDemoSpec);
     const backing = allocateShared(plan);
 
@@ -102,8 +122,6 @@ describe("LaneProcessorPlugin stretch.mix demo", () => {
     const accepted = acceptHandoff(handoff);
     const binding = bindProcessor(accepted);
 
-    // Plugin handle
-
     const plugin = stretchDemoPack.processors[0];
     if (!plugin) {
       throw new Error("expected stretch plugin");
@@ -111,8 +129,10 @@ describe("LaneProcessorPlugin stretch.mix demo", () => {
 
     const handle = plugin.attachProcessor(binding);
 
-    // Block 1: mix = 0 → full silence
-
+    /**
+     * Block 1:
+     * `stretch.mix = 0` should fully mute both channels.
+     */
     controller.params.set("stretch.mix", 0);
 
     const frames = 8;
@@ -129,8 +149,10 @@ describe("LaneProcessorPlugin stretch.mix demo", () => {
       expect(outR1[i]).toBeCloseTo(0);
     }
 
-    // Block 2: mix = 0.5 → attenuate inputs by 0.5.
-
+    /**
+     * Block 2:
+     * `stretch.mix = 0.5` should attenuate both channels by half.
+     */
     controller.params.set("stretch.mix", 0.5);
 
     const inL2 = new Float32Array(frames).fill(0.5);
@@ -141,8 +163,8 @@ describe("LaneProcessorPlugin stretch.mix demo", () => {
     handle.processBlock(inL2, inR2, outL2, outR2);
 
     for (let i = 0; i < frames; i += 1) {
-      expect(outL2[i]).toBeCloseTo(0.5 * 0.5); // 0.25
-      expect(outR2[i]).toBeCloseTo(0.25 * 0.5); // 0.125
+      expect(outL2[i]).toBeCloseTo(0.5 * 0.5);
+      expect(outR2[i]).toBeCloseTo(0.25 * 0.5);
     }
   });
 });

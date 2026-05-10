@@ -4,13 +4,15 @@
  *
  * Author-time specs (`SpecAstInput`) are designed to be ergonomic and JSON-friendly:
  * namespaces may be nested and `id` may be omitted. At runtime we normalize into a
- * flat `SpecInput` shape (dot-path keys, validated numeric ranges, stable defaults).
+ * flat `SpecInput` shape (dot-path keys, validated numeric ranges, deterministic ids,
+ * stable defaults).
  *
  * Two things are intentionally “touchy” here:
  * 1) Enum builders must preserve literal tuples (do not refactor overloads into unions).
  * 2) With `exactOptionalPropertyTypes`, optional fields must be omitted (not set to `undefined`).
  */
 
+import { anonymousId } from "./anonymous-id";
 import {
   asNonEmpty,
   assertValidateScalarRange,
@@ -18,6 +20,7 @@ import {
   isPlainObject,
   parseArrayLen,
 } from "./validate";
+import { createSpecError } from "../errors/spec";
 
 import type {
   MeterDef,
@@ -376,98 +379,291 @@ const meterBuilder: MeterBuilders = {
  * Runtime Normalization
  */
 
-/**
- * Flattens a nested namespace object into dot-path keys.
- *
- * @remarks
- * Leaf nodes are detected by the presence of a string `kind` field.
- * If authors create ambiguous shapes (a namespace and a leaf sharing a key path),
- * later entries win by object iteration order.
- */
-const flattenNamespace = <T>(
-  ns: SpecNamespace<T>,
-  prefix: string,
-  out: Record<string, T>,
-): void => {
-  for (const [key, value] of Object.entries(ns)) {
-    const fullKey = prefix ? `${prefix}.${key}` : key;
+type SpecPlane = "params" | "meters";
 
-    if (isNamespaceObject(value) && !isLeafDef(value)) {
-      flattenNamespace(value, fullKey, out);
-    } else {
-      out[fullKey] = value as T;
+type AuthoredPath = readonly string[];
+
+interface PlaneCompileState<TLeaf> {
+  readonly plane: SpecPlane;
+  readonly leafDefsByCanonicalKey: Map<string, TLeaf>;
+  readonly leafSourcePathsByCanonicalKey: Map<string, string[]>;
+  readonly namespaceSourcePathsByCanonicalKey: Map<string, string[]>;
+}
+
+interface CompiledPlane<TLeaf> {
+  readonly byCanonicalKey: Record<string, TLeaf>;
+}
+
+const isParamLeafDef = (value: unknown): value is ParamDef => {
+  return isLeafDef(value);
+};
+
+const isMeterLeafDef = (value: unknown): value is MeterDef => {
+  return isLeafDef(value);
+};
+
+const canonicalKeyFromPath = (path: AuthoredPath): string => {
+  return path.join(".");
+};
+
+const toSortedRecord = <T>(input: Map<string, T>): Record<string, T> => {
+  const out: Record<string, T> = {};
+
+  for (const key of [...input.keys()].sort()) {
+    const value = input.get(key);
+    if (value !== undefined) {
+      out[key] = value;
+    }
+  }
+
+  return out;
+};
+
+const specKeyForPath = (plane: SpecPlane, path: AuthoredPath): string => {
+  const canonicalPath = canonicalKeyFromPath(path);
+  return canonicalPath.length > 0
+    ? `spec.${plane}.${canonicalPath}`
+    : `spec.${plane}`;
+};
+
+const clonePath = (path: AuthoredPath): string[] => {
+  return [...path];
+};
+
+const validateAuthoredSegment = (
+  plane: SpecPlane,
+  parentPath: AuthoredPath,
+  segment: string,
+): void => {
+  if (segment.length === 0) {
+    throw createSpecError("invalidSegment", {
+      plane,
+      parentPath: clonePath(parentPath),
+      offendingSegment: segment,
+      reason: "empty-segment",
+    });
+  }
+
+  if (segment.includes(".")) {
+    throw createSpecError("invalidSegment", {
+      plane,
+      parentPath: clonePath(parentPath),
+      offendingSegment: segment,
+      reason: "segment-contains-dot",
+    });
+  }
+};
+
+const registerNamespaceNode = <TLeaf>(
+  state: PlaneCompileState<TLeaf>,
+  canonicalPath: string,
+  sourcePath: AuthoredPath,
+): void => {
+  if (canonicalPath.length === 0) {
+    return;
+  }
+
+  const existingLeafPath =
+    state.leafSourcePathsByCanonicalKey.get(canonicalPath);
+  if (existingLeafPath !== undefined) {
+    throw createSpecError("leafNamespaceConflict", {
+      plane: state.plane,
+      canonicalPath,
+      leafPath: clonePath(existingLeafPath),
+      namespacePath: clonePath(sourcePath),
+      conflictKind: "namespace-collides-with-leaf",
+    });
+  }
+
+  if (!state.namespaceSourcePathsByCanonicalKey.has(canonicalPath)) {
+    state.namespaceSourcePathsByCanonicalKey.set(
+      canonicalPath,
+      clonePath(sourcePath),
+    );
+  }
+};
+
+const assertNoLeafAncestorConflict = <TLeaf>(
+  state: PlaneCompileState<TLeaf>,
+  canonicalKey: string,
+  sourcePath: AuthoredPath,
+): void => {
+  const segments = canonicalKey.split(".");
+
+  for (let i = 1; i < segments.length; i += 1) {
+    const ancestorKey = segments.slice(0, i).join(".");
+    const existingLeafPath =
+      state.leafSourcePathsByCanonicalKey.get(ancestorKey);
+
+    if (existingLeafPath !== undefined) {
+      throw createSpecError("leafNamespaceConflict", {
+        plane: state.plane,
+        canonicalPath: ancestorKey,
+        leafPath: clonePath(existingLeafPath),
+        namespacePath: clonePath(sourcePath),
+        conflictKind: "ancestor-leaf-blocks-descendant",
+      });
     }
   }
 };
 
-/**
- * Normalizes numeric scalar parameters in-place.
- *
- * @remarks
- * Only parameter scalars carry `{ min, max }`. Meters do not have ranges.
- */
-const normalizeNumericParamsInPlace = (
-  params: Record<string, ParamDef>,
+const registerLeafNode = <TLeaf>(
+  state: PlaneCompileState<TLeaf>,
+  canonicalKey: string,
+  sourcePath: AuthoredPath,
+  normalizedLeafDef: TLeaf,
 ): void => {
-  for (const [key, def] of Object.entries(params)) {
-    const context = `spec.params.${key}`;
+  const existingLeafPath =
+    state.leafSourcePathsByCanonicalKey.get(canonicalKey);
+  if (existingLeafPath !== undefined) {
+    throw createSpecError("duplicateCanonicalKey", {
+      plane: state.plane,
+      canonicalKey,
+      firstPath: clonePath(existingLeafPath),
+      secondPath: clonePath(sourcePath),
+    });
+  }
 
-    if (def.kind === "f32") {
-      params[key] = {
-        kind: "f32",
-        ...normalizeRange(def, DEFAULT_F32_RANGE, context),
-      };
+  const existingNamespacePath =
+    state.namespaceSourcePathsByCanonicalKey.get(canonicalKey);
+  if (existingNamespacePath !== undefined) {
+    throw createSpecError("leafNamespaceConflict", {
+      plane: state.plane,
+      canonicalPath: canonicalKey,
+      leafPath: clonePath(sourcePath),
+      namespacePath: clonePath(existingNamespacePath),
+      conflictKind: "leaf-collides-with-namespace",
+    });
+  }
+
+  assertNoLeafAncestorConflict(state, canonicalKey, sourcePath);
+
+  state.leafDefsByCanonicalKey.set(canonicalKey, normalizedLeafDef);
+  state.leafSourcePathsByCanonicalKey.set(canonicalKey, clonePath(sourcePath));
+};
+
+const visitNamespaceNode = <TLeaf>(
+  state: PlaneCompileState<TLeaf>,
+  path: string[],
+  namespaceNode: SpecNamespace<TLeaf>,
+  isLeaf: (value: unknown) => value is TLeaf,
+  normalizeLeafDef: (key: string, leaf: TLeaf) => TLeaf,
+): void => {
+  for (const [segment, child] of Object.entries(namespaceNode)) {
+    validateAuthoredSegment(state.plane, path, segment);
+
+    const childPath = [...path, segment];
+    const canonicalPath = canonicalKeyFromPath(childPath);
+
+    if (!isNamespaceObject(child)) {
+      throw createSpecError("builderInvalid", {
+        key: specKeyForPath(state.plane, childPath),
+        reason: "invalidKind",
+      });
+    }
+
+    if (isLeaf(child)) {
+      const normalizedLeafDef = normalizeLeafDef(canonicalPath, child);
+      registerLeafNode(state, canonicalPath, childPath, normalizedLeafDef);
       continue;
     }
 
-    if (def.kind === "i32") {
-      params[key] = {
-        kind: "i32",
-        ...normalizeRange(def, DEFAULT_I32_RANGE, context, { integer: true }),
-      };
-      continue;
-    }
-
-    if (def.kind === "u32") {
-      params[key] = {
-        kind: "u32",
-        ...normalizeRange(def, DEFAULT_U32_RANGE, context, {
-          integer: true,
-          unsigned: true,
-        }),
-      };
-    }
+    registerNamespaceNode(state, canonicalPath, childPath);
+    visitNamespaceNode(state, childPath, child, isLeaf, normalizeLeafDef);
   }
 };
 
+const compilePlane = <TLeaf>(
+  plane: SpecPlane,
+  root: SpecNamespace<TLeaf> | undefined,
+  isLeaf: (value: unknown) => value is TLeaf,
+  normalizeLeafDef: (key: string, leaf: TLeaf) => TLeaf,
+): CompiledPlane<TLeaf> => {
+  const state: PlaneCompileState<TLeaf> = {
+    plane,
+    leafDefsByCanonicalKey: new Map<string, TLeaf>(),
+    leafSourcePathsByCanonicalKey: new Map<string, string[]>(),
+    namespaceSourcePathsByCanonicalKey: new Map<string, string[]>(),
+  };
+
+  if (root !== undefined) {
+    visitNamespaceNode(state, [], root, isLeaf, normalizeLeafDef);
+  }
+
+  return {
+    byCanonicalKey: toSortedRecord(state.leafDefsByCanonicalKey),
+  };
+};
+
+const normalizeParamDef = (key: string, def: ParamDef): ParamDef => {
+  const context = `spec.params.${key}`;
+
+  if (def.kind === "f32") {
+    return {
+      kind: "f32",
+      ...normalizeRange(def, DEFAULT_F32_RANGE, context),
+    };
+  }
+
+  if (def.kind === "i32") {
+    return {
+      kind: "i32",
+      ...normalizeRange(def, DEFAULT_I32_RANGE, context, { integer: true }),
+    };
+  }
+
+  if (def.kind === "u32") {
+    return {
+      kind: "u32",
+      ...normalizeRange(def, DEFAULT_U32_RANGE, context, {
+        integer: true,
+        unsigned: true,
+      }),
+    };
+  }
+
+  return def;
+};
+
+const normalizeMeterDef = (_key: string, def: MeterDef): MeterDef => {
+  return def;
+};
+
 /**
- * Converts `SpecAstInput` into the normalized runtime `SpecInput`.
+ * Converts authored spec input into the normalized runtime `SpecInput`.
  *
- * @remarks
- * With `exactOptionalPropertyTypes`, empty objects must not be attached as optional
- * properties. We only attach `params`/`meters` when non-empty.
+ * With `exactOptionalPropertyTypes`, empty plane objects must be omitted rather
+ * than attached as optional properties. Anonymous specs receive a deterministic
+ * generated id derived from canonical compiled content.
  */
 const normalizeAst = (ast: SpecAstInput): SpecInput => {
-  const paramsOut: Record<string, ParamDef> = {};
-  const metersOut: Record<string, MeterDef> = {};
+  const compiledParams = compilePlane(
+    "params",
+    ast.params,
+    isParamLeafDef,
+    normalizeParamDef,
+  );
+  const compiledMeters = compilePlane(
+    "meters",
+    ast.meters,
+    isMeterLeafDef,
+    normalizeMeterDef,
+  );
 
-  if (ast.params) {
-    flattenNamespace(ast.params, "", paramsOut);
-  }
-  if (ast.meters) {
-    flattenNamespace(ast.meters, "", metersOut);
-  }
-
-  if (Object.keys(paramsOut).length > 0) {
-    normalizeNumericParamsInPlace(paramsOut);
-  }
+  const paramsOut = compiledParams.byCanonicalKey;
+  const metersOut = compiledMeters.byCanonicalKey;
 
   const result: {
     id: string;
     params?: typeof paramsOut;
     meters?: typeof metersOut;
   } = {
-    id: ast.id ?? "spec",
+    id:
+      ast.id ??
+      anonymousId({
+        params: paramsOut,
+        meters: metersOut,
+      }),
   };
 
   if (Object.keys(paramsOut).length > 0) {

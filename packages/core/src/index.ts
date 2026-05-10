@@ -15,12 +15,12 @@ export {
   type MeterBuilders,
 } from "./spec/define";
 export type { SpecInput, SpecAstInput, ResolvedSpec } from "./spec/types";
-export { keysOf } from "./spec/keysOf";
+export { keysOf } from "./spec/keys";
 export type {
   KeyMirrorFromAst,
   ParamKeyMirror,
   MeterKeyMirror,
-} from "./spec/keysOf";
+} from "./spec/keys";
 
 // PLAN
 export { planLayout } from "./plan/layout";
