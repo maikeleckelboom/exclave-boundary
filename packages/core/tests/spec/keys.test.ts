@@ -1,11 +1,10 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { defineSpec } from "../../src/spec/define";
-import { keysOf } from "../../src/spec/keysOf";
+import { keysOf } from "../../src/spec/keys";
 
 describe("keysOf", () => {
   it("builds a nested mirror of canonical flat keys", () => {
-    /* eslint-disable @typescript-eslint/no-unsafe-member-access */
     const spec = defineSpec(({ param, meter }) => ({
       id: "dj-rig",
       params: {
@@ -60,27 +59,49 @@ describe("keysOf", () => {
 
     const k = keysOf(spec);
 
-    expectTypeOf(k.params.deck.a.transport.tempo).toEqualTypeOf<"deck.a.transport.tempo">();
-    expectTypeOf(k.params.deck.a.transport.playing).toEqualTypeOf<"deck.a.transport.playing">();
-    expectTypeOf(k.params.deck.a.transport.syncMode).toEqualTypeOf<"deck.a.transport.syncMode">();
-    expectTypeOf(k.params.deck.a.loop.enabled).toEqualTypeOf<"deck.a.loop.enabled">();
-    expectTypeOf(k.params.deck.a.loop.lengthBeats).toEqualTypeOf<"deck.a.loop.lengthBeats">();
+    expectTypeOf(
+      k.params.deck.a.transport.tempo,
+    ).toEqualTypeOf<"deck.a.transport.tempo">();
+    expectTypeOf(
+      k.params.deck.a.transport.playing,
+    ).toEqualTypeOf<"deck.a.transport.playing">();
+    expectTypeOf(
+      k.params.deck.a.transport.syncMode,
+    ).toEqualTypeOf<"deck.a.transport.syncMode">();
+    expectTypeOf(
+      k.params.deck.a.loop.enabled,
+    ).toEqualTypeOf<"deck.a.loop.enabled">();
+    expectTypeOf(
+      k.params.deck.a.loop.lengthBeats,
+    ).toEqualTypeOf<"deck.a.loop.lengthBeats">();
     expectTypeOf(k.params.deck.a.eq.gains).toEqualTypeOf<"deck.a.eq.gains">();
-    expectTypeOf(k.params.deck.b.transport.tempo).toEqualTypeOf<"deck.b.transport.tempo">();
+    expectTypeOf(
+      k.params.deck.b.transport.tempo,
+    ).toEqualTypeOf<"deck.b.transport.tempo">();
     expectTypeOf(k.params.mixer.crossfader).toEqualTypeOf<"mixer.crossfader">();
     expectTypeOf(k.params.mixer.cue.a).toEqualTypeOf<"mixer.cue.a">();
     expectTypeOf(k.params.mixer.cue.b).toEqualTypeOf<"mixer.cue.b">();
 
-    expectTypeOf(k.meters.deck.a.transport.bpm).toEqualTypeOf<"deck.a.transport.bpm">();
-    expectTypeOf(k.meters.deck.a.transport.beatPhase).toEqualTypeOf<"deck.a.transport.beatPhase">();
-    expectTypeOf(k.meters.deck.a.audio.peak).toEqualTypeOf<"deck.a.audio.peak">();
-    expectTypeOf(k.meters.deck.a.audio.spectrum).toEqualTypeOf<"deck.a.audio.spectrum">();
+    expectTypeOf(
+      k.meters.deck.a.transport.bpm,
+    ).toEqualTypeOf<"deck.a.transport.bpm">();
+    expectTypeOf(
+      k.meters.deck.a.transport.beatPhase,
+    ).toEqualTypeOf<"deck.a.transport.beatPhase">();
+    expectTypeOf(
+      k.meters.deck.a.audio.peak,
+    ).toEqualTypeOf<"deck.a.audio.peak">();
+    expectTypeOf(
+      k.meters.deck.a.audio.spectrum,
+    ).toEqualTypeOf<"deck.a.audio.spectrum">();
     expectTypeOf(k.meters.engine.xruns).toEqualTypeOf<"engine.xruns">();
     expectTypeOf(k.meters.engine.cpuLoad).toEqualTypeOf<"engine.cpuLoad">();
 
     expect(k.params.deck.a.transport.tempo).toBe("deck.a.transport.tempo");
     expect(k.params.deck.a.transport.playing).toBe("deck.a.transport.playing");
-    expect(k.params.deck.a.transport.syncMode).toBe("deck.a.transport.syncMode");
+    expect(k.params.deck.a.transport.syncMode).toBe(
+      "deck.a.transport.syncMode",
+    );
     expect(k.params.deck.a.loop.enabled).toBe("deck.a.loop.enabled");
     expect(k.params.deck.a.loop.lengthBeats).toBe("deck.a.loop.lengthBeats");
     expect(k.params.deck.a.eq.gains).toBe("deck.a.eq.gains");
@@ -90,7 +111,9 @@ describe("keysOf", () => {
     expect(k.params.mixer.cue.b).toBe("mixer.cue.b");
 
     expect(k.meters.deck.a.transport.bpm).toBe("deck.a.transport.bpm");
-    expect(k.meters.deck.a.transport.beatPhase).toBe("deck.a.transport.beatPhase");
+    expect(k.meters.deck.a.transport.beatPhase).toBe(
+      "deck.a.transport.beatPhase",
+    );
     expect(k.meters.deck.a.audio.peak).toBe("deck.a.audio.peak");
     expect(k.meters.deck.a.audio.spectrum).toBe("deck.a.audio.spectrum");
     expect(k.meters.engine.xruns).toBe("engine.xruns");
@@ -113,7 +136,6 @@ describe("keysOf", () => {
     expect(fakeParamState[k.params.deck.a.transport.tempo]).toBe(128);
     expect(fakeParamState[k.params.mixer.crossfader]).toBe(0.5);
     expect(fakeParamState[k.params.deck.a.transport.playing]).toBe(true);
-    /* eslint-enable @typescript-eslint/no-unsafe-member-access */
   });
 
   it("returns empty mirrors when params or meters are absent", () => {

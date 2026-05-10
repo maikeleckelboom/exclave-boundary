@@ -1,17 +1,15 @@
 /**
- * @fileoverview
- * Error codes and detail types for spec-time validation.
+ * Error-domain definitions for authored spec validation and semantic compilation.
  *
- * @remarks
- * - Covers invalid spec shapes, enums, ranges, and DSL misuse.
- * - Emitted by `defineSpec` / spec validators before any plan is built.
- * - Registered into the global error registry as the `spec.*` domain.
+ * This file covers spec-time failures only. These errors are emitted before any
+ * layout plan or runtime binding is built and are registered under the
+ * `spec.*` domain.
  */
 
 import {
   buildErrorDomain,
-  DOMAIN_IDS,
   type BuiltErrorDomain,
+  DOMAIN_IDS,
   type DomainRegistry,
   type ErrorCodeOf,
   type ErrorDetails,
@@ -20,8 +18,10 @@ import {
   type SeqlokError,
 } from "@seqlok/base";
 
+export type SpecPlane = "params" | "meters";
+
 /**
- * Details for invalid parameter ranges.
+ * Detail payload for invalid scalar ranges.
  */
 export interface SpecRangeDetails extends ErrorDetails {
   readonly key: string;
@@ -31,7 +31,7 @@ export interface SpecRangeDetails extends ErrorDetails {
 }
 
 /**
- * Details for invalid enum specifications.
+ * Detail payload for invalid enum definitions.
  */
 export interface SpecEnumDetails extends ErrorDetails {
   readonly key: string;
@@ -42,7 +42,7 @@ export interface SpecEnumDetails extends ErrorDetails {
 }
 
 /**
- * Details for invalid array specifications.
+ * Detail payload for invalid fixed-length array definitions.
  */
 export interface SpecArrayDetails extends ErrorDetails {
   readonly key: string;
@@ -51,19 +51,59 @@ export interface SpecArrayDetails extends ErrorDetails {
 }
 
 /**
- * Details for duplicate keys in params or meters sections.
+ * Detail payload for legacy duplicate-key reporting.
+ *
+ * This broad form is kept for compatibility with older callers. Newer canonical
+ * key collisions should prefer the more specific semantic-compilation payloads
+ * below.
  */
 export interface SpecDuplicateKeyDetails extends ErrorDetails {
   readonly key: string;
-  readonly section: "params" | "meters";
+  readonly section: SpecPlane;
 }
 
 /**
- * Details for builder overflow-risk failures.
+ * Detail payload for invalid authored namespace segments.
+ */
+export interface SpecInvalidSegmentDetails extends ErrorDetails {
+  readonly plane: SpecPlane;
+  readonly parentPath: readonly string[];
+  readonly offendingSegment: string;
+  readonly reason: "empty-segment" | "segment-contains-dot";
+}
+
+/**
+ * Detail payload for duplicate canonical keys discovered during semantic
+ * compilation.
+ */
+export interface SpecDuplicateCanonicalKeyDetails extends ErrorDetails {
+  readonly plane: SpecPlane;
+  readonly canonicalKey: string;
+  readonly firstPath: readonly string[];
+  readonly secondPath: readonly string[];
+}
+
+/**
+ * Detail payload for leaf-versus-namespace collisions discovered during
+ * semantic compilation.
+ */
+export interface SpecLeafNamespaceConflictDetails extends ErrorDetails {
+  readonly plane: SpecPlane;
+  readonly canonicalPath: string;
+  readonly leafPath: readonly string[];
+  readonly namespacePath: readonly string[];
+  readonly conflictKind:
+    | "namespace-collides-with-leaf"
+    | "leaf-collides-with-namespace"
+    | "ancestor-leaf-blocks-descendant";
+}
+
+/**
+ * Detail payload for builder-side overflow-risk failures.
  *
- * @remarks
- * Used when an array length (or future size check) exceeds safety caps.
- * This carries additional structured fields so logs/UIs can explain the limit.
+ * Used when a requested array length, or a future size-derived value, exceeds
+ * the allowed safety cap. The extra structure exists so logs and UIs can
+ * explain both the limit and the remediation path.
  */
 export interface SpecBuilderOverflowRiskDetails extends ErrorDetails {
   readonly reason: "overflowRisk";
@@ -86,10 +126,9 @@ export interface SpecBuilderOverflowRiskDetails extends ErrorDetails {
 }
 
 /**
- * Details for other high-level builder failures.
+ * Detail payload for general builder-side validation failures.
  *
- * @remarks
- * Kept intentionally small; the specific "builderInvalid" reasons are used
+ * This stays intentionally small. Specific `builderInvalid` reasons are reused
  * across spec validation and planning entrypoints.
  */
 export interface SpecBuilderGeneralDetails extends ErrorDetails {
@@ -106,11 +145,10 @@ export interface SpecBuilderGeneralDetails extends ErrorDetails {
 }
 
 /**
- * Details for high-level builder failures.
+ * Union of builder-side failure payloads.
  *
- * @remarks
- * Discriminated by `reason` so specific failure modes can demand richer fields
- * without weakening typing for all builderInvalid errors.
+ * The discriminant keeps richer failure cases strongly typed without forcing the
+ * broader builder error shape to carry unrelated fields.
  */
 export type SpecBuilderDetails =
   | SpecBuilderOverflowRiskDetails
@@ -121,6 +159,9 @@ interface SpecDetailsByKey {
   readonly enumInvalid: SpecEnumDetails;
   readonly arrayInvalid: SpecArrayDetails;
   readonly duplicateKey: SpecDuplicateKeyDetails;
+  readonly invalidSegment: SpecInvalidSegmentDetails;
+  readonly duplicateCanonicalKey: SpecDuplicateCanonicalKeyDetails;
+  readonly leafNamespaceConflict: SpecLeafNamespaceConflictDetails;
   readonly builderInvalid: SpecBuilderDetails;
 }
 
@@ -151,6 +192,30 @@ const SPEC_DEFS = {
   },
   duplicateKey: {
     message: "Duplicate key in params or meters",
+    meta: {
+      severity: "error",
+      recoverable: false,
+      boundarySafe: true,
+    },
+  },
+  invalidSegment: {
+    message: "Authored namespace segment invalid",
+    meta: {
+      severity: "error",
+      recoverable: false,
+      boundarySafe: true,
+    },
+  },
+  duplicateCanonicalKey: {
+    message: "Canonical key duplicated during spec normalization",
+    meta: {
+      severity: "error",
+      recoverable: false,
+      boundarySafe: true,
+    },
+  },
+  leafNamespaceConflict: {
+    message: "Leaf and namespace collide during spec normalization",
     meta: {
       severity: "error",
       recoverable: false,
