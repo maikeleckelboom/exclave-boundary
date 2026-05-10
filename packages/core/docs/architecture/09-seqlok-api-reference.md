@@ -19,7 +19,7 @@ This file is about **shape and signatures**. For rationale and design notes, see
   - [`allocateSharedPartitioned`](#allocatesharedpartitioned)
   - [`allocateWasmShared`](#allocatewasmshared)
   - [`buildHandoff`](#buildhandoff)
-  - [`receiveHandoff`](#receivehandoff)
+  - [`acceptHandoff`](#receivehandoff)
   - [`verifyHandoff`](#verifyhandoff)
 
 - [Binding](#binding)
@@ -167,7 +167,7 @@ declare function allocateSharedPartitioned<S extends SpecInput>(
 
   - `buildHandoff(plan, backing)` accepts `SharedPartitionedBacking`,
   - `Handoff<S>` encodes `packing: 'shared-partitioned'`,
-  - `receiveHandoff` reconstructs a `ReceivedHandoff<S>` with a partitioned backing descriptor.
+  - `acceptHandoff` reconstructs an `AcceptedHandoff<S>` with a partitioned backing descriptor.
 
 Bindings do not care whether backing is contiguous vs partitioned; the param/meter API is identical.
 
@@ -247,18 +247,18 @@ type Handoff<S extends SpecInput = SpecInput> =
 // exact structure is opaque and may evolve
 ```
 
-You should treat `Handoff<S>` as an **opaque envelope** and only interact with it via `receiveHandoff`.
+You should treat `Handoff<S>` as an **opaque envelope** and only interact with it via `acceptHandoff`.
 
 ---
 
-### `receiveHandoff`
+### `acceptHandoff`
 
 Decode and validate a `Handoff<S>` envelope on the consumer side.
 
 ```ts
-declare function receiveHandoff<S extends SpecInput>(
+declare function acceptHandoff<S extends SpecInput>(
   handoff: Handoff<S>,
-): ReceivedHandoff<S>;
+): AcceptedHandoff<S>;
 ```
 
 - Validates:
@@ -272,7 +272,7 @@ declare function receiveHandoff<S extends SpecInput>(
   - planes,
   - per-param / per-meter offsets and lengths.
 
-Returns a `ReceivedHandoff<S>` that can be passed into `bindProcessor` / `bindObserver`.
+Returns an `AcceptedHandoff<S>` that can be passed into `bindProcessor` / `bindObserver`.
 
 ---
 
@@ -297,8 +297,8 @@ const backing = allocateShared(plan);
 const handoff = buildHandoff(plan, backing);
 
 // worker
-const received = receiveHandoff(handoff);
-verifyHandoff(plan, received.plan); // throws on mismatch
+const accepted = acceptHandoff(handoff);
+verifyHandoff(plan, accepted.plan); // throws on mismatch
 ```
 
 - Compares:
@@ -315,7 +315,7 @@ verifyHandoff(plan, received.plan); // throws on mismatch
   - `handoff.backingMismatch`
   - `handoff.invalidArtifact`
 
-This is for diagnostics/hardening. The **golden path** (`receiveHandoff` → `bindProcessor` / `bindObserver`) does not require it.
+This is for diagnostics/hardening. The **golden path** (`acceptHandoff` → `bindProcessor` / `bindObserver`) does not require it.
 
 ---
 
@@ -373,11 +373,11 @@ export const controller = bindController(spec, plan, backing, {
 
 ### `bindProcessor`
 
-Create a processor binding (param reader + meter writer) from a received handoff.
+Create a processor binding (param reader + meter writer) from an accepted handoff.
 
 ```ts
 declare function bindProcessor<S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+  accepted: AcceptedHandoff<S>,
   options?: ProcessorOptions,
 ): ProcessorBinding<S>;
 ```
@@ -385,9 +385,9 @@ declare function bindProcessor<S extends SpecInput>(
 - Processor binding is **spec-free at runtime**:
 
   - spec is used only at type level (`S`),
-  - runtime input is `ReceivedHandoff<S>`.
+  - runtime input is `AcceptedHandoff<S>`.
 
-- Validates the received plan/backing descriptor and materializes typed views suitable for real-time loops.
+- Validates the accepted plan/backing descriptor and materializes typed views suitable for real-time loops.
 
 - Returns a `ProcessorBinding<S>` with:
 
@@ -397,7 +397,7 @@ declare function bindProcessor<S extends SpecInput>(
 Typical usage (worker / AudioWorklet):
 
 ```ts
-import { receiveHandoff, bindProcessor } from "@seqlok/core";
+import { acceptHandoff, bindProcessor } from "@seqlok/core";
 import type { Handoff } from "@seqlok/core";
 import type { Spec } from "./spec";
 
@@ -406,8 +406,8 @@ self.onmessage = (
 ) => {
   if (ev.data.type !== "INIT") return;
 
-  const received = receiveHandoff(ev.data.handoff);
-  const processor = bindProcessor(received);
+  const accepted = acceptHandoff(ev.data.handoff);
+  const processor = bindProcessor(accepted);
   // processor.params / processor.meters available here
 };
 ```
@@ -416,11 +416,11 @@ self.onmessage = (
 
 ### `bindObserver`
 
-Create a **read-only observer binding** (param + meter reader) from a received handoff.
+Create a **read-only observer binding** (param + meter reader) from an accepted handoff.
 
 ```ts
 declare function bindObserver<S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+  accepted: AcceptedHandoff<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 ```
@@ -432,13 +432,13 @@ declare function bindObserver<S extends SpecInput>(
   - no param writes,
   - no meter writes.
 
-- Multiple observers can be created from the same `ReceivedHandoff<S>`; they do not interfere with each other or with the processor.
+- Multiple observers can be created from the same `AcceptedHandoff<S>`; they do not interfere with each other or with the processor.
 
 Typical usage (HUD / telemetry worker):
 
 ```ts
-const received = receiveHandoff(handoff);
-const observer = bindObserver(received);
+const accepted = acceptHandoff(handoff);
+const observer = bindObserver(accepted);
 
 // HUD loop
 observer.params.within((p) => {
@@ -916,7 +916,7 @@ export type Handoff<S extends SpecInput = SpecInput> = unknown;
 /**
  * Decoded and validated handoff on the consumer side.
  */
-export interface ReceivedHandoff<S extends SpecInput = SpecInput> {
+export interface AcceptedHandoff<S extends SpecInput = SpecInput> {
   readonly plan: Plan<S>;
   readonly backing: Backing; // shared or shared-partitioned
 }

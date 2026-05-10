@@ -4,7 +4,7 @@
  *
  * @remarks
  * Binds a read-only observer to shared state using one of two input shapes:
- * - **Handoff / ReceivedHandoff**: remote-side friendly; Spec is typically unavailable.
+ * - **Handoff / AcceptedHandoff**: remote-side friendly; Spec is typically unavailable.
  * - **SharedContext / (spec, plan, backing)**: host-side friendly; Spec is available.
  *
  * When the Spec is not available, param defs are empty and enum values remain numeric.
@@ -13,18 +13,18 @@
 
 import { observerImpl } from "./impl";
 import { isSharedContext } from "../../context/guard";
-import { receiveHandoff } from "../../handoff/handoff";
+import { acceptHandoff } from "../../handoff/handoff";
 import { throwInvalidBindingArgs } from "../common/arg-errors";
 import {
-  backingFromReceived,
+  backingFromAccepted,
   isHandoff,
-  isReceivedHandoff,
+  isAcceptedHandoff,
 } from "../common/handoff-source";
 import { getParamDefs } from "../common/param-defs";
 
 import type { Backing } from "../../backing/types";
 import type { SharedContext } from "../../context/types";
-import type { Handoff, ReceivedHandoff } from "../../handoff/types";
+import type { Handoff, AcceptedHandoff } from "../../handoff/types";
 import type { Plan } from "../../plan/types";
 import type { SpecInput } from "../../spec/types";
 import type { ParamDefs } from "../common/param-defs";
@@ -35,10 +35,10 @@ import type { ObserverBinding, ObserverOptions } from "../common/types";
  *
  * @remarks
  * - `SharedContext` surfaces host-side richness via Spec param defs.
- * - `Handoff` / `ReceivedHandoff` binds from the embedded plan and shared memory only.
+ * - `Handoff` / `AcceptedHandoff` binds from the embedded plan and shared memory only.
  */
 export function bindObserver<const S extends SpecInput>(
-  source: Handoff<S> | ReceivedHandoff<S> | SharedContext<S>,
+  source: Handoff<S> | AcceptedHandoff<S> | SharedContext<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 
@@ -60,7 +60,7 @@ export function bindObserver<const S extends SpecInput>(
  * Implementation of bindObserver overload dispatch.
  */
 export function bindObserver<const S extends SpecInput>(
-  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: Handoff<S> | AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg3?: Backing,
   arg4?: ObserverOptions,
@@ -71,7 +71,7 @@ export function bindObserver<const S extends SpecInput>(
 }
 
 function normalizeSource<const S extends SpecInput>(
-  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: Handoff<S> | AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg3?: Backing,
 ): {
@@ -80,11 +80,11 @@ function normalizeSource<const S extends SpecInput>(
   readonly defs: ParamDefs;
 } {
   if (isHandoff(arg1)) {
-    return normalizeFromReceived(receiveHandoff(arg1));
+    return normalizeFromAccepted(acceptHandoff(arg1));
   }
 
-  if (isReceivedHandoff(arg1)) {
-    return normalizeFromReceived(arg1);
+  if (isAcceptedHandoff(arg1)) {
+    return normalizeFromAccepted(arg1);
   }
 
   if (isSharedContext(arg1)) {
@@ -113,26 +113,26 @@ function normalizeSource<const S extends SpecInput>(
   };
 }
 
-function normalizeFromReceived<const S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+function normalizeFromAccepted<const S extends SpecInput>(
+  accepted: AcceptedHandoff<S>,
 ): {
   readonly plan: Plan<S>;
   readonly backing: Backing;
   readonly defs: ParamDefs;
 } {
   return {
-    plan: received.plan,
-    backing: backingFromReceived(received),
+    plan: accepted.plan,
+    backing: backingFromAccepted(accepted),
     defs: getParamDefs(undefined),
   };
 }
 
 function getOptions<const S extends SpecInput>(
-  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: Handoff<S> | AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg4?: ObserverOptions,
 ): ObserverOptions | undefined {
-  if (isHandoff(arg1) || isReceivedHandoff(arg1) || isSharedContext(arg1)) {
+  if (isHandoff(arg1) || isAcceptedHandoff(arg1) || isSharedContext(arg1)) {
     return arg2 as ObserverOptions | undefined;
   }
 

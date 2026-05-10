@@ -10,7 +10,7 @@ export interface LaneObserverPlugin<S extends SpecInput> {
   /**
    * Optional hook to wire observer-side behavior.
    *
-   * Called once after the `ObserverBinding` is created from a `ReceivedHandoff`.
+   * Called once after the `ObserverBinding` is created from an `AcceptedHandoff`.
    * Plugin can:
    * - start polling snapshots
    * - register listeners

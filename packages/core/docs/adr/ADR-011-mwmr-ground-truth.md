@@ -215,8 +215,8 @@ function enqueueFromAnyThread(cmd: Command) {
 
 ```ts
 // ❌ WRONG: Observer that tries to write
-const received = receiveHandoff(handoffMessage);
-const observer = bindObserver(received);
+const accepted = acceptHandoff(handoffMessage);
+const observer = bindObserver(accepted);
 
 function updateFromHUD(value: number) {
   observer.params.set("gain", value); // Type error: no such method
@@ -315,8 +315,8 @@ function renderFrame() {
 // ─────────────────────────────────────────────────────────
 // MIDI Bridge Thread: Observer + Ring Producer
 // ─────────────────────────────────────────────────────────
-const midiReceived = receiveHandoff(handoff);
-const midiObserver = bindObserver(midiReceived);
+const midiAccepted = acceptHandoff(handoff);
+const midiObserver = bindObserver(midiAccepted);
 
 const { producer: midiRing } = createCommandMailbox({
   mailboxId: 'midi-bridge',
@@ -367,8 +367,8 @@ setInterval(deckWorkerTick, 10); // 100Hz hub tick
 // ─────────────────────────────────────────────────────────
 // AudioWorklet Thread: Processor Only
 // ─────────────────────────────────────────────────────────
-const received = receiveHandoff(handoffMessage);
-const deckProcessor = bindProcessor(received);
+const accepted = acceptHandoff(handoffMessage);
+const deckProcessor = bindProcessor(accepted);
 
 function audioProcess(inputs: Float32Array[], outputs: Float32Array[]) {
   deckProcessor.params.within((params) => {
@@ -386,8 +386,8 @@ function audioProcess(inputs: Float32Array[], outputs: Float32Array[]) {
 // ─────────────────────────────────────────────────────────
 // WebGPU Visualizer Worker: Observer Only
 // ─────────────────────────────────────────────────────────
-const vizReceived = receiveHandoff(vizHandoffMessage);
-const vizObserver = bindObserver(vizReceived);
+const vizAccepted = acceptHandoff(vizHandoffMessage);
+const vizObserver = bindObserver(vizAccepted);
 
 function renderParticles() {
   const { waveformData } = vizObserver.meters.snapshot(["waveformData"]);

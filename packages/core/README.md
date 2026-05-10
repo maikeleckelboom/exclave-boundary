@@ -92,12 +92,12 @@ shortcuts.
    const handoff = buildHandoff(plan, backing);
    ```
 
-5. **ReceivedHandoff + bindings** – how the other side sees it
+5. **AcceptedHandoff + bindings** – how the other side sees it
 
    ```ts
-   const received = receiveHandoff(handoff);
+   const accepted = acceptHandoff(handoff);
    const controller = bindController(spec, plan, backing);
-   const processor = bindProcessor(received);
+   const processor = bindProcessor(accepted);
    ```
 
 The important rule:
@@ -172,11 +172,11 @@ const meters = controller.meters.snapshot("rms", "peak", "framesProcessed");
 console.log(meters);
 ```
 
-### 3. Worker / processor side: receive handoff → bind processor
+### 3. Worker / processor side: accept handoff → bind processor
 
 ```ts
 import {
-  receiveHandoff,
+  acceptHandoff,
   bindProcessor,
   type Handoff,
   type ProcessorBinding,
@@ -193,8 +193,8 @@ let processor: ProcessorBinding<LaneSpec> | undefined;
 self.onmessage = (ev: MessageEvent<InitMessage>) => {
   if (ev.data.type !== "handoff") return;
 
-  const received = receiveHandoff(ev.data.handoff);
-  processor = bindProcessor(received);
+  const accepted = acceptHandoff(ev.data.handoff);
+  processor = bindProcessor(accepted);
 };
 
 // Somewhere in your audio loop / worker loop / simulation step
@@ -244,15 +244,15 @@ const observer: ObserverBinding<LaneSpec> = bindObserver(
 
 Or, if you built a shared context (see next section), you can bind from that.
 
-### Worker-side: bind from a received handoff
+### Worker-side: bind from an accepted handoff
 
 ```ts
 import {
-  receiveHandoff,
+  acceptHandoff,
   bindObserver,
   type ObserverBinding,
   type Handoff,
-  type ReceivedHandoff,
+  type AcceptedHandoff,
 } from "@seqlok/core";
 import type { LaneSpec } from "./spec";
 
@@ -263,8 +263,8 @@ self.onmessage = (
 ) => {
   if (ev.data.type !== "handoff") return;
 
-  const received: ReceivedHandoff<LaneSpec> = receiveHandoff(ev.data.handoff);
-  observer = bindObserver(received);
+  const accepted: AcceptedHandoff<LaneSpec> = acceptHandoff(ev.data.handoff);
+  observer = bindObserver(accepted);
 };
 
 // Periodic introspect sampling loop
@@ -385,7 +385,7 @@ Recommended entry points:
   - `planLayout`
   - `allocateShared`
   - `buildHandoff`
-  - `receiveHandoff`
+  - `acceptHandoff`
   - `bindController` (spec + plan + backing)
   - `bindProcessor`
   - `bindObserver`

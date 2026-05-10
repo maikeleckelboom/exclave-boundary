@@ -14,7 +14,7 @@ The kernel itself stays functional for reasons of correctness, analyzability, po
 This version of the document assumes the **canonical flow** is the only supported, canonical way to wire Seqlok:
 
 - **Owner / main side:** `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` → `bindController`
-- **Worker / processor side:** `receiveHandoff` → `bindProcessor`
+- **Worker / processor side:** `acceptHandoff` → `bindProcessor`
 
 Everything below is written in terms of that flow, with the **plan** explicitly threaded into `bindController`:
 
@@ -40,8 +40,8 @@ const handoff = buildHandoff(plan, backing); // Plan<S> × Backing → Handoff
 const controller = bindController(spec, plan, backing); // SpecInput × Plan<S> × Backing → ControllerBinding<S>
 
 // worker / processor
-const received = receiveHandoff(handoff); // Handoff → ReceivedHandoff<S>
-const processor = bindProcessor(received); // ReceivedHandoff<S> → ProcessorBinding<S>
+const accepted = acceptHandoff(handoff); // Handoff → AcceptedHandoff<S>
+const processor = bindProcessor(accepted); // AcceptedHandoff<S> → ProcessorBinding<S>
 ```
 
 Higher layers (orchestration, worklet helpers, React/Vue bindings, app code) are free to wrap this into:
@@ -110,9 +110,9 @@ wherever possible:
 - `planLayout(spec): Plan<S>`
 - `allocateShared(plan): Backing`
 - `buildHandoff(plan, backing): Handoff`
-- `receiveHandoff(handoff): ReceivedHandoff<S>`
+- `acceptHandoff(handoff): AcceptedHandoff<S>`
 - `bindController(spec, plan, backing, options?): ControllerBinding<S>`
-- `bindProcessor(received, options?): ProcessorBinding<S>`
+- `bindProcessor(accepted, options?): ProcessorBinding<S>`
 
 ### 3.1. Compositional reasoning
 
@@ -131,8 +131,8 @@ const controller = bindController(spec, plan, backing);
 Worker / processor:
 
 ```ts
-const received = receiveHandoff(handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoff);
+const processor = bindProcessor(accepted);
 ```
 
 Preconditions and postconditions are explicit:
@@ -140,8 +140,8 @@ Preconditions and postconditions are explicit:
 - If `planLayout(spec)` succeeds, `plan` encodes a valid, non-overlapping layout.
 - If `allocateShared(plan)` succeeds, `backing` is large enough and aligned for that plan.
 - If `buildHandoff(plan, backing)` succeeds, the handoff envelope consistently describes `plan` + `backing`.
-- If `receiveHandoff(handoff)` succeeds, the processor has a verified `ReceivedHandoff<S>` view.
-- If `bindController(spec, plan, backing)` or `bindProcessor(received)` succeeds, Seqlok has proven that the
+- If `acceptHandoff(handoff)` succeeds, the processor has a verified `AcceptedHandoff<S>` view.
+- If `bindController(spec, plan, backing)` or `bindProcessor(accepted)` succeeds, Seqlok has proven that the
   spec/plan/backing/handoff chain is compatible for this binding.
 
 This shape is friendly to:
@@ -194,8 +194,8 @@ The canonical flow is intentionally **portable**:
 - `Plan<S>` is a plain data structure describing the layout.
 - `allocateShared(plan)` constructs raw shared memory for that layout.
 - `buildHandoff(plan, backing)` serializes the plan/backing relationship into a portable envelope.
-- `receiveHandoff(handoff)` re-establishes a verified view of the same layout on the processor side.
-- `bindController(spec, plan, backing, options?)` and `bindProcessor(received, options?)` map typed views on top of the
+- `acceptHandoff(handoff)` re-establishes a verified view of the same layout on the processor side.
+- `bindController(spec, plan, backing, options?)` and `bindProcessor(accepted, options?)` map typed views on top of the
   backing according to that plan.
 
 Any language with:
@@ -236,8 +236,8 @@ The canonical flow function signatures **encode those dependencies**:
 - `planLayout(spec)` lives in `plan`
 - `allocateShared(plan)` lives in `backing`
 - `buildHandoff(plan, backing)` lives in `handoff`
-- `receiveHandoff(handoff)` lives in `handoff`
-- `bindController(spec, plan, backing, options?)` and `bindProcessor(received, options?)` live in `binding`
+- `acceptHandoff(handoff)` lives in `handoff`
+- `bindController(spec, plan, backing, options?)` and `bindProcessor(accepted, options?)` live in `binding`
 
 They make the architecture visible in the types.
 
@@ -301,8 +301,8 @@ export function createControllerKit<S extends SpecInput>(spec: S) {
 
 // worker side
 export function initProcessor<S extends SpecInput>(handoff: Handoff<S>) {
-  const received = receiveHandoff(handoff);
-  return bindProcessor(received);
+  const accepted = acceptHandoff(handoff);
+  return bindProcessor(accepted);
 }
 ```
 
@@ -336,7 +336,7 @@ You can answer along these lines, in terms of the canonical flow:
 - We want explicit flows:
 
   ```ts
-  defineSpec → planLayout → allocateShared → buildHandoff → receiveHandoff → bind*
+  defineSpec → planLayout → allocateShared → buildHandoff → acceptHandoff → bind*
   ```
 
 3. **Layering**
@@ -370,7 +370,7 @@ A concise line you can reuse:
 
   - Owner / main: `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` →
     `bindController(spec, plan, backing, options?)`
-  - Worker / processor: `receiveHandoff` → `bindProcessor(received, options?)`
+  - Worker / processor: `acceptHandoff` → `bindProcessor(accepted, options?)`
 
 - The kernel is:
 

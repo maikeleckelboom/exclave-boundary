@@ -64,7 +64,7 @@ the handoff:
 
 ```ts
 // worker / AudioWorklet
-import { receiveHandoff, bindProcessor, bindObserver } from "@seqlok/core";
+import { acceptHandoff, bindProcessor, bindObserver } from "@seqlok/core";
 import type { MySpec } from "./spec";
 import type { Handoff } from "@seqlok/core";
 
@@ -76,11 +76,11 @@ let hud: import("@seqlok/core").ObserverBinding<MySpec> | undefined;
 self.onmessage = (ev: MessageEvent<InitMessage>) => {
   if (ev.data.type !== "INIT") return;
 
-  const received = receiveHandoff(ev.data.handoff);
-  //    ^? ReceivedHandoff<MySpec>
+  const accepted = acceptHandoff(ev.data.handoff);
+  //    ^? AcceptedHandoff<MySpec>
 
-  proc = bindProcessor(received);
-  hud = bindObserver(received);
+  proc = bindProcessor(accepted);
+  hud = bindObserver(accepted);
   //  ^? ProcessorBinding<MySpec> / ObserverBinding<MySpec>
 };
 ```
@@ -91,8 +91,8 @@ Conceptually:
 2. `planLayout` – derive a **memory layout plan** from the spec.
 3. `allocateShared` / `allocateSharedPartitioned` – allocate the **shared backing** (SAB(s) + planes).
 4. `bindController` – attach the **controller role** to that backing.
-5. `buildHandoff` / `receiveHandoff` – ship layout + backing across a boundary.
-6. `bindProcessor` – attach the **processor role** to the received layout.
+5. `buildHandoff` / `acceptHandoff` – ship layout + backing across a boundary.
+6. `bindProcessor` – attach the **processor role** to the accepted layout.
 7. `bindObserver` – attach one or more **read-only observer roles** to that same layout/backing.
 
 The verbs are chosen to reflect those responsibilities; the rest of this doc is mostly "why this name and not the
@@ -216,7 +216,7 @@ Bindings attach those roles to a backing:
 
 ```ts
 const controller = bindController(spec, plan, backing); // owner/main side
-const processor = bindProcessor(received); // processor side
+const processor = bindProcessor(accepted); // processor side
 ```
 
 Why **“controller”**?
@@ -235,15 +235,15 @@ Why not `Host` or `Thread`?
 
 On the processor side, v2 removes the requirement to pass `spec` at runtime:
 
-- **Old era:** `bindProcessor(spec, received)` – type + runtime spec on processor.
-- **Current:** `bindProcessor(received)` – processor uses `ReceivedHandoff<S>` only; `S` is purely a _type_.
+- **Old era:** `bindProcessor(spec, accepted)` – type + runtime spec on processor.
+- **Current:** `bindProcessor(accepted)` – processor uses `AcceptedHandoff<S>` only; `S` is purely a _type_.
 
 That aligns with the threat model (cooperative bundle, not hostile actors) and keeps processor code slim.
 
 For observers, v0.2.0 surfaces the previously "conceptual" role as a real binding:
 
 ```ts
-const observer = bindObserver(received);
+const observer = bindObserver(accepted);
 ```
 
 - **Observer** is named to emphasize:
@@ -332,19 +332,19 @@ function frame() {
 }
 ```
 
-### 2.7 `buildHandoff` / `receiveHandoff` (not `Envelope`)
+### 2.7 `buildHandoff` / `acceptHandoff` (not `Envelope`)
 
 We use:
 
 ```ts
 const handoff = buildHandoff(plan, backing);
-const received = receiveHandoff(handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoff);
+const processor = bindProcessor(accepted);
 ```
 
 We liked "handoff" because it sounds like a **protocol event**:
 
-> one side builds a handoff, the other side receives it.
+> one side builds a handoff, the other side accepts it.
 
 The object is literally a _handoff_ of:
 
@@ -369,8 +369,8 @@ Other rejected variants:
 Final pairing:
 
 - **Producer:** `buildHandoff(plan, backing)`
-- **Consumer:** `receiveHandoff(handoff)` → `ReceivedHandoff<S>`
-- **Binder:** `bindProcessor(received)` (and `bindObserver(received)` for read-only roles)
+- **Consumer:** `acceptHandoff(handoff)` → `AcceptedHandoff<S>`
+- **Binder:** `bindProcessor(accepted)` (and `bindObserver(accepted)` for read-only roles)
 
 ---
 
@@ -468,15 +468,15 @@ Rough shape:
 
 We intentionally don't expose `subscribe` here; see §7.3.
 
-### 4.3 Why `receiveHandoff` is separate from `bindProcessor` / `bindObserver`
+### 4.3 Why `acceptHandoff` is separate from `bindProcessor` / `bindObserver`
 
 We **intentionally** keep:
 
 ```ts
-const received = receiveHandoff(handoff);
+const accepted = acceptHandoff(handoff);
 
-const proc = bindProcessor(received);
-const obs = bindObserver(received);
+const proc = bindProcessor(accepted);
+const obs = bindObserver(accepted);
 ```
 
 instead of collapsing it into a single:
@@ -496,11 +496,11 @@ This isn't accidental boilerplate; it encodes a few important invariants.
 
 Handoff decode and role binding have different responsibilities:
 
-- `receiveHandoff(handoff)`
+- `acceptHandoff(handoff)`
   → “I got this opaque envelope from somewhere. Decode it, validate it, and give me a **trusted** description of the
   backing and layout."
 
-- `bindProcessor(received)` / `bindObserver(received)`
+- `bindProcessor(accepted)` / `bindObserver(accepted)`
   → “Given a **trusted** handoff, attach my role-specific API to it."
 
 Conceptually:
@@ -508,10 +508,10 @@ Conceptually:
 ```txt
 Owner side                     Wire                     Consumer side
 -----------             ------------------             --------------
-spec → plan → backing → Handoff<S>  → receiveHandoff → ReceivedHandoff<S> → bindProcessor / bindObserver
+spec → plan → backing → Handoff<S>  → acceptHandoff → AcceptedHandoff<S> → bindProcessor / bindObserver
 ```
 
-`receiveHandoff` is the **trust boundary**. Putting that logic _inside_ `bindProcessor` would hide this boundary and
+`acceptHandoff` is the **trust boundary**. Putting that logic _inside_ `bindProcessor` would hide this boundary and
 blur "decode & verify" with "attach a processor".
 
 #### 4.3.2 One decode, many bindings
@@ -519,22 +519,22 @@ blur "decode & verify" with "attach a processor".
 A single consumer environment often needs multiple bindings to the **same** memory:
 
 ```ts
-const received = receiveHandoff(handoff);
+const accepted = acceptHandoff(handoff);
 
-const proc = bindProcessor(received);
-const hudObs = bindObserver(received);
-const debugObs = bindObserver(received);
+const proc = bindProcessor(accepted);
+const hudObs = bindObserver(accepted);
+const debugObs = bindObserver(accepted);
 ```
 
-If `bindProcessor` internally did `receiveHandoff`:
+If `bindProcessor` internally did `acceptHandoff`:
 
 - you either pay multiple redundant decodes, or
 - you invent internal caching that entangles "decode the envelope" with "which bindings exist".
 
-By keeping `receiveHandoff` explicit:
+By keeping `acceptHandoff` explicit:
 
 - the consumer decodes the envelope **once**, and
-- the resulting `ReceivedHandoff<S>` becomes the canonical "this layout+backing is now trusted" handle, reusable across
+- the resulting `AcceptedHandoff<S>` becomes the canonical "this layout+backing is now trusted" handle, reusable across
   any bindings.
 
 This is crucial for multi-domain / MWMR-style topologies where the same SAB+layout is observed by many roles.
@@ -544,14 +544,14 @@ This is crucial for multi-domain / MWMR-style topologies where the same SAB+layo
 Some consumers only want to **observe** state (HUD, inspector, logging) and might never host a processor:
 
 ```ts
-const received = receiveHandoff(handoff);
+const accepted = acceptHandoff(handoff);
 
 // This worker only inspects / visualizes state
-const observer = bindObserver(received);
+const observer = bindObserver(accepted);
 ```
 
-If `receiveHandoff` were "hidden inside" `bindProcessor`, we would need parallel “do-everything” entrypoints for other
-roles or reintroduce `(spec, backing)` overloads for convenience. Keeping `receiveHandoff` as a standalone step gives
+If `acceptHandoff` were "hidden inside" `bindProcessor`, we would need parallel “do-everything” entrypoints for other
+roles or reintroduce `(spec, backing)` overloads for convenience. Keeping `acceptHandoff` as a standalone step gives
 all consumer roles a shared, explicit decode step.
 
 #### 4.3.4 Clear owner vs consumer split
@@ -568,16 +568,16 @@ The public API encodes a sharp distinction:
 
 - **Consumer side** (adopts the world):
 
-  - `receiveHandoff(handoff)`
-  - `bindProcessor(received, ...)`
-  - `bindObserver(received, ...)`
+  - `acceptHandoff(handoff)`
+  - `bindProcessor(accepted, ...)`
+  - `bindObserver(accepted, ...)`
 
 Rule of thumb:
 
 - If you have `spec + plan + backing`, you’re on the **owner** side → you can only bind a **controller**.
-- If you only have a `Handoff<S>`, you’re on the **consumer** side → your first step is `receiveHandoff`.
+- If you only have a `Handoff<S>`, you’re on the **consumer** side → your first step is `acceptHandoff`.
 
-Putting `receiveHandoff` inside `bindProcessor` or `bindObserver` breaks that mental model and encourages overloaded
+Putting `acceptHandoff` inside `bindProcessor` or `bindObserver` breaks that mental model and encourages overloaded
 “do-everything” entrypoints.
 
 #### 4.3.5 Orchestration, registry, and tooling
@@ -586,11 +586,11 @@ Higher-level packages (`@seqlok/compose` / orchestration, registries, debug tool
 
 ```ts
 function attachDomain<S extends SpecInput>(handoff: Handoff<S>) {
-  const received = receiveHandoff(handoff);
+  const accepted = acceptHandoff(handoff);
 
   // Decide role(s) based on context
-  const proc = bindProcessor(received);
-  const obs = bindObserver(received);
+  const proc = bindProcessor(accepted);
+  const obs = bindObserver(accepted);
 }
 ```
 
@@ -600,11 +600,11 @@ These layers care about:
 - tracking generations / growth,
 - swapping bindings over time.
 
-They need the decoded form (`ReceivedHandoff<S>`) without being forced to “also stand up a processor right now”.
+They need the decoded form (`AcceptedHandoff<S>`) without being forced to “also stand up a processor right now”.
 
 #### 4.3.6 Performance vs semantics
 
-`receiveHandoff`:
+`acceptHandoff`:
 
 - runs **once per consumer per domain**, not per quantum,
 - does envelope validation + view materialization,
@@ -612,14 +612,14 @@ They need the decoded form (`ReceivedHandoff<S>`) without being forced to “als
 
 The cost is negligible compared to the clarity we gain:
 
-- a clean pipeline: `Handoff<S> → ReceivedHandoff<S> → Binding`,
+- a clean pipeline: `Handoff<S> → AcceptedHandoff<S> → Binding`,
 - a well-defined trust boundary,
 - reusable decoded handoffs for multiple bindings,
 - a stable owner/consumer split that scales to more roles and complex topologies.
 
 Slogan:
 
-> `receiveHandoff` is where a consumer says **“I trust this envelope now.”** > `bindProcessor` / `bindObserver` are how a consumer says **“Given that trusted memory, this is my role.”**
+> `acceptHandoff` is where a consumer says **“I trust this envelope now.”** > `bindProcessor` / `bindObserver` are how a consumer says **“Given that trusted memory, this is my role.”**
 
 We keep them separate so the API surface permanently encodes that distinction, even when everything happens to run on
 the same thread.
@@ -636,14 +636,14 @@ The v2 canonical flow is:
 
 - processor side:
 
-  - `receiveHandoff` → `bindProcessor(received)`
+  - `acceptHandoff` → `bindProcessor(accepted)`
 
 The **plan compatibility** story is:
 
 - `planLayout` is deterministic for a given spec + options.
 - The `Plan` carries a spec hash and layout metadata.
 - `buildHandoff` embeds that plan into the handoff.
-- `receiveHandoff` reconstructs a `ReceivedHandoff<S>` containing:
+- `acceptHandoff` reconstructs an `AcceptedHandoff<S>` containing:
 
   - the SAB(s),
   - the per-plane offsets and lengths,
@@ -651,11 +651,11 @@ The **plan compatibility** story is:
 
 Where to do deep verification (plan diffing, extra paranoia) is left to higher-level tooling:
 
-- core can expose `verifyHandoff(plan, received)` for test/dev usage;
-- `bindProcessor(received)` is the slim golden path for production, matching the cooperative threat model.
+- core can expose `verifyHandoff(plan, accepted)` for test/dev usage;
+- `bindProcessor(accepted)` is the slim golden path for production, matching the cooperative threat model.
 
 We explicitly _do not_ require re-planning on the processor side in v2; `bindProcessor` works purely from
-`ReceivedHandoff<S>`.
+`AcceptedHandoff<S>`.
 
 ---
 
@@ -674,7 +674,7 @@ Naming rationale:
   - `spec.*` – DSL issues.
   - `plan.*` – planning/layout issues.
   - `backing.*` – `allocateShared` / SAB / planes issues.
-  - `handoff.*` – build/receive/verify issues.
+  - `handoff.*` – build/accept/verify issues.
   - `binding.*` – controller/processor/observer binding issues.
   - `params.*`, `meters.*` – runtime value issues.
   - `diagnostics.*` – diagnostics-only failure modes.
@@ -825,7 +825,7 @@ If you want reactivity:
 | Old prototype idea          | What it did                          | Current equivalent / story                        |
 |-----------------------------|--------------------------------------|---------------------------------------------------|
 | `bindHost`                  | Big main-thread binding with extras  | `bindController` (narrow, params/meters only)     |
-| `bindThread`                | Worker binding                       | `bindProcessor(received)`                         |
+| `bindThread`                | Worker binding                       | `bindProcessor(accepted)`                         |
 | `params.setMany(patch)`     | Batch param write                    | `params.update(patch)`                            |
 | `params.transaction(fn)`    | Multi-param window + batched signals | App-level helper using `update`                   |
 | `params.subscribe(key, cb)` | Reactive watcher API                 | Not in core; userland stores/adapters handle this |
@@ -866,7 +866,7 @@ controller binding (for example, small helpers that delegate to `params.set` / `
 - Pipeline verbs and roles:
 
   - `defineSpec` → `planLayout` → `allocateShared` / `allocateSharedPartitioned`
-    → `buildHandoff` → `receiveHandoff` → `bindController` / `bindProcessor` / `bindObserver`.
+    → `buildHandoff` → `acceptHandoff` → `bindController` / `bindProcessor` / `bindObserver`.
 
 - Controller vs processor vs observer split and their responsibilities.
 

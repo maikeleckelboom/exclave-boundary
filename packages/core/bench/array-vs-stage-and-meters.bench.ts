@@ -8,7 +8,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../src";
 
 /**
@@ -38,8 +38,8 @@ describe("MeterWriter sugar: set vs stage, direct vs named", () => {
   const backing = allocateShared(plan);
   const controller = bindController(spec, plan, backing);
   const handoff = buildHandoff(plan, backing);
-  const received = receiveHandoff(handoff);
-  const processor = bindProcessor(received);
+  const accepted = acceptHandoff(handoff);
+  const processor = bindProcessor(accepted);
 
   // Keep meters live with a dummy param write.
   controller.params.set("dummy", 0.5);

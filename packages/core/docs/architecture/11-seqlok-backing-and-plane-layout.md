@@ -20,7 +20,7 @@ import {
   planLayout,
   allocateShared,
   buildHandoff,
-  receiveHandoff,
+  acceptHandoff,
   bindController,
   bindProcessor,
 } from "@seqlok/core";
@@ -40,8 +40,8 @@ const controller = bindController(spec, plan, backing);
 const handoff = buildHandoff(plan, backing);
 
 // Consumer-side binding
-const received = receiveHandoff(handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoff);
+const processor = bindProcessor(accepted);
 ````
 
 From the user's point of view:

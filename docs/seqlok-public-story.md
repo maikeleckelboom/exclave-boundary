@@ -361,7 +361,7 @@ declared spec
   → deterministic layout
     → shared backing
       → explicit handoff
-        → received handoff
+        → accepted handoff
           → owner-side binding
             → processor-side binding
 ```

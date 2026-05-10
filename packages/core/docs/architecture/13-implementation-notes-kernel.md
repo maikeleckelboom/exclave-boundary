@@ -128,36 +128,36 @@ handoff.
 Golden pipeline on the processor side:
 
 ```ts
-const received = receiveHandoff(msg.handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(msg.handoff);
+const processor = bindProcessor(accepted);
 ```
 
 In this flow:
 
-- `bindProcessor(received)` trusts that the `handoff` came from the **matching** `plan`.
+- `bindProcessor(accepted)` trusts that the `handoff` came from the **matching** `plan`.
 - The cooperative assumption is: controller and processor are compiled from the same bundle / version.
 
 For environments that want stronger checks (tests, diagnostics, hardened pipelines), core exposes an explicit verifier:
 
 ```ts
 const plan = planLayout(spec); // same spec as the controller used
-const received = receiveHandoff(msg.handoff);
+const accepted = acceptHandoff(msg.handoff);
 
-verifyHandoff(plan, received); // throws on mismatch
-const processor = bindProcessor(received); // slim binding, no extra hashing
+verifyHandoff(plan, accepted); // throws on mismatch
+const processor = bindProcessor(accepted); // slim binding, no extra hashing
 ```
 
 The verifier:
 
-1. Compares `plan.hash` against `received.meta.hash`.
-2. Compares `plan.bytesTotal` against `received.meta.bytesTotal`.
+1. Compares `plan.hash` against `accepted.meta.hash`.
+2. Compares `plan.bytesTotal` against `accepted.meta.bytesTotal`.
 3. Fails fast with a `handoff.invalidArtifact` (or related) error if they disagree.
 
 Design intent:
 
 - **Hashing lives at the handoff layer** and is cheap.
 - **Verification is explicit** and can run on the controller or a non-RT worker.
-- `bindProcessor(received)` stays slim for RT use; deep paranoia belongs in verifier calls, not in the hot path.
+- `bindProcessor(accepted)` stays slim for RT use; deep paranoia belongs in verifier calls, not in the hot path.
 
 ---
 

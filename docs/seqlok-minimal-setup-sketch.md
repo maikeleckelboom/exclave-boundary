@@ -20,14 +20,14 @@ Host side
   defineSpec -> planLayout -> allocateShared -> buildHandoff -> bindController
 
 Worker side
-  receiveHandoff -> bindProcessor
+  acceptHandoff -> bindProcessor
                  -> bindObserver   (optional)
 ```
 
 That ordering matters.
 
 The far side does not reconstruct layout from guesswork.
-It receives an explicit handoff, verifies it, and binds from the received artifact.
+It accepts an explicit handoff, verifies it, and binds from the accepted artifact.
 That is still the core contract shape in `dev`.
 
 ---
@@ -87,17 +87,17 @@ It is the best path to show in a sketch because it keeps the ownership model vis
 ## Canonical Worker-Side Setup
 
 ```ts
-const received = receiveHandoff(handoff)
+const accepted = acceptHandoff(handoff)
 
-const processor = bindProcessor(received)
-const observer = bindObserver(received)
+const processor = bindProcessor(accepted)
+const observer = bindObserver(accepted)
 ```
 
 `bindObserver` is optional.
 Use it for passive readers such as diagnostics, dashboards, logging, or tooling.
 
 The important thing is not the names.
-The important thing is that the worker binds from a **received handoff**, not from an improvised local reconstruction.
+The important thing is that the worker binds from a **accepted handoff**, not from an improvised local reconstruction.
 
 ---
 

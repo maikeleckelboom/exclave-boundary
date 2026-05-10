@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 
 import { allocateShared } from "../../src/backing/allocate-shared";
 import { snapshotWithPolicy } from "../../src/binding/common/coherent";
-import { buildHandoff, receiveHandoff } from "../../src/handoff/handoff";
+import { buildHandoff, acceptHandoff } from "../../src/handoff/handoff";
 import { planLayout } from "../../src/plan/layout";
 import { defineSpec } from "../../src/spec/define";
 import { hashSpec } from "../../src/spec/hash";
@@ -40,8 +40,8 @@ describe("V0.1.0 Regression Hardening Checks", () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     raw.sab = backing.sab;
 
-    const received = receiveHandoff(raw);
-    expect(received.plan.hash).toBe(plan.hash);
+    const accepted = acceptHandoff(raw);
+    expect(accepted.plan.hash).toBe(plan.hash);
   });
 
   it("handles snapshotWithPolicy after a crashed writer sequence bump", () => {

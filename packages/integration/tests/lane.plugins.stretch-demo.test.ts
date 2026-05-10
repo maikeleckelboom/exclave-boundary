@@ -6,7 +6,7 @@ import {
   defineSpec,
   planLayout,
   type ProcessorBinding,
-  receiveHandoff,
+  acceptHandoff,
 } from "@seqlok/core";
 import { describe, expect, it } from "vitest";
 
@@ -99,8 +99,8 @@ describe("LaneProcessorPlugin stretch.mix demo", () => {
     const controller = bindController(stretchDemoSpec, plan, backing);
     const handoff = buildHandoff(plan, backing);
 
-    const received = receiveHandoff(handoff);
-    const binding = bindProcessor(received);
+    const accepted = acceptHandoff(handoff);
+    const binding = bindProcessor(accepted);
 
     // Plugin handle
 

@@ -64,7 +64,7 @@ export interface EntrySlot {
    *
    * @remarks
    * Metadata only: does not affect packing or plane selection.
-   * This enables bindings created from received handoffs (defs unavailable)
+   * This enables bindings created from accepted handoffs (defs unavailable)
    * to still pick correct typed-array interpretations (e.g. Uint32 view over PI32).
    *
    * Optional for backwards compatibility with older plans.

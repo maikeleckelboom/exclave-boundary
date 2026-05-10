@@ -8,7 +8,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 import type {
@@ -125,8 +125,8 @@ describe("observer binding - coverage edges", () => {
 
     // meters version via handoff and processor publish
     const handoff = buildHandoff(plan, backing);
-    const received = receiveHandoff(handoff);
-    const processor = bindProcessor(received);
+    const accepted = acceptHandoff(handoff);
+    const processor = bindProcessor(accepted);
 
     const vM1 = observer.meters.version();
 

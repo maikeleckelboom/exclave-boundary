@@ -51,12 +51,12 @@ deprecations, then removal in a major version bump.
 ### Handoff
 
 * **Rename** `buildHandoff(plan, backing)` → `createHandoff(plan, backing)`
-* **Rename** `receiveHandoff(handoff)` → `acceptHandoff(handoff)` (preferred) or `decodeHandoff(handoff)`
+* **Rename** `acceptHandoff(handoff)` → `acceptHandoff(handoff)` (preferred) or `decodeHandoff(handoff)`
 
 **Rationale**
 
 * `createHandoff` communicates "construct a transfer object."
-* `acceptHandoff` communicates validation/normalization into a safe received representation; avoids the IO connotation
+* `acceptHandoff` communicates validation/normalization into a safe accepted representation; avoids the IO connotation
   of "receive."
 
 ### Bindings
@@ -92,7 +92,7 @@ deprecations, then removal in a major version bump.
 * `buildPlan` as alias of `planLayout`
 * `allocateBacking` as alias of `allocateShared`
 * `createHandoff` as alias of `buildHandoff`
-* `acceptHandoff` as alias of `receiveHandoff`
+* `acceptHandoff` as alias of `acceptHandoff`
 
 2. Mark old names as deprecated in docs/types (JSDoc `@deprecated`).
 3. Update internal code and tests to use new names.

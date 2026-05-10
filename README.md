@@ -21,7 +21,7 @@ glitch-free transitions between stateful processors.
 
 Everything in `@seqlok/core` revolves around a single shared-state flow:
 
-`defineSpec -> planLayout -> allocateShared / allocateSharedPartitioned / allocateWasmShared -> buildHandoff -> receiveHandoff -> bindController / bindProcessor / bindObserver`
+`defineSpec -> planLayout -> allocateShared / allocateSharedPartitioned / allocateWasmShared -> buildHandoff -> acceptHandoff -> bindController / bindProcessor / bindObserver`
 
 ### 1. Define a spec (range-only DSL)
 
@@ -61,7 +61,7 @@ const handoff: Handoff = buildHandoff(plan, backing);
 
 ```ts
 import {
-  receiveHandoff,
+  acceptHandoff,
   bindController,
   bindProcessor,
   bindObserver,
@@ -72,7 +72,7 @@ import type { Handoff } from "./topology-types";
 
 const incomingHandoff: Handoff;
 
-const shared = receiveHandoff(incomingHandoff);
+const shared = acceptHandoff(incomingHandoff);
 
 const controller = bindController(shared);
 const processor = bindProcessor(shared);

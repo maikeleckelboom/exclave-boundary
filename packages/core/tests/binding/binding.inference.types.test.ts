@@ -5,7 +5,7 @@ import {
   planLayout,
   allocateShared,
   buildHandoff,
-  receiveHandoff,
+  acceptHandoff,
   bindController,
   bindProcessor,
 } from "../../src";
@@ -43,8 +43,8 @@ describe("BindController / BindProcessor: Inference Contracts", () => {
     const backing = allocateShared(plan);
     const handoff = buildHandoff(plan, backing);
 
-    const received = receiveHandoff(handoff);
-    const procA = bindProcessor(received);
+    const accepted = acceptHandoff(handoff);
+    const procA = bindProcessor(accepted);
     expectTypeOf(procA).toEqualTypeOf<ProcessorBinding<DemoSpec>>();
   });
 });

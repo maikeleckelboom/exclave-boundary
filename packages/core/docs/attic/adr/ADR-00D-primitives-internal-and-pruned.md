@@ -15,7 +15,7 @@ Accepted
 At the same time, the public value proposition of `@seqlok/core` is the **high-level binding pipeline**:
 
 - `defineSpec` → `planLayout` → `allocateShared` / `allocateWasmShared`
-- `buildHandoff` / `receiveHandoff`
+- `buildHandoff` / `acceptHandoff`
 - `bindController` / `bindProcessor`
 
 Exposing low-level primitives as "public API" would increase maintenance cost and invite misuse without helping the main use cases (audio / realtime apps using bindings).

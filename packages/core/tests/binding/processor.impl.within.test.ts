@@ -8,7 +8,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 import { mapViews } from "../../src/backing/map-views";
 
@@ -27,10 +27,10 @@ describe("Processor Params: Coherent Read Transaction", () => {
     const plan = planLayout(spec);
     const backing = allocateShared(plan);
     const handoff = buildHandoff(plan, backing);
-    const received = receiveHandoff(handoff);
+    const accepted = acceptHandoff(handoff);
 
     // Bind processor with minimal budgets to ensure immediate failure under simulated contention
-    const processor = bindProcessor(received, {
+    const processor = bindProcessor(accepted, {
       params: {
         spinBudget: 1,
         retryBudget: 0,

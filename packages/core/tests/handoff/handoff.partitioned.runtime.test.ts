@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { allocateSharedPartitioned } from "../../src/backing/allocate-shared-partitioned";
-import { buildHandoff, receiveHandoff } from "../../src/handoff/handoff";
+import { buildHandoff, acceptHandoff } from "../../src/handoff/handoff";
 import { planLayout } from "../../src/plan/layout";
 import { defineSpec } from "../../src/spec/define";
 
 describe("handoff v1 – shared-partitioned runtime roundtrip", () => {
-  it("builds and receives a partitioned handoff with matching plan + planes", () => {
+  it("builds and accepts a partitioned handoff with matching plan + planes", () => {
     const spec = defineSpec(({ param, meter }) => ({
       params: {
         rate: param.f32({ min: 0.5, max: 2 }),
@@ -24,23 +24,23 @@ describe("handoff v1 – shared-partitioned runtime roundtrip", () => {
     const backing = allocateSharedPartitioned(plan);
 
     const handoff = buildHandoff(plan, backing);
-    const received = receiveHandoff(handoff);
+    const accepted = acceptHandoff(handoff);
 
     // Shape + packing
-    expect(received.packing).toBe("shared-partitioned");
+    expect(accepted.packing).toBe("shared-partitioned");
 
     // Narrow to the partitioned variant for the rest of the test
-    if (received.packing !== "shared-partitioned") {
+    if (accepted.packing !== "shared-partitioned") {
       throw new Error("Test invariant: expected shared-partitioned packing");
     }
 
     // Same plan metadata (hash/bytesTotal)
-    expect(received.plan.hash).toBe(plan.hash);
-    expect(received.plan.bytesTotal).toBe(plan.bytesTotal);
+    expect(accepted.plan.hash).toBe(plan.hash);
+    expect(accepted.plan.bytesTotal).toBe(plan.bytesTotal);
 
-    // Plane lengths as observed from the received planes
+    // Plane lengths as observed from the accepted planes
     const remotePlaneLengths: Record<string, number> = {};
-    const { planes } = received;
+    const { planes } = accepted;
 
     for (const plane of Object.keys(planes)) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion

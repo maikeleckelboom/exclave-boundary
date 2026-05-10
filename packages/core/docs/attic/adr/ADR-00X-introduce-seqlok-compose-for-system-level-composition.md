@@ -23,7 +23,7 @@ defineSpec
 → planLayout
 → allocateShared
 → buildHandoff
-→ receiveHandoff
+→ acceptHandoff
 → bind{Controller,Processor,Observer}
 ```
 

@@ -8,7 +8,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../src";
 
 /**
@@ -87,11 +87,11 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       const plan = planLayout(smallSpec);
       const backing = allocateShared(plan);
       const handoff = buildHandoff(plan, backing);
-      const received = receiveHandoff(handoff);
+      const accepted = acceptHandoff(handoff);
 
       // Exercise controller/processor bindings.
       bindController(smallSpec, plan, backing);
-      bindProcessor(received);
+      bindProcessor(accepted);
     },
     E2E_BENCH_OPTS,
   );
@@ -102,10 +102,10 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       const plan = planLayout(mediumSpec);
       const backing = allocateShared(plan);
       const handoff = buildHandoff(plan, backing);
-      const received = receiveHandoff(handoff);
+      const accepted = acceptHandoff(handoff);
 
       bindController(mediumSpec, plan, backing);
-      bindProcessor(received);
+      bindProcessor(accepted);
     },
     E2E_BENCH_OPTS,
   );
@@ -116,10 +116,10 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       const plan = planLayout(largeSpec);
       const backing = allocateShared(plan);
       const handoff = buildHandoff(plan, backing);
-      const received = receiveHandoff(handoff);
+      const accepted = acceptHandoff(handoff);
 
       bindController(largeSpec, plan, backing);
-      bindProcessor(received);
+      bindProcessor(accepted);
     },
     E2E_BENCH_OPTS,
   );

@@ -6,7 +6,7 @@
  * memory layout and its backing across concurrency boundaries:
  *
  * - {@link Handoff} – owner-side transport envelope (protocol-level shape).
- * - {@link ReceivedHandoff} – processor-side capability (plan + backing descriptor).
+ * - {@link AcceptedHandoff} – processor-side capability (plan + backing descriptor).
  *
  * Design principles:
  *
@@ -18,7 +18,7 @@
  *
  * Binding guidance:
  * - Across a boundary (e.g. `postMessage`), consumers SHOULD validate with
- *   `receiveHandoff(...)` and bind from a `Handoff<S>` or `ReceivedHandoff<S>`.
+ *   `acceptHandoff(...)` and bind from a `Handoff<S>` or `AcceptedHandoff<S>`.
  * - For local wiring / tests / custom hosts, binding from `SharedContext<S>` or
  *   explicit `(spec, plan, backing)` is supported by the binding layer.
  */
@@ -47,7 +47,7 @@ declare const HandoffBrand: unique symbol;
  *   transports the underlying `SharedArrayBuffer` (`memory.buffer`), not the
  *   `WebAssembly.Memory` object itself.
  *
- * This value is consumed by `receiveHandoff` and interpreted by bindings;
+ * This value is consumed by `acceptHandoff` and interpreted by bindings;
  * it is not meant to be inspected by most application code.
  */
 export type HandoffPacking = "shared" | "shared-partitioned";
@@ -68,7 +68,7 @@ interface SharedHandoff<S extends SpecInput = SpecInput> {
    *
    * @remarks
    * - Currently fixed to `1`.
-   * - Checked by `receiveHandoff` at the boundary.
+   * - Checked by `acceptHandoff` at the boundary.
    * - Incremented when making breaking changes to the envelope or its
    *   interpretation semantics.
    */
@@ -125,7 +125,7 @@ interface SharedPartitionedHandoff<S extends SpecInput = SpecInput> {
    *
    * @remarks
    * - Currently fixed to `1`.
-   * - Checked by `receiveHandoff` at the boundary.
+   * - Checked by `acceptHandoff` at the boundary.
    * - Incremented when making breaking changes to the envelope or its
    *   interpretation semantics.
    */
@@ -198,9 +198,9 @@ export type Handoff<S extends SpecInput = SpecInput> =
  *
  * @typeParam S - Spec type (inferred from `handoff.plan`).
  */
-interface ReceivedSharedHandoff<S extends SpecInput = SpecInput> {
+interface AcceptedSharedHandoff<S extends SpecInput = SpecInput> {
   /**
-   * Memory layout strategy used by this received handoff.
+   * Memory layout strategy used by this accepted handoff.
    *
    * @remarks
    * - Preserved from the original {@link Handoff} to allow bindings to
@@ -235,9 +235,9 @@ interface ReceivedSharedHandoff<S extends SpecInput = SpecInput> {
  *
  * @typeParam S - Spec type (inferred from `handoff.plan`).
  */
-interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
+interface AcceptedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
   /**
-   * Memory layout strategy used by this received handoff.
+   * Memory layout strategy used by this accepted handoff.
    *
    * @remarks
    * - Preserved from the original {@link Handoff} to allow bindings to
@@ -267,7 +267,7 @@ interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
 }
 
 /**
- * Result of `receiveHandoff` – validated handoff with typed plan.
+ * Result of `acceptHandoff` – validated handoff with typed plan.
  *
  * @typeParam S - Spec type (inferred from `handoff.plan`).
  *
@@ -280,7 +280,7 @@ interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
  *   - the backing descriptor (`sab` or `planes`), and
  *   - how to interpret it (`plan`).
  * - Protocol details like `version` are validated and then discarded by
- *   `receiveHandoff`.
+ *   `acceptHandoff`.
  *
  * **Authority model:**
  *
@@ -289,15 +289,15 @@ interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
  *   - then builds a {@link Handoff} via `buildHandoff(...)`,
  *   - and transfers it across the boundary.
  * - Processor:
- *   - calls `receiveHandoff(handoff)` and obtains `ReceivedHandoff<S>`,
- *   - then typically binds via `bindProcessor(received)`.
+ *   - calls `acceptHandoff(handoff)` and obtains `AcceptedHandoff<S>`,
+ *   - then typically binds via `bindProcessor(accepted)`.
  *
  * Binding guidance:
- * - Across a boundary, `ReceivedHandoff<S>` (or a {@link Handoff}) is the
+ * - Across a boundary, `AcceptedHandoff<S>` (or a {@link Handoff}) is the
  *   recommended capability form.
  * - For local wiring / tests / custom hosts, the binding layer may also accept
  *   `SharedContext<S>` or explicit `(spec, plan, backing)` inputs.
  */
-export type ReceivedHandoff<S extends SpecInput = SpecInput> =
-  | ReceivedSharedHandoff<S>
-  | ReceivedSharedPartitionedHandoff<S>;
+export type AcceptedHandoff<S extends SpecInput = SpecInput> =
+  | AcceptedSharedHandoff<S>
+  | AcceptedSharedPartitionedHandoff<S>;

@@ -4,7 +4,7 @@ import {
   bindProcessor,
   buildHandoff,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
   type ControllerBinding,
   type ProcessorBinding,
 } from "../../src";
@@ -14,7 +14,7 @@ import type {
   ControllerOptions,
   ProcessorOptions,
 } from "../../src/binding/common/types";
-import type { Handoff, ReceivedHandoff } from "../../src/handoff/types";
+import type { Handoff, AcceptedHandoff } from "../../src/handoff/types";
 import type { Plan } from "../../src/plan/types";
 import type { SpecInput } from "../../src/spec/types";
 
@@ -23,7 +23,7 @@ export interface BoundPair<S extends SpecInput> {
   readonly plan: Plan<S>;
   readonly backing: SharedBacking;
   readonly handoff: Handoff<S>;
-  readonly received: ReceivedHandoff<S>;
+  readonly accepted: AcceptedHandoff<S>;
   readonly ctl: ControllerBinding<S>;
   readonly proc: ProcessorBinding<S>;
 }
@@ -42,10 +42,10 @@ export function bindingsFromSpec<S extends SpecInput>(
   const plan = planLayout(spec);
   const backing = allocateShared(plan);
   const handoff = buildHandoff(plan, backing);
-  const received = receiveHandoff(handoff);
+  const accepted = acceptHandoff(handoff);
 
   const ctl = bindController(spec, plan, backing, options?.controller);
-  const proc = bindProcessor(received, options?.processor);
+  const proc = bindProcessor(accepted, options?.processor);
 
-  return { spec, plan, backing, handoff, received, ctl, proc };
+  return { spec, plan, backing, handoff, accepted, ctl, proc };
 }

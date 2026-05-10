@@ -271,8 +271,8 @@ const controller = bindController(spec, backing);
 const handoff = buildHandoff(plan, backing);
 
 // send `handoff` to the processor agent (worker / AudioWorklet)
-const received = receiveHandoff(handoffFromMain);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoffFromMain);
+const processor = bindProcessor(accepted);
 ```
 
 Seqlok uses SAB/Wasm as the raw medium, but:
@@ -312,7 +312,7 @@ Spec  →  Plan  →  Backing  →  Handoff  →  Bindings
 - **Bindings**:
 
   - Controller: `bindController(spec, backing)` on the owner side.
-  - Processor: `receiveHandoff(handoff)` → `bindProcessor(received)` on the engine side.
+  - Processor: `acceptHandoff(handoff)` → `bindProcessor(accepted)` on the engine side.
 
 ---
 

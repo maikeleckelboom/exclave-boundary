@@ -61,8 +61,8 @@ export type {
   RangePolicy,
 } from "./binding/common/types";
 // HANDOFF
-export { buildHandoff, receiveHandoff, verifyHandoff } from "./handoff/handoff";
-export type { Handoff, HandoffPacking, ReceivedHandoff } from "./handoff/types";
+export { buildHandoff, acceptHandoff, verifyHandoff } from "./handoff/handoff";
+export type { Handoff, HandoffPacking, AcceptedHandoff } from "./handoff/types";
 
 // ENUM UTILITIES
 export {

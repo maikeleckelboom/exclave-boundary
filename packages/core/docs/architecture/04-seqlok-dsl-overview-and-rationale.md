@@ -59,8 +59,8 @@ const controller = bindController(spec, plan, backing, {
 });
 
 // processor / engine side (worker, AudioWorklet, etc.)
-const received = receiveHandoff(handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoff);
+const processor = bindProcessor(accepted);
 ```
 
 The **Spec** is the only place you describe the shared state. Everything else (plan, shared memory, handoff, bindings) is
@@ -673,7 +673,7 @@ Spec → Plan → Backing → Handoff → Bindings
   - Allocates `SharedArrayBuffer` or shared `WebAssembly.Memory`.
   - Creates the underlying typed views for the planes.
 
-- **Handoff** (`buildHandoff(plan, backing)` / `receiveHandoff(handoff)`)
+- **Handoff** (`buildHandoff(plan, backing)` / `acceptHandoff(handoff)`)
 
   - Compact, serializable description of "this plan + this memory".
   - Lets other agents reconstruct compatible bindings without re-planning.
@@ -681,7 +681,7 @@ Spec → Plan → Backing → Handoff → Bindings
 - **Bindings** (`bindController` / `bindProcessor`)
 
   - `bindController(spec, plan, backing, options?)` — controller-side view over the backing (owner side).
-  - `bindProcessor(received, options?)` — processor-side view constructed from a `ReceivedHandoff`.
+  - `bindProcessor(accepted, options?)` — processor-side view constructed from an `AcceptedHandoff`.
   - Expose the concurrency APIs:
 
     - `controller.params.set` / `controller.params.update` / `controller.params.stage` / `controller.params.hydrate`

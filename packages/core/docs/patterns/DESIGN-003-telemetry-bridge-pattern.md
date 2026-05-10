@@ -23,7 +23,7 @@ It never mutates Seqlok state. It just mirrors the current world into the outsid
 
 Steps:
 
-1. `bindObserver(receivedHandoff)` in the bridge process / worker.
+1. `bindObserver(acceptedHandoff)` in the bridge process / worker.
 2. Pre-allocate all buffers and sockets.
 3. Run a bounded-frequency loop (e.g. 20–60 Hz).
 4. In each tick:
@@ -43,7 +43,7 @@ import { bindObserver } from "@seqlok/core";
 
 // 1. Setup
 const socket = dgram.createSocket("udp4");
-const observer = bindObserver(receivedHandoff); // swarm domains
+const observer = bindObserver(acceptedHandoff); // swarm domains
 
 // Example shape: vec4 per agent: [x, y, z, w]
 const DRONE_COUNT = MAX_AGENTS;

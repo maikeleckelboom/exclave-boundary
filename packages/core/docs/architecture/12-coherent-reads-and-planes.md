@@ -257,8 +257,8 @@ and the policy is testable in isolation.
 The observer binding is available via `bindObserver` in `@seqlok/core`. Example usage:
 
 ```ts
-const received = receiveHandoff(handoff);
-const observer = bindObserver(received, {
+const accepted = acceptHandoff(handoff);
+const observer = bindObserver(accepted, {
   /* observer options */
 });
 

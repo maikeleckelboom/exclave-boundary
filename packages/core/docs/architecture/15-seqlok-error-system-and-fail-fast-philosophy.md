@@ -238,7 +238,7 @@ These mean: **“we cannot trust this artifact; refuse to bind it.”**
 At:
 
 - `bindController(spec, plan, backing)`
-- `bindProcessor(received)`
+- `bindProcessor(accepted)`
 
 Seqlok checks spec, plan, backing, and handoff against each other.
 
@@ -340,7 +340,7 @@ APIs:
 - `defineSpec`
 - `planLayout`
 - `allocateShared`, `allocateWasmShared`
-- `buildHandoff`, `receiveHandoff`
+- `buildHandoff`, `acceptHandoff`
 - `bindController`, `bindProcessor`
 - Environment probes (`assertSabSupport`, `probeEnv`)
 

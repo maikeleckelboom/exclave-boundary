@@ -30,7 +30,7 @@ describe("Public API Surface (Runtime Exports)", () => {
 
       // HANDOFF
       "buildHandoff",
-      "receiveHandoff",
+      "acceptHandoff",
       "verifyHandoff",
 
       // ERRORS

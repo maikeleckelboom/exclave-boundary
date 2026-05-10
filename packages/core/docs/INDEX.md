@@ -46,7 +46,7 @@ Pick the path that matches your current job.
 
 1. **Repo root `README.md`** – learn the canonical flow:
 
-   > `defineSpec → planLayout → allocateShared/allocateWasmShared → buildHandoff → receiveHandoff → bindController / bindProcessor`
+   > `defineSpec → planLayout → allocateShared/allocateWasmShared → buildHandoff → acceptHandoff → bindController / bindProcessor`
 
 2. Then skim these:
 

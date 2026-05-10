@@ -9,7 +9,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 function setup() {
@@ -25,16 +25,16 @@ function setup() {
 
   const ctl = bindController(spec, plan, backing);
 
-  // Critical: processor binds from received handoff (defs may be unavailable there).
+  // Critical: processor binds from accepted handoff (defs may be unavailable there).
   const handoff = buildHandoff(plan, backing);
-  const received = receiveHandoff(handoff);
-  const proc = bindProcessor(received);
+  const accepted = acceptHandoff(handoff);
+  const proc = bindProcessor(accepted);
 
   return { spec, plan, backing, ctl, proc };
 }
 
 describe("Regression: u32.array params (do not delete)", () => {
-  test("processor sees Uint32Array even when defs are unavailable (received handoff)", () => {
+  test("processor sees Uint32Array even when defs are unavailable (accepted handoff)", () => {
     const { ctl, proc } = setup();
 
     const write = new Uint32Array([

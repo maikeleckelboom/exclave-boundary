@@ -4,26 +4,26 @@
  *
  * @remarks
  * Binds a processor to shared state using one of two input shapes:
- * - **Handoff / ReceivedHandoff / SharedContext**: ergonomic entrypoints for remote and host.
+ * - **Handoff / AcceptedHandoff / SharedContext**: ergonomic entrypoints for remote and host.
  * - **(spec, plan, backing)**: explicit low-level wiring (tests/custom hosts).
  *
- * A typed `Handoff<S>` can be passed directly; it is validated via `receiveHandoff`.
+ * A typed `Handoff<S>` can be passed directly; it is validated via `acceptHandoff`.
  * Argument misuse throws `binding.invalidArgs`.
  */
 
 import { processorImpl } from "./impl";
 import { isSharedContext } from "../../context/guard";
-import { receiveHandoff } from "../../handoff/handoff";
+import { acceptHandoff } from "../../handoff/handoff";
 import { throwInvalidBindingArgs } from "../common/arg-errors";
 import {
-  backingFromReceived,
+  backingFromAccepted,
   isHandoff,
-  isReceivedHandoff,
+  isAcceptedHandoff,
 } from "../common/handoff-source";
 
 import type { Backing } from "../../backing/types";
 import type { SharedContext } from "../../context/types";
-import type { Handoff, ReceivedHandoff } from "../../handoff/types";
+import type { Handoff, AcceptedHandoff } from "../../handoff/types";
 import type { Plan } from "../../plan/types";
 import type { SpecInput } from "../../spec/types";
 import type { ProcessorBinding, ProcessorOptions } from "../common/types";
@@ -41,7 +41,7 @@ interface NormalizedProcessorSource<S extends SpecInput> {
  * The plan embedded in the handoff is sufficient to wire reads/writes.
  */
 export function bindProcessor<const S extends SpecInput>(
-  source: Handoff<S> | ReceivedHandoff<S> | SharedContext<S>,
+  source: Handoff<S> | AcceptedHandoff<S> | SharedContext<S>,
   options?: ProcessorOptions,
 ): ProcessorBinding<S>;
 
@@ -63,7 +63,7 @@ export function bindProcessor<const S extends SpecInput>(
  * Implementation of bindProcessor overload dispatch.
  */
 export function bindProcessor<const S extends SpecInput>(
-  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: Handoff<S> | AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ProcessorOptions | Plan<S>,
   arg3?: Backing,
   arg4?: ProcessorOptions,
@@ -74,16 +74,16 @@ export function bindProcessor<const S extends SpecInput>(
 }
 
 function normalizeSource<const S extends SpecInput>(
-  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: Handoff<S> | AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ProcessorOptions | Plan<S>,
   arg3?: Backing,
 ): NormalizedProcessorSource<S> {
   if (isHandoff(arg1)) {
-    return normalizeFromReceived(receiveHandoff(arg1));
+    return normalizeFromAccepted(acceptHandoff(arg1));
   }
 
-  if (isReceivedHandoff(arg1)) {
-    return normalizeFromReceived(arg1);
+  if (isAcceptedHandoff(arg1)) {
+    return normalizeFromAccepted(arg1);
   }
 
   if (isSharedContext(arg1)) {
@@ -108,21 +108,21 @@ function normalizeSource<const S extends SpecInput>(
   };
 }
 
-function normalizeFromReceived<const S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+function normalizeFromAccepted<const S extends SpecInput>(
+  accepted: AcceptedHandoff<S>,
 ): NormalizedProcessorSource<S> {
   return {
-    plan: received.plan,
-    backing: backingFromReceived(received),
+    plan: accepted.plan,
+    backing: backingFromAccepted(accepted),
   };
 }
 
 function getOptions<const S extends SpecInput>(
-  arg1: Handoff<S> | ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: Handoff<S> | AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ProcessorOptions | Plan<S>,
   arg4?: ProcessorOptions,
 ): ProcessorOptions | undefined {
-  if (isHandoff(arg1) || isReceivedHandoff(arg1) || isSharedContext(arg1)) {
+  if (isHandoff(arg1) || isAcceptedHandoff(arg1) || isSharedContext(arg1)) {
     return arg2 as ProcessorOptions | undefined;
   }
 

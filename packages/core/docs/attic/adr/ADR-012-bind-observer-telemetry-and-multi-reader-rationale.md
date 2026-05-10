@@ -85,7 +85,7 @@ A **separate read role** with independent `SnapshotPolicyOptions`:
 
 ### What `bindObserver(spec, plan, backing)` Provides
 
-Worker B attaches to the **same backing and same locks** as everyone else (either via `spec + plan + backing` parameters, or in a future version via a `bindObserver(received)` convenience helper):
+Worker B attaches to the **same backing and same locks** as everyone else (either via `spec + plan + backing` parameters, or in a future version via a `bindObserver(accepted)` convenience helper):
 
 * Gets **identical coherence guarantees** as controller/processor
 * Can set its own polling rate and degrade behavior

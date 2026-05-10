@@ -522,14 +522,14 @@ const handoff = buildHandoff(plan, backing);
 
 // pass `handoff` (or a serialized form) into your Wasm-using agent.
 // processor side (JS worker, engine wrapper, or native code) reconstructs:
-const received = receiveHandoff(handoffFromMain);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoffFromMain);
+const processor = bindProcessor(accepted);
 // or an equivalent binding in the target language using the same plan layout.
 ```
 
 - JS and Wasm share the same memory & plan, described by the handoff.
 - The Controller binds via `bindController(spec, backing)`.
-- The Processor (JS worker around Wasm, or native side) binds via `receiveHandoff` → `bindProcessor(received)` or an equivalent mapping that respects the same layout.
+- The Processor (JS worker around Wasm, or native side) binds via `acceptHandoff` → `bindProcessor(accepted)` or an equivalent mapping that respects the same layout.
 
 ---
 

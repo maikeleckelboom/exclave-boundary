@@ -23,7 +23,7 @@ defineSpec
 → planLayout
 → allocateShared
 → buildHandoff
-→ receiveHandoff
+→ acceptHandoff
 → bind{Controller,Processor}
 ```
 
@@ -106,13 +106,13 @@ Public surface (conceptual):
 
 ```ts
 export function bindObserver<S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+  accepted: AcceptedHandoff<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 ```
 
 - `bindController(spec, backing, ...)` is **owner-side**.
-- `bindProcessor(received, ...)` and `bindObserver(received, ...)` are **consumer-side** and always start from a `ReceivedHandoff<S>`.
+- `bindProcessor(accepted, ...)` and `bindObserver(accepted, ...)` are **consumer-side** and always start from an `AcceptedHandoff<S>`.
 
 The exact semantics and invariants of `ObserverBinding` are specified in ADR-00Z.
 

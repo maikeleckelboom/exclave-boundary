@@ -24,7 +24,7 @@
 - Add observer binding (`bindObserver`) for passive/telemetry consumers:
 
   - host-side: `bindObserver(spec, plan, backing, options?)` or `bindObserver(ctx)` with `SharedContext<S>`,
-  - worker-side: `bindObserver(received, options?)` from `ReceivedHandoff<S>`,
+  - worker-side: `bindObserver(accepted, options?)` from `AcceptedHandoff<S>`,
   - supports both `shared` and `shared-partitioned` backings,
   - exposes read-only `params.within(...)` and `meters.snapshot(...)` with configurable retry/spin budgets.
 
@@ -56,7 +56,7 @@
 ## 0.1.0
 
 - Lock v1 DSL: range-only numeric scalars, fixed-length arrays, enum/enum.array; no step/origin/defaults.
-- Finalize public flow: `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` → `receiveHandoff` →
+- Finalize public flow: `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` → `acceptHandoff` →
   `bindController` / `bindProcessor`.
 - Ship SWMR seqlock primitives, backing/mapViews/handoff pipeline, diagnostics entrypoint
   (`@seqlok/core/diagnostics`), and error system with tests.

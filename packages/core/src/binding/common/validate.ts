@@ -191,7 +191,7 @@ interface SlotBase {
    * Spec-authored kind string (e.g. "u32.array").
    *
    * @remarks
-   * Optional for backwards compatibility with older plans / received handoffs.
+   * Optional for backwards compatibility with older plans / accepted handoffs.
    */
   readonly kind?: string;
   readonly offset: number;

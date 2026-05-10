@@ -70,7 +70,7 @@ The main-thread observer acts as a thin copy pipe from SAB → GPU buffer. The p
 
 ```ts
 // Observer binding
-const observer = bindObserver(receivedHandoff);
+const observer = bindObserver(acceptedHandoff);
 
 // Measure once for buffer sizes
 const initial = observer.meters.snapshot(["posX", "posY", "posZ"]);

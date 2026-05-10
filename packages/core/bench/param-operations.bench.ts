@@ -8,7 +8,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../src";
 
 /**
@@ -42,8 +42,8 @@ const plan = planLayout(spec);
 const backing = allocateShared(plan);
 const controller = bindController(spec, plan, backing);
 const handoff = buildHandoff(plan, backing);
-const received = receiveHandoff(handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoff);
+const processor = bindProcessor(accepted);
 
 // Pre-allocate arrays used in writes and reads so we only measure binding cost.
 const eqWriteBuffer = new Float32Array(8);

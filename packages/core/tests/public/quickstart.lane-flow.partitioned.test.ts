@@ -7,7 +7,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 describe("public quickstart: lane controller ↔ processor flow (partitioned backing)", () => {
@@ -34,15 +34,15 @@ describe("public quickstart: lane controller ↔ processor flow (partitioned bac
     const controller = bindController(spec, plan, backing);
 
     const handoff = buildHandoff(plan, backing);
-    const received = receiveHandoff(handoff);
+    const accepted = acceptHandoff(handoff);
 
     // Sanity check: we really are exercising the partitioned variant.
-    expect(received.packing).toBe("shared-partitioned");
-    if (received.packing !== "shared-partitioned") {
+    expect(accepted.packing).toBe("shared-partitioned");
+    if (accepted.packing !== "shared-partitioned") {
       throw new Error("Test invariant: expected shared-partitioned packing");
     }
 
-    const processor = bindProcessor(received);
+    const processor = bindProcessor(accepted);
 
     // Controller writes params
     controller.params.update({

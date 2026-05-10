@@ -6,7 +6,7 @@ These documents are practical, current, and tied to the live package surface.
 They build on the main README and assume you already know the canonical core flow:
 
 >
-`defineSpec → planLayout → allocateShared / allocateSharedPartitioned / allocateWasmShared → buildHandoff → receiveHandoff → bindController / bindProcessor / bindObserver`
+`defineSpec → planLayout → allocateShared / allocateSharedPartitioned / allocateWasmShared → buildHandoff → acceptHandoff → bindController / bindProcessor / bindObserver`
 
 ---
 

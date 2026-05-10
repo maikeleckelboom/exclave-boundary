@@ -127,7 +127,7 @@ Owner / host side:
   defineSpec -> planLayout -> allocateShared -> buildHandoff -> bindController
 
 Receiver / worker side:
-  receiveHandoff -> bindProcessor
+  acceptHandoff -> bindProcessor
                  -> bindObserver   (optional)
 ```
 
@@ -137,7 +137,7 @@ It is the boundary object.
 It carries the exact layout and binding information needed for the receiving side to attach to the shared kernel without
 guessing, reconstructing, or reaching behind the owner.
 
-Nothing binds on the far side without an explicit received handoff.
+Nothing binds on the far side without an explicit accepted handoff.
 
 At runtime, the kernel minimum is small:
 

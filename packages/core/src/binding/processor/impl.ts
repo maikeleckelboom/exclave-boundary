@@ -51,7 +51,7 @@ interface SlotBase {
    * Spec-authored kind string (e.g. "u32", "u32.array").
    *
    * @remarks
-   * Optional for backwards compatibility with older plans / received handoffs.
+   * Optional for backwards compatibility with older plans / accepted handoffs.
    * When absent, PI32 slots are interpreted as signed by default.
    */
   readonly kind?: string;

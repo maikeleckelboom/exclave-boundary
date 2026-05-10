@@ -8,7 +8,7 @@ import {
   type ControllerOptions,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 /**
@@ -44,12 +44,12 @@ function setupController(
   const backing = allocateShared(plan);
 
   const handoff = buildHandoff(plan, backing);
-  const received = receiveHandoff(handoff);
+  const accepted = acceptHandoff(handoff);
 
   const ctl = bindController(spec, plan, backing, options);
-  const proc = bindProcessor(received);
+  const proc = bindProcessor(accepted);
 
-  return { spec, plan, backing, handoff, received, ctl, proc };
+  return { spec, plan, backing, handoff, accepted, ctl, proc };
 }
 
 describe("Controller Parameters: Versioning & Atomicity", () => {

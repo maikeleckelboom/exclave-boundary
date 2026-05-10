@@ -16,7 +16,7 @@ import {
   planLayout,
   allocateShared,
   buildHandoff,
-  receiveHandoff,
+  acceptHandoff,
   bindController,
   bindProcessor,
 } from "@seqlok/core";
@@ -37,8 +37,8 @@ self.onmessage = (
 ) => {
   if (ev.data?.type !== "HANDOFF") return;
 
-  const received = receiveHandoff(ev.data.handoff); // reconstructs a safe view
-  const processor = bindProcessor(received); // typed by generic if you want: bindProcessor<MySpec>(received)
+  const accepted = acceptHandoff(ev.data.handoff); // reconstructs a safe view
+  const processor = bindProcessor(accepted); // typed by generic if you want: bindProcessor<MySpec>(accepted)
 };
 ```
 
@@ -230,8 +230,8 @@ Keeping them separate:
 
 - Keeps **consumer-side** logic simple:
 
-  - `receiveHandoff` doesn't need to know about `spec`.
-  - It just validates the plan/backing pair and produces a `ReceivedHandoff<S>`.
+  - `acceptHandoff` doesn't need to know about `spec`.
+  - It just validates the plan/backing pair and produces an `AcceptedHandoff<S>`.
 
 Handoff is intentionally focused on the _artifact pair_ (plan+backing).
 Semantic meaning (param names, meter purposes) is carried only via the spec hash and type-level information, not dynamic
@@ -512,8 +512,8 @@ The **pairings** live in verbs:
   SABs).”
 - `buildHandoff(plan, backing)` → “stamp this backing as implementing this plan.”
 - `bindController(spec, plan, backing)` → “prove this spec matches this plan+backing.”
-- `bindProcessor(received)` → “adopt the plan+backing pair referenced by this received handoff.”
-- `bindObserver(received)` (v0.2.0+) → “attach a read-only observer role to this received plan+backing.”
+- `bindProcessor(accepted)` → “adopt the plan+backing pair referenced by this accepted handoff.”
+- `bindObserver(accepted)` (v0.2.0+) → “attach a read-only observer role to this accepted plan+backing.”
 
 Enriched backings are allowed, but only in orchestration layers that wrap these verbs. The kernel stays flat.
 
@@ -527,8 +527,8 @@ All explicitness lives in **setup**:
 - `allocateShared(plan)` / `allocateSharedPartitioned(plan)`
 - `bindController(spec, plan, backing)`
 - `buildHandoff(plan, backing)`
-- `receiveHandoff(handoff)`
-- `bindProcessor(received)` / `bindObserver(received)`
+- `acceptHandoff(handoff)`
+- `bindProcessor(accepted)` / `bindObserver(accepted)`
 
 The hot paths:
 
@@ -570,7 +570,7 @@ import {
   bindController,
   buildHandoff,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
   bindProcessor,
 } from "@seqlok/core";
 import type {
@@ -606,8 +606,8 @@ function createSharedWire<S extends SpecInput>(
 export function bindProcessorFromHandoff<S extends SpecInput>(
   handoff: Handoff<S>,
 ): ProcessorBinding<S> {
-  const received = receiveHandoff(handoff);
-  return bindProcessor(received);
+  const accepted = acceptHandoff(handoff);
+  return bindProcessor(accepted);
 }
 ```
 
@@ -654,9 +654,9 @@ By keeping the kernel API intentionally low-level and explicit:
 
 We compared three slogans:
 
-1. `defineSpec → planLayout → allocateMemory → buildHandoff → receiveHandoff → bind*`
-2. `defineSpec → planLayout → allocateShared → buildHandoff → receiveHandoff → bind*` ← **chosen**
-3. `defineSpec → defineLayout → allocateMemory → buildHandoff → receiveHandoff → bind*`
+1. `defineSpec → planLayout → allocateMemory → buildHandoff → acceptHandoff → bind*`
+2. `defineSpec → planLayout → allocateShared → buildHandoff → acceptHandoff → bind*` ← **chosen**
+3. `defineSpec → defineLayout → allocateMemory → buildHandoff → acceptHandoff → bind*`
 
 Why `allocateShared`:
 
@@ -670,18 +670,18 @@ Why not `defineLayout`:
 - Seqlok has a **semantic** DSL (`defineSpec`) followed by **byte planning** (`planLayout`); the layout is derived, we
   don't "define" it by hand.
 
-Why keep `buildHandoff` / `receiveHandoff` instead of something shorter like `encodeHandoff` / `decodeHandoff`:
+Why keep `buildHandoff` / `acceptHandoff` instead of something shorter like `encodeHandoff` / `decodeHandoff`:
 
 - `buildHandoff` implies:
 
   - validation of plan/backing coherence,
   - embedding of necessary metadata (hash, lengths, etc.).
 
-- `receiveHandoff` implies:
+- `acceptHandoff` implies:
 
   - decoding,
   - validation at the trust boundary,
-  - production of a `ReceivedHandoff<S>` typed artefact.
+  - production of an `AcceptedHandoff<S>` typed artefact.
 
 The names are longer but intentionally descriptive; these are not hot-path calls.
 
@@ -697,7 +697,7 @@ The explicit API shape – `spec → plan → backing → handoff → binding` �
 
   - `planLayout`,
   - `allocateShared` / `allocateSharedPartitioned`,
-  - `buildHandoff` / `receiveHandoff`,
+  - `buildHandoff` / `acceptHandoff`,
   - `bindController` / `bindProcessor` / `bindObserver`.
 
 This structure enables:

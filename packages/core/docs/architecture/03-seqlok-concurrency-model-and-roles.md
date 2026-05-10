@@ -96,7 +96,7 @@ The **Processor** lives in a Worker, AudioWorklet, WASM-backed engine, or some o
 - Never writes params
 - Never reads meters by poking the backing directly
 
-Example (engine-side binding already constructed via `receiveHandoff` → `bindProcessor`):
+Example (engine-side binding already constructed via `acceptHandoff` → `bindProcessor`):
 
 ```ts
 import type { ProcessorBinding } from "@seqlok/core";
@@ -576,7 +576,7 @@ audioContext.audioWorklet.addModule("processor.js").then(() => {
 
 ```ts
 import {
-  receiveHandoff,
+  acceptHandoff,
   bindProcessor,
   type ProcessorBinding,
 } from "@seqlok/core";
@@ -588,8 +588,8 @@ class MyProcessor extends AudioWorkletProcessor {
   constructor(opts: { processorOptions: { seqlok: unknown } }) {
     super();
 
-    const received = receiveHandoff<DemoSpec>(opts.processorOptions.seqlok);
-    this.binding = bindProcessor(received);
+    const accepted = acceptHandoff<DemoSpec>(opts.processorOptions.seqlok);
+    this.binding = bindProcessor(accepted);
   }
 
   process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
@@ -612,7 +612,7 @@ registerProcessor("my-processor", MyProcessor);
 This is the canonical **Controller ↔ Processor** Seqlok pipeline:
 
 - Main side: `defineSpec → planLayout → allocateShared → buildHandoff → bindController`
-- Worklet side: `receiveHandoff → bindProcessor`
+- Worklet side: `acceptHandoff → bindProcessor`
 
 All shared state is in planes under seqlock; all accesses go through bindings.
 

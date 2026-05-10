@@ -9,13 +9,13 @@ import type {
   Handoff,
   ObserverBinding,
   ProcessorBinding,
-  ReceivedHandoff,
+  AcceptedHandoff,
   SharedContext,
   SpecInput,
 } from "@seqlok/core";
 
 export type LaneBindSource<S extends SpecInput> =
-  | ReceivedHandoff<S>
+  | AcceptedHandoff<S>
   | Handoff<S>
   | SharedContext<S>;
 
@@ -25,7 +25,7 @@ export type LaneBindSource<S extends SpecInput> =
  * @remarks
  * - `mailboxId` is passed through to `createLaneRuntimeCore` so the lane
  *   can receive hotswap commands via the shared mailbox.
- * - `source` may be a `Handoff`, `ReceivedHandoff`, or `SharedContext`.
+ * - `source` may be a `Handoff`, `AcceptedHandoff`, or `SharedContext`.
  *   We bind observer/processor directly from it (core handles normalization).
  */
 export interface MountLaneOptions<S extends SpecInput> {

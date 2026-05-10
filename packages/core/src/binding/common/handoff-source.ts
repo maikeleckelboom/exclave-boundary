@@ -1,15 +1,15 @@
 /**
  * @fileoverview
- * Shared helpers for binding factories that accept `Handoff` and `ReceivedHandoff`.
+ * Shared helpers for binding factories that accept `Handoff` and `AcceptedHandoff`.
  *
  * @remarks
  * - Centralizes lightweight runtime shape checks (type guards) for overload dispatch.
- * - Centralizes conversion from `ReceivedHandoff` packing to `Backing`.
- * - Does not validate the protocol; callers must use `receiveHandoff` for `Handoff`.
+ * - Centralizes conversion from `AcceptedHandoff` packing to `Backing`.
+ * - Does not validate the protocol; callers must use `acceptHandoff` for `Handoff`.
  */
 
 import type { Backing } from "../../backing/types";
-import type { Handoff, ReceivedHandoff } from "../../handoff/types";
+import type { Handoff, AcceptedHandoff } from "../../handoff/types";
 import type { SpecInput } from "../../spec/types";
 
 type ObjectRecord = Record<string, unknown>;
@@ -31,7 +31,7 @@ function isPacking(value: unknown): value is "shared" | "shared-partitioned" {
  *
  * @remarks
  * `Handoff` carries the protocol header field `version: 1`.
- * This guard is intentionally cheap; full validation belongs in `receiveHandoff`.
+ * This guard is intentionally cheap; full validation belongs in `acceptHandoff`.
  */
 export function isHandoff<const S extends SpecInput>(
   value: unknown,
@@ -54,15 +54,15 @@ export function isHandoff<const S extends SpecInput>(
 }
 
 /**
- * Returns true when `value` structurally looks like a validated `ReceivedHandoff`.
+ * Returns true when `value` structurally looks like a validated `AcceptedHandoff`.
  *
  * @remarks
- * `ReceivedHandoff` does not include the protocol header field `version`.
+ * `AcceptedHandoff` does not include the protocol header field `version`.
  * This guard is used for overload dispatch only.
  */
-export function isReceivedHandoff<const S extends SpecInput>(
+export function isAcceptedHandoff<const S extends SpecInput>(
   value: unknown,
-): value is ReceivedHandoff<S> {
+): value is AcceptedHandoff<S> {
   if (!isObjectRecord(value)) {
     return false;
   }
@@ -81,20 +81,20 @@ export function isReceivedHandoff<const S extends SpecInput>(
 }
 
 /**
- * Converts a `ReceivedHandoff` packing into the `Backing` shape used by binding impls.
+ * Converts an `AcceptedHandoff` packing into the `Backing` shape used by binding impls.
  */
-export function backingFromReceived<const S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+export function backingFromAccepted<const S extends SpecInput>(
+  accepted: AcceptedHandoff<S>,
 ): Backing {
-  if (received.packing === "shared") {
+  if (accepted.packing === "shared") {
     return {
       kind: "shared",
-      sab: received.sab,
+      sab: accepted.sab,
     };
   }
 
   return {
     kind: "shared-partitioned",
-    planes: received.planes,
+    planes: accepted.planes,
   };
 }

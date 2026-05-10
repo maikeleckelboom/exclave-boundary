@@ -7,7 +7,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 describe("public quickstart: lane controller ↔ processor flow", () => {
@@ -31,8 +31,8 @@ describe("public quickstart: lane controller ↔ processor flow", () => {
     const backing = allocateShared(plan);
     const controller = bindController(spec, plan, backing);
     const handoff = buildHandoff(plan, backing);
-    const received = receiveHandoff(handoff);
-    const processor = bindProcessor(received);
+    const accepted = acceptHandoff(handoff);
+    const processor = bindProcessor(accepted);
 
     // Controller writes params
     controller.params.update({

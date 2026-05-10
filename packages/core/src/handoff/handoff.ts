@@ -6,7 +6,7 @@
  *
  * - `buildHandoff(plan, backing)` – owner-side construction of a `Handoff<S>`.
  * - `buildHandoff(context)` – owner-side construction from `SharedContext<S>`.
- * - `receiveHandoff(handoff)` – boundary validation → `ReceivedHandoff<S>`.
+ * - `acceptHandoff(handoff)` – boundary validation → `AcceptedHandoff<S>`.
  * - `verifyHandoff(localPlan, remotePlan)` – optional consistency check.
  *
  * Design:
@@ -16,7 +16,7 @@
  *
  * Binding guidance:
  * - Across a boundary (e.g. `postMessage`), consumers SHOULD validate with
- *   `receiveHandoff(...)` and bind using a `Handoff<S>` or `ReceivedHandoff<S>`.
+ *   `acceptHandoff(...)` and bind using a `Handoff<S>` or `AcceptedHandoff<S>`.
  * - For local wiring / tests / custom hosts, binding from `SharedContext<S>` or
  *   explicit `(spec, plan, backing)` is supported by the binding layer.
  */
@@ -25,7 +25,7 @@ import { ALL_PLANES, type PlaneKey } from "@seqlok/primitives";
 
 import { createHandoffError } from "../errors/handoff";
 
-import type { Handoff, ReceivedHandoff } from "./types";
+import type { Handoff, AcceptedHandoff } from "./types";
 import type { Backing } from "../backing/types";
 import type { SharedContext } from "../context/types";
 import type { Plan, PlaneByteLengths } from "../plan/types";
@@ -36,7 +36,7 @@ import type { SpecInput } from "../spec/types";
  *
  * @remarks
  * - Used by `buildHandoff` as the outbound version tag.
- * - Checked by `receiveHandoff` at the boundary.
+ * - Checked by `acceptHandoff` at the boundary.
  * - Increment when introducing breaking changes to the handoff shape/semantics.
  */
 const SUPPORTED_HANDOFF_VERSION = 1;
@@ -245,29 +245,29 @@ export function buildHandoff<S extends SpecInput>(
  *
  * Use this overload when the `Handoff<S>` type is preserved across the boundary.
  */
-export function receiveHandoff<S extends SpecInput>(
+export function acceptHandoff<S extends SpecInput>(
   handoff: Handoff<S>,
-): ReceivedHandoff<S>;
+): AcceptedHandoff<S>;
 
 /**
  * Receiver-side overload: validates and unpacks an untyped envelope.
  *
  * Use this overload when the inbound value is `unknown` (e.g. from `postMessage`).
  */
-export function receiveHandoff(handoff: unknown): ReceivedHandoff;
+export function acceptHandoff(handoff: unknown): AcceptedHandoff;
 
 /**
- * Runtime implementation for both `receiveHandoff` overloads.
+ * Runtime implementation for both `acceptHandoff` overloads.
  *
  * @internal
  */
-export function receiveHandoff<S extends SpecInput>(
+export function acceptHandoff<S extends SpecInput>(
   // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   handoff: Handoff<S> | unknown,
-): ReceivedHandoff<S> {
+): AcceptedHandoff<S> {
   if (!isObject(handoff)) {
     throw createHandoffError("invalidArtifact", {
-      where: "handoff.receiveHandoff",
+      where: "handoff.acceptHandoff",
       detail: "non-object",
     });
   }
@@ -283,7 +283,7 @@ export function receiveHandoff<S extends SpecInput>(
   // Validate protocol version.
   if (hx.version !== SUPPORTED_HANDOFF_VERSION) {
     throw createHandoffError("versionMismatch", {
-      where: "handoff.receiveHandoff",
+      where: "handoff.acceptHandoff",
       expectedVersion: SUPPORTED_HANDOFF_VERSION,
       receivedVersion: typeof hx.version === "number" ? hx.version : Number.NaN,
     });
@@ -292,7 +292,7 @@ export function receiveHandoff<S extends SpecInput>(
   // Validate plan structure (metadata source).
   if (!isPlanLike<S>(hx.plan)) {
     throw createHandoffError("invalidArtifact", {
-      where: "handoff.receiveHandoff",
+      where: "handoff.acceptHandoff",
       detail: "plan",
     });
   }
@@ -302,7 +302,7 @@ export function receiveHandoff<S extends SpecInput>(
   if (hx.packing === "shared") {
     if (!isSharedArrayBuffer(hx.sab)) {
       throw createHandoffError("invalidArtifact", {
-        where: "handoff.receiveHandoff",
+        where: "handoff.acceptHandoff",
         detail: "sab",
       });
     }
@@ -311,13 +311,13 @@ export function receiveHandoff<S extends SpecInput>(
       packing: "shared",
       sab: hx.sab,
       plan,
-    } as ReceivedHandoff<S>;
+    } as AcceptedHandoff<S>;
   }
 
   if (hx.packing === "shared-partitioned") {
     if (!isObject(hx.planes)) {
       throw createHandoffError("invalidArtifact", {
-        where: "handoff.receiveHandoff",
+        where: "handoff.acceptHandoff",
         detail: "planes",
       });
     }
@@ -328,7 +328,7 @@ export function receiveHandoff<S extends SpecInput>(
     for (const [key, value] of Object.entries(planesObject)) {
       if (!isSharedArrayBuffer(value)) {
         throw createHandoffError("invalidArtifact", {
-          where: "handoff.receiveHandoff",
+          where: "handoff.acceptHandoff",
           detail: `plane=${key}`,
         });
       }
@@ -340,11 +340,11 @@ export function receiveHandoff<S extends SpecInput>(
       packing: "shared-partitioned",
       planes: planeSabMap,
       plan,
-    } as ReceivedHandoff<S>;
+    } as AcceptedHandoff<S>;
   }
 
   throw createHandoffError("invalidArtifact", {
-    where: "handoff.receiveHandoff",
+    where: "handoff.acceptHandoff",
     detail: `packing=${String(hx.packing)}`,
   });
 }
