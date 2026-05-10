@@ -153,7 +153,6 @@ export type ContinuityGranted = "cold" | "aligned" | "persistent";
 A swap may now request one of two continuity classes:
 
 - **`aligned`**
-
   - Current model, formalized.
   - New instance receives alignment context such as playback position, input history, and optional engine-defined
     auxiliary state.
@@ -334,14 +333,12 @@ export interface EngineHandoffABI<TConfig, THandle> {
 ### 7.4 Ownership rules
 
 - The **engine** owns:
-
   - snapshot structure,
   - config compatibility judgment,
   - export/import validity,
   - any internal replay semantics needed to make the handoff meaningful.
 
 - The **hotswap runtime** owns:
-
   - sequencing,
   - buffer provisioning,
   - capture timing,
@@ -685,23 +682,19 @@ Signalsmith-focused scenarios should include:
 If this ADR is accepted, the following docs must be updated in lock-step:
 
 - `CONTRACT.md`
-
   - clarify that current Levels 1–2 remain swap-policy levels,
   - add continuity-class terminology,
   - keep persistent handoff out of the core claim until formally landed.
 
 - `engine/engine-lifecycle-spec.md`
-
   - split aligned lifecycle from persistent lifecycle,
   - add `capture`, `install`, and `catchup` semantics.
 
 - `engine/engine-sdk-guide.md`
-
   - add handoff capability discovery and snapshot ABI,
   - demote `phaseState?: unknown` from implied persistence.
 
 - `formal/README.md`
-
   - add the persistent-handoff formal spec and scope.
 
 - `README.md`
