@@ -48,18 +48,22 @@ If runtime code must publish it with bounded work and zero allocations, it belon
 Seqlok diagnostics is intentionally split in two.
 
 ### `@seqlok/diagnostics`
+
 Runtime-side telemetry structures.
 
 Examples:
+
 - SAB rings
 - snapshot record layouts
 - RT writers
 - host readers for those specific layouts
 
 ### `@seqlok/introspect`
+
 Tooling-side interpretation and export.
 
 Examples:
+
 - counters
 - health envelopes
 - sink installation
@@ -261,6 +265,7 @@ const boundarySafe = selectErrorSubset(full, {
 ```
 
 This is the right layer for:
+
 - SDK-facing error exports
 - native binding generators
 - docs tooling

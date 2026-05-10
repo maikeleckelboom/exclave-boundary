@@ -9,10 +9,11 @@
 
 Seqlok came from a very specific frustration.
 
-If you build real-time systems on the web, you eventually hit a boundary that feels much worse than it looks on paper.
+If you build real-time systems on the web, sooner or later you hit a boundary that feels much worse than it looks in
+architecture diagrams.
 
-The UI thread is comfortable. It is expressive, productive, and forgiving. You can move quickly there. State libraries
-feel nice. `requestAnimationFrame` feels close enough to live. DevTools are excellent. Everything invites iteration.
+The UI side is comfortable. It is expressive, productive, forgiving. You can move quickly there. State libraries feel
+nice. `requestAnimationFrame` feels close enough to live. DevTools are excellent. Everything invites iteration.
 
 Then there is the other side: the loop that actually has timing pressure.
 
@@ -20,15 +21,14 @@ That might be an `AudioWorklet`. It might be a worker driving a simulation. It m
 pipeline. Whatever it is, it wakes up and expects the data it needs to already be present, already coherent, and cheap
 to read.
 
-That side does not care that the UI is elegant. It does not care that your state library is ergonomic. It does not care
+That side does not care that your UI is elegant. It does not care that a state library feels ergonomic. It does not care
 that a message usually arrives quickly enough.
 
 It cares about one thing: whether the data is there, complete, and safe to consume inside the time budget.
 
 That is the gap Seqlok was built for.
 
-Not general worker messaging. Not app-wide state management. Not collaborative data. Not a new framework. Just this
-problem:
+Not general worker messaging. Not app-wide state management. Not collaborative data. Not a framework. Just this problem:
 
 **How do you move live state across a thread boundary when one side is timing-sensitive, readers cannot tolerate
 half-written state, and the hot path has to stay allocation-free?**
@@ -39,16 +39,17 @@ That is the whole story.
 
 ## 2. What Seqlok is not
 
-It is important to say this plainly, because a lot of engineering waste starts when a tool is used outside its natural
+It helps to say this plainly, because a lot of engineering waste starts when a tool gets used outside its natural
 territory.
 
 Seqlok is not for most applications.
 
-If you are building a dashboard, admin panel, editor, or standard SaaS product, do not use this. If your updates happen
-a few times per second and a small delay is fine, do not use this. If cross-thread state is just an implementation
-detail, do not use this.
+If you are building a dashboard, a typical web app, an internal tool, an editor, or anything where “real-time” mostly
+means “updates often enough,” then Seqlok is the wrong answer.
 
-Use `postMessage`. Use a clean protocol. Keep your system simple.
+Use `postMessage`.
+Use a clear protocol.
+Keep your system simple.
 
 Those tools are better for the majority case.
 
@@ -57,7 +58,7 @@ Seqlok is for the narrower case where the timing budget is real and the conseque
 That usually means some combination of the following:
 
 - a loop with genuine timing pressure
-- UI-driven parameters that must be visible immediately
+- UI-driven parameters that should become visible immediately
 - live output flowing back the other way
 - a system where a couple of milliseconds can become a glitch, a frame miss, or user-visible instability
 
@@ -69,20 +70,26 @@ intolerant of jitter.
 
 ## 3. The core idea
 
-Seqlok is built around a simple attitude:
+Seqlok is a compiled shared-memory bridge for single-writer domains across a real thread boundary.
+
+You author a contract. That contract compiles into a deterministic memory layout. That layout is backed by shared
+memory. A handoff descriptor crosses the boundary. Each side reconstructs only the role-specific surface it is allowed
+to use. Writers publish coherent updates. Readers either observe a stable snapshot or retry.
+
+That is the mechanism.
+
+The attitude behind it matters just as much:
 
 **Do not turn the thread boundary into magic.**
 
-That sounds obvious, but a lot of systems do exactly that.
-
-They hide ownership. They blur who is allowed to write what. They treat transport format, authored meaning, and runtime
-layout as one collapsed blob. They let shared state spread without a clear contract. Then six months later the system
-still works, but nobody fully trusts it.
+A lot of systems do exactly that. They blur ownership. They hide who is allowed to write what. They collapse authored
+meaning, runtime layout, and transport representation into one blob. They let shared state spread without a narrow
+contract. The result often still works, but people stop trusting it.
 
 Seqlok goes the other way.
 
-It makes ownership explicit. It makes layout deterministic. It makes handoff explicit. It makes the hot path narrow and
-disciplined. It accepts that a thread boundary is a real boundary and treats it like one.
+It makes ownership explicit. It makes layout deterministic. It makes handoff explicit. It keeps the hot path narrow. It
+accepts that the boundary is real and treats it like one.
 
 That decision drives everything else.
 
@@ -96,8 +103,8 @@ Shared state is split into domains, and each domain has exactly one writer.
 
 In the common setup there are two domains.
 
-**Params domain** is UI to real-time. These are values the host or controller owns: gain, cutoff, mode, envelopes,
-transport settings, feature toggles, and so on.
+**Params domain** is UI to real-time. These are values the host or controller owns: gain, mode, cutoff, playback rate,
+envelope settings, feature toggles, and so on.
 
 **Meters domain** is real-time to UI. These are values the processor owns: RMS, peak, counters, timing stats, analysis
 values, and similar outputs.
@@ -105,7 +112,7 @@ values, and similar outputs.
 That rule is intentionally strict.
 
 The moment both sides are allowed to sometimes write the same piece of state, you no longer have a bridge. You have
-shared mutability with ambiguous authority, which is where trust starts to collapse.
+shared mutability with ambiguous authority. That is where trust starts to collapse.
 
 So Seqlok does not allow that ambiguity.
 
@@ -116,9 +123,48 @@ That is not a weakness. That is the boundary doing its job.
 
 ---
 
-## 5. A compiled layout, not a bag of offsets
+## 5. It begins with an authored contract
 
-The second decision is that memory layout must be derived, not improvised.
+Seqlok does not begin with a runtime-only builder object. It begins with an authored contract.
+
+That contract can be authored through the TypeScript builder surface, but it can also exist as plain data. The builder
+is the premium authoring surface. It is not the canonical format.
+
+The canonical format is a serializable authored AST: schema-valid, diffable, hashable, and portable. From there, Seqlok
+performs a separate semantic compilation step. That is where authored structure becomes a validated runtime contract.
+Only then does layout planning begin.
+
+```text
+Builder DSL ───────┐
+                   ▼
+Authored AST (serializable, JSON-Schema-valid)
+  → semantic compilation (validated runtime contract)
+    → plan (deterministic ABI layout)
+      → backing
+        → handoff
+          → bindings
+```
+
+That separation is deliberate.
+
+It keeps authored meaning portable.
+It keeps semantic validation explicit.
+It keeps planning downstream of a real contract instead of builder-only behavior.
+And it lets Seqlok be both pleasant to author in TypeScript and honest as a cross-boundary systems substrate.
+
+The builder still matters.
+
+It gives you richer literal inference, better editor help, and a more expressive authoring surface inside code. But that
+is the builder's contribution on top of the contract, not the contract itself.
+
+That distinction is one of the reasons Seqlok feels more disciplined than most typed runtime DSLs at this layer.
+
+---
+
+## 6. A compiled layout, not a bag of offsets
+
+Once the authored contract becomes a validated runtime contract, the next decision is that memory layout must be
+derived, not improvised.
 
 The bad version of this kind of system is easy to imagine: a pile of manually maintained offsets, comments explaining
 why something starts at byte 32, and enough hidden coupling that nobody wants to touch it.
@@ -128,16 +174,18 @@ Seqlok refuses that route.
 Instead it follows a deterministic pipeline:
 
 ```text
-Spec      → declaration of fields, types, domains, and authored meaning
-Plan      → deterministic memory layout, offsets, sizes, slot tables
-Backing   → actual shared memory plus typed views
-Handoff   → explicit descriptor sent across the boundary
-Bindings  → role-specific APIs reconstructed on each side
+Authored contract
+  → semantic compilation
+    → plan
+      → backing
+        → handoff
+          → bindings
 ```
 
 Each stage has one job.
 
-The spec says what exists.
+The authored contract says what exists.
+Semantic compilation validates meaning and produces the runtime contract.
 The plan decides where it lives.
 The backing stores it.
 The handoff describes it.
@@ -145,22 +193,25 @@ The bindings expose the legal surface for a given role.
 
 That is more disciplined than ad hoc shared memory, and that discipline buys real things:
 
-- independent agreement on layout from the same declaration
+- independent agreement on layout from the same contract
 - explicit drift detection instead of silent mismatch
 - better failure modes when assumptions break
-- a system that can be audited in a diff instead of guessed at from runtime behavior
+- a system that can be inspected in a diff instead of guessed at from runtime behavior
 
-This matters because shared memory becomes dangerous very quickly once the layout stops being mechanically derived.
+This matters because shared memory becomes dangerous very quickly once layout stops being mechanically derived.
 
 ---
 
-## 6. Why seqlocks
+## 7. Why seqlocks
 
 Once ownership is clear, the next problem is coherence.
 
 A reader on the timing-sensitive side must never see half-written state.
 
-At the same time, blocking is the wrong tool for the hottest path in this environment. In particular, on the audio side,
+In practice, a torn read is not an abstract concurrency bug. It is the moment one side observes half of the old state
+and half of the new state and acts on a combination that never truly existed.
+
+At the same time, blocking is the wrong tool for the hottest path in this environment. On the audio side especially,
 blocking is simply not acceptable.
 
 That is why Seqlok uses seqlocks.
@@ -180,17 +231,17 @@ That is the kind of trade Seqlok keeps making. Not universally optimal. Correct 
 
 ---
 
-## 7. Three layers that stay separate
+## 8. Three layers that stay separate
 
 One of the stronger parts of the design is that Seqlok does not collapse authored meaning, runtime contract, and
 transport representation into one thing.
 
 Those are three different layers.
 
-**Authored meaning** is what the spec expresses. Names, labels, units, ranges, and human-readable intent.
+**Authored meaning** is what the contract expresses. Names, labels, units, ranges, and human-readable intent.
 
-**Runtime contract** is what planning produces. Offsets, typed planes, slot tables, lock words, sequence layout, and
-exact memory structure.
+**Runtime contract** is what semantic compilation and planning produce. Flattened key space, validated defs, offsets,
+typed planes, slot tables, lock words, and sequence layout.
 
 **Transport representation** is the raw data in memory. Numbers, atomic words, floating-point values, integer enum tags.
 
@@ -203,15 +254,15 @@ Both routes produce systems that are harder to evolve and harder to trust.
 
 Seqlok keeps the human-facing layer human, the contract layer deterministic, and the transport layer primitive.
 
-That separation is why you can have a spec that still reads like authored intent while the underlying storage remains
-dense numeric shared memory.
+That separation is why you can author with names and domain meaning while the underlying storage remains dense numeric
+shared memory.
 
 The machine gets the primitive representation it wants. The developer gets an API that still feels like authored
 software instead of byte arithmetic.
 
 ---
 
-## 8. Hot path versus cold path
+## 9. Hot path versus cold path
 
 Another important boundary in Seqlok is execution cost.
 
@@ -229,7 +280,9 @@ They are meant to stay bounded and allocation-free.
 
 Other parts of the system are cold-path or setup-path work:
 
-- declaring the spec
+- authoring the contract
+- schema validation
+- semantic compilation
 - planning the layout
 - allocating backing memory
 - constructing the handoff
@@ -239,68 +292,79 @@ Other parts of the system are cold-path or setup-path work:
 
 Those can optimize for explicitness, clarity, and ergonomics instead.
 
-This split matters because it makes the runtime contract visible in the API shape itself. The library is telling you
+This split matters because the runtime contract becomes visible in the API shape itself. The library is telling you
 which surfaces belong near the hot loop and which ones do not.
 
 That is good design. The interface should teach the user how the system expects to be used.
 
 ---
 
-## 9. Failure should be honest
+## 10. Why it is stronger than it first appears
 
-Seqlok sits low enough in the stack that most failures are really contract failures.
+Some of Seqlok's value is easy to miss if you only read it as a concurrency utility.
 
-If the producer and consumer disagree about the spec, that is not a minor runtime inconvenience. If the environment
-cannot safely provide shared memory, that is not something to wave away. If the backing is too small for the planned
-layout, the system is simply not valid.
+The contract is not just typed. It is serializable.
 
-So Seqlok fails clearly.
+That matters because the authored declaration is not a clever runtime object that only exists inside one process. It can
+exist as plain data. It can be stored, diffed, hashed, generated, inspected, shipped, and verified across boundaries
+without turning into framework residue.
 
-It does not try to be clever about broken assumptions.
+The DSL is not only doing ergonomic type work. It is lowering into a contract that semantic compilation turns into a
+concrete runtime boundary.
 
-Examples include:
+That is a much stronger claim. The authored declaration does not merely improve the developer experience. It feeds a
+real compiled substrate. Offsets, slots, lock words, field placement, and role visibility are derived from authored
+intent instead of being hand-maintained folklore.
 
-- spec hash mismatch
-- backing too small for the layout
-- unsupported environment for safe `SharedArrayBuffer` use
-- invalid or mismatched handoff state
+The plan is deterministic and checkable.
 
-The point is not to be harsh. The point is to keep the boundary trustworthy.
+Given the same validated contract, you get the same layout. That gives you drift detection, compatibility checks, better
+tooling, and a much more trustworthy failure story than ad hoc shared memory usually has.
 
-A low-level system that silently recovers from invalid assumptions often becomes harder to reason about than one that
-simply stops and explains what failed. Higher layers can decide what recovery means. Seqlok's job is to make the failure
-legible.
+Human meaning and machine transport stay separate.
+
+The contract can preserve labels, units, ranges, and domain intent, while the transport stays primitive and dense. That
+separation is one of the reasons the system scales without degenerating into byte-offset sludge.
+
+The role surfaces are asymmetrical on purpose.
+
+Controller and processor do not receive the same API with different names. They get different legal surfaces because
+they have different jobs and different timing constraints. That is not polish. That is architecture.
+
+The backing model is real.
+
+Seqlok is not only a pattern for thinking about shared state. It has concrete backing strategies, explicit handoff, and
+a reconstruction model that avoids ambient registries and hidden lookups. You build a bridge. You hand it off. The other
+side reconstructs what it is allowed to see.
+
+That is why Seqlok is best understood as a bridge substrate, not a total architecture.
+
+It does one narrow class of crossing well. Precisely because it stays narrow, it also points beyond its first use case.
+The same discipline becomes interesting anywhere a high-frequency lane has to cross a runtime boundary cleanly.
 
 ---
 
-## 10. Why build this on the web
+## 11. Why this exists on the web
 
-A reasonable response to all of this is: why do this on the web at all?
+The web is already a serious runtime surface for a lot of products.
 
-The answer is not ideological. It is practical.
+It gives you distribution, iteration speed, mature UI tooling, and access to APIs like Web Audio, MIDI, HID, WebGPU,
+`SharedArrayBuffer`, and `Atomics`. The platform has limits, but that is not the interesting question.
 
-For many products, the web already provides the platform surface you want:
+The interesting question is this:
 
-- easy distribution
-- frictionless updates
-- access to Web Audio, MIDI, HID, WebGPU, and related APIs
-- shared memory primitives through `SharedArrayBuffer` and `Atomics`
-
-So the real question is not whether the web is perfect. It is not.
-
-The real question is this:
-
-**Given that this is already the platform, how do we build the sharpest possible thread boundary inside it?**
+**If this is already the platform, what is the sharpest possible way to cross from the soft side of the app into the
+timing-sensitive side?**
 
 Seqlok is one answer.
 
-It does not pretend the browser becomes hard real-time because you used a better memory protocol. That would be
-nonsense. What it does do is respect the timing-sensitive parts that actually exist and stop feeding them avoidable
-jitter through generic messaging patterns.
+It does not pretend the browser becomes hard real-time. It does not romanticize the environment. It just takes the
+boundary seriously and refuses to route the hottest lane through tools that were built for looser kinds of state
+sharing.
 
 ---
 
-## 11. Where it fits with other tools
+## 12. Where it fits with other tools
 
 Seqlok makes more sense when you stop asking whether it replaces other tools and ask where it belongs next to them.
 
@@ -315,55 +379,105 @@ A serious system might use all of these together.
 
 For example:
 
-- project or document state in a collaborative model
+- project or document state somewhere else
 - commands and events over message passing
 - timing-sensitive params and meters through Seqlok
 
-That is not overlap. That is each tool staying in its lane.
+That is not overlap. That is architecture.
 
 ---
 
-## 12. What stayed constant
+## 13. Honest handoff, not hidden discovery
 
-Looking back, the implementation details changed more than once. But the center stayed the same.
+Shared memory systems get slippery when reconstruction becomes implicit.
 
-Seqlok has always been about a few stubborn principles:
+A buffer appears somewhere. Some module already knows how to interpret it. Another part of the system discovers it
+through ambient context, global registration, or side-channel agreement. The code still runs, but the boundary stops
+being honest.
+
+Seqlok is stricter than that.
+
+The handoff is explicit.
+
+One side constructs a descriptor that says, in effect: this is the plan we agreed on, this is the backing that satisfies
+it, and this is the role you are allowed to reconstruct. The other side receives that descriptor and rebuilds its view
+from there.
+
+No ambient singleton. No magical lookup. No hidden registry pretending not to be global state.
+
+That choice sounds small, but it changes the character of the system. It keeps the crossing inspectable. It keeps setup
+separate from use. It keeps authority visible.
+
+That is boring in the best sense.
+
+---
+
+## 14. Failure should be honest
+
+Seqlok sits low enough in the stack that most failures are really contract failures.
+
+If the producer and consumer disagree about the contract, that is not a minor runtime inconvenience. If the environment
+cannot safely provide shared memory, that is not something to wave away. If the backing is too small for the planned
+layout, the system is simply not valid.
+
+So Seqlok fails clearly.
+
+It does not try to be clever about broken assumptions.
+
+Examples include:
+
+- schema-invalid authored input
+- semantically invalid authored input
+- backing too small for the layout
+- unsupported environment for safe `SharedArrayBuffer` use
+- invalid or mismatched handoff state
+
+The point is not to be harsh. The point is to keep the boundary trustworthy.
+
+A low-level system that silently recovers from invalid assumptions often becomes harder to reason about than one that
+simply stops and explains what failed. Higher layers can decide what recovery means. Seqlok's job is to make the failure
+legible.
+
+---
+
+## 15. What stayed constant
+
+Implementation details changed. The center did not.
+
+Seqlok is built around a few stubborn decisions:
 
 - explicit ownership
+- authored contract first
+- semantic compilation before planning
 - deterministic planning
 - explicit handoff
 - no ambient registry
-- no magic thread-boundary discovery
-- no pretending the hot path and the setup path are the same kind of environment
+- no magical boundary discovery
+- no confusion between hot-path work and setup-path work
 
-That consistency is what gives the system its shape.
+That is why it feels calmer than a lot of shared-memory systems at this layer. It is not trying to be clever. It is
+trying to be inspectable.
 
-It is also why Seqlok ends up feeling calmer than many lower-level shared-memory designs. The system is not trying to be
-clever. It is trying to be inspectable.
+The bridge between a UI and a timing-sensitive loop should not be mysterious. It should not hide authority. It should
+not depend on folklore. It should be explicit, mechanically derived, and narrow enough to trust.
 
-That is the real goal.
-
-The bridge between a UI and a timing-sensitive loop should not be mysterious. It should not be cute. It should not be a
-pile of hidden coupling.
-
-It should be explicit, mechanical, and boring enough that you can trust it.
-
-That is what Seqlok is trying to become.
+That is what Seqlok is.
 
 ---
 
-## Appendix: Structural reference
+## Structural reference
 
 ### Golden flow
 
 ```text
-declared spec
-  → deterministic layout
-    → shared backing
-      → explicit handoff
-        → accepted handoff
-          → owner-side binding
-            → processor-side binding
+builder or plain AST
+  → authored contract
+    → semantic compilation
+      → deterministic plan
+        → shared backing
+          → explicit handoff
+            → received handoff
+              → role-specific bindings
 ```
 
 ### SWMR domains
@@ -371,11 +485,11 @@ declared spec
 ```text
 Params domain
   One owner, one writer: host / controller
-  Many readers: processor, diagnostics, mirrors
+  Many readers: processor, diagnostics, observers
 
 Meters domain
   One owner, one writer: processor
-  Many readers: host / controller, visualizers, loggers
+  Many readers: host / controller, observers, loggers
 ```
 
 ### Seqlock state machine per domain
@@ -392,19 +506,14 @@ odd   readers back off and retry
 ### Hot / cold boundary
 
 ```text
-COLD  — spec declaration, planning, backing allocation,
-        handoff construction and receipt
+COLD  — authorship, schema validation, semantic compilation,
+        planning, backing allocation, handoff construction
 
 ────────────────────────────────────────────────────
 
 HOT   — params.within, meters.publish
         processor side, bounded and allocation-free
 
-COLD  — controller writes, snapshot reads
-        host side, ergonomic, may allocate
+COLD  — controller writes, snapshot reads, diagnostics,
+        observer visualization, host-side orchestration
 ```
-
----
-
-*End of document.*
-

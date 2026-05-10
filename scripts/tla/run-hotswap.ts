@@ -94,7 +94,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     console.log(
       "  pnpm tla:hotswap:full -- --policy mailbox-latest # mailbox-latest, full (EXPERIMENTAL)",
     );
-    console.log("  pnpm tla:hotswap:full -- --policy=reject-busy    # -nowarning is already set by the script");
+    console.log(
+      "  pnpm tla:hotswap:full -- --policy=reject-busy    # -nowarning is already set by the script",
+    );
 
     process.exitCode = 1;
     // eslint-disable-next-line no-process-exit
