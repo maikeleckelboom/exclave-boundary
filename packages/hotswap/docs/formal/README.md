@@ -7,18 +7,49 @@ and **cross-language**.
 
 ---
 
-## 1. Contents
+## 1. Supported vs experimental
+
+The formal bundle is split by status.
+
+### Supported
+
+- **`single`** — base single-swap protocol
+- **`reject-busy`** — Level 2 overlap policy
+- **`persistent-handoff`** — continuity-class persistent handoff (once model lands)
+
+### Experimental
+
+- **`mailbox-latest`** — latest-wins mailbox policy
+
+Experimental material lives under `experimental/` and must not be treated as part of the shipped supported surface.
+
+Policy level and continuity class are different axes:
+
+- **Policy axis** — `single`, `reject-busy`
+- **Continuity axis** — `aligned`, `persistent`
+
+See [`../adr/hotswap-continuity-classes-and-persistent-handoff.md`](../adr/hotswap-continuity-classes-and-persistent-handoff.md).
+
+---
+
+## 2. Contents
 
 ### Policies (TLA+ + English spec)
 
 - **`single`**
+
   - [`policies/single/`](./policies/single/)
 
 - **`reject-busy`**
+
   - [`policies/reject-busy/`](./policies/reject-busy/)
 
-- **`mailbox-latest`**
-  - [`policies/mailbox-latest/`](./policies/mailbox-latest/)
+- **`persistent-handoff`**
+
+  - [`policies/persistent-handoff/`](./policies/persistent-handoff/)
+
+- **`mailbox-latest`** (experimental)
+  - [`experimental/mailbox-latest/`](./experimental/mailbox-latest/)
 
 Each policy folder is intended to be self-contained:
 English spec + `tla/` module + TLC configs.
@@ -44,7 +75,7 @@ Outside this directory but part of the "formal bundle":
 
 ---
 
-## 2. How the pieces relate
+## 3. How the pieces relate
 
 High-level relationships:
 
@@ -57,6 +88,10 @@ High-level relationships:
   policy. Proves sequential swaps work correctly (~1k states, <1 second with
   request limit).
 
+- **HotSwapPersistentHandoff.tla**  
+  Models the persistent-handoff lifecycle: capture, install, catchup, and
+  retire gating. Proves no silent downgrade and snapshot lineage consistency.
+
 - **English policy docs**  
   Human-readable explanations of the models (phases, invariants, properties),
   one folder per policy under `policies/`.
@@ -64,6 +99,7 @@ High-level relationships:
 - **reference C++** (`reference/cpp/`)  
   C++ template state machine matching the TS implementation and traceable to
   the TLA+ models. Good for:
+
   - Cross-language conformance tests
   - Native engine runtimes
   - Verifying RT surface is allocation-free / lock-free
@@ -77,9 +113,9 @@ For overview / orientation of the whole package, see:
 
 ---
 
-## 3. Running the model
+## 4. Running the model
 
-### 3.1 Via workspace script
+### 4.1 Via workspace script
 
 From the repo root:
 
@@ -91,6 +127,10 @@ pnpm tla:hotswap:full         # Full verification with liveness
 # Multi-swap with reject-while-busy
 pnpm tla:hotswap -- --policy reject-busy
 pnpm tla:hotswap:full -- --policy reject-busy
+
+# Persistent-handoff continuity class
+pnpm tla:hotswap -- --policy persistent-handoff
+pnpm tla:hotswap:full -- --policy persistent-handoff
 
 # EXPERIMENTAL: mailbox-latest overlap handling (may currently fail invariants)
 pnpm tla:hotswap -- --policy mailbox-latest
@@ -104,7 +144,7 @@ The script (`scripts/tla/run-hotswap.ts`) is responsible for:
 - Forwarding any extra TLC CLI args (via pnpm `--`)
 - Running TLC via `java` with a fixed worker count
 
-### 3.2 Manually with TLA+ Toolbox / CLI
+### 4.2 Manually with TLA+ Toolbox / CLI
 
 For ad-hoc runs or debugging:
 
@@ -124,22 +164,31 @@ java -jar tla2tools.jar \
   packages/hotswap/docs/formal/policies/reject-busy/tla/HotSwapRejectBusy.tla
 ```
 
+**Persistent-handoff:**
+
+```bash
+java -jar tla2tools.jar \
+  -config packages/hotswap/docs/formal/policies/persistent-handoff/tla/HotSwapPersistentHandoff.cfg \
+  packages/hotswap/docs/formal/policies/persistent-handoff/tla/HotSwapPersistentHandoff.tla
+```
+
 Or use TLA+ Toolbox GUI and open the respective .tla files.
 
 Detailed step-by-step instructions live in the individual spec docs.
 
 ---
 
-## 4. Invariants and properties
+## 5. Invariants and properties
 
 The canonical list of safety / liveness properties lives in:
 
 - **Single-swap:** [`policies/single/HotSwapSingle.md`](./policies/single/HotSwapSingle.md)
 - **Reject-busy:** [`policies/reject-busy/HotSwapRejectBusy.md`](./policies/reject-busy/HotSwapRejectBusy.md)
-- **Mailbox-latest:** [`policies/mailbox-latest/HotSwapMailboxLatest.md`](./policies/mailbox-latest/HotSwapMailboxLatest.md)
+- **Persistent-handoff:** [`policies/persistent-handoff/HotSwapPersistentHandoff.md`](./policies/persistent-handoff/HotSwapPersistentHandoff.md)
+- **Mailbox-latest (experimental):** [`experimental/mailbox-latest/HotSwapMailboxLatest.md`](./experimental/mailbox-latest/HotSwapMailboxLatest.md)
 - The .tla files themselves contain the formal definitions
 
-### Common Safety Invariants (both specs)
+### Common Safety Invariants (all supported models)
 
 - `TypeOK` - All variables in valid domains
 - `AtMostTwoEngines` - Never more than 2 engines active
@@ -153,6 +202,12 @@ The canonical list of safety / liveness properties lives in:
 - `NoRejectedEngineInDecisions` - Rejected engines never appear in decisions
 - `CompletedSwapsConsistency` - History tracking is accurate
 
+### Persistent-Handoff Specific Invariants
+
+- `NoSilentDowngrade` - Persistent-required swaps do not degrade silently
+- `SnapshotLineageConsistency` - Consumed snapshot belongs to correct engine lineage
+- `RetireAfterPersistentInstall` - Retire implies successful install and catchup
+
 ### Common Liveness Properties
 
 - `EventuallyIdle` - Every accepted swap completes
@@ -160,7 +215,7 @@ The canonical list of safety / liveness properties lives in:
 
 ---
 
-## 5. Policy-based naming
+## 6. Policy-based naming
 
 The TLA+ specs use **policy-based names**.
 
@@ -170,44 +225,48 @@ Supported levels:
 - **Level 2** = `reject-busy`
 - **Level 3+** = experimental/future (not part of supported taxonomy)
 
-| Policy Name    | TLA+ Spec             | Requirements Doc | What It Proves                      |
-|----------------|-----------------------|------------------|-------------------------------------|
-| `single`         | HotSwapSingle.tla        | Level 1 | Base protocol for one in-flight swap |
-| `reject-busy`    | HotSwapRejectBusy.tla    | Level 2 | Overlap defined as reject-while-busy |
-| `mailbox-latest` | HotSwapMailboxLatest.tla | Level 3 | **EXPERIMENTAL**: latest-wins mailbox |
+| Policy Name          | TLA+ Spec                    | Requirements Doc | What It Proves                        |
+| -------------------- | ---------------------------- | ---------------- | ------------------------------------- |
+| `single`             | HotSwapSingle.tla            | Level 1          | Base protocol for one in-flight swap  |
+| `reject-busy`        | HotSwapRejectBusy.tla        | Level 2          | Overlap defined as reject-while-busy  |
+| `persistent-handoff` | HotSwapPersistentHandoff.tla | Continuity       | Persistent handoff lifecycle          |
+| `mailbox-latest`     | HotSwapMailboxLatest.tla     | Level 3          | **EXPERIMENTAL**: latest-wins mailbox |
 
 ---
 
-## 6. Verification results
+## 7. Verification results
 
 As of the latest run:
 
-| Spec              | States | Time   | Result |
-|-------------------|--------|--------|--------|
-| HotSwapSingle     | 2.3M   | 2min   | PASS   |
-| HotSwapRejectBusy | ~1k    | <1 sec | PASS   |
+| Spec                     | Mode    | States | Time | Result |
+| ------------------------ | ------- | ------ | ---- | ------ |
+| HotSwapSingle            | invonly | 2.3M   | ~8s  | PASS   |
+| HotSwapRejectBusy        | invonly | ~80k   | ~2s  | PASS   |
+| HotSwapPersistentHandoff | invonly | 14M    | ~71s | PASS   |
+| HotSwapMailboxLatest     | invonly | ~1k    | ~1s  | FAIL   |
 
-The multi-swap spec uses bounded exploration (`swapRequests <= 10`) to keep
-verification tractable while still proving correctness of the reject-while-busy
-policy.
+**Notes:**
+
+- `HotSwapSingle` and `HotSwapRejectBusy` are the original supported models.
+- `HotSwapPersistentHandoff` is now a supported formal model. The invariants-only run passes. The full run (safety + liveness) is valid but slower due to the larger state space.
+- `HotSwapMailboxLatest` currently fails the `AccountingOK` invariant. This is a known model issue; it remains **experimental** and is not part of the supported surface.
 
 ---
 
-## 7. Updating the specs
+## 8. Updating the specs
 
 If you add or change invariants:
 
-1. Update the relevant .tla file (HotSwapSingle or HotSwapRejectBusy)
+1. Update the relevant .tla file (HotSwapSingle, HotSwapRejectBusy, or HotSwapPersistentHandoff)
 2. Update the corresponding .md file with English descriptions
 3. Update conformance tests if behavior changes
-4. Update `test-vectors.json` in `../archive/` if state sequences change
-5. Run both TS and C++ test suites to verify parity
+4. Run both TS and C++ test suites to verify parity
 
 This keeps TS, C++, and the formal models in lockstep.
 
 ---
 
-## 8. Further reading
+## 9. Further reading
 
 - [Lamport's TLA+ Home](https://lamport.azurewebsites.net/tla/tla.html)
 - [Learn TLA+ (Practical Guide)](https://learntla.com/)
@@ -216,7 +275,7 @@ This keeps TS, C++, and the formal models in lockstep.
 
 ---
 
-## 9. Why this matters for real-time audio
+## 10. Why this matters for real-time audio
 
 In RT audio, bugs don't just cause crashes - they cause **audible glitches**
 that destroy user experience. The constraints are unforgiving:

@@ -19,4 +19,3 @@ Key goals when formalized:
 - **No torn snapshots** (readers see whole generations only)
 - **Monotonic versions** (LU / MU never decrease)
 - **Lock-free on RT** (no blocking / bounded work)
-

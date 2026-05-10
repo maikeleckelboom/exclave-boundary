@@ -1,21 +1,26 @@
 # Hot-Swap Protocol: Reject-While-Busy
 
 **Status:** Implemented – TLA⁺ spec and configs present  
-**Scope:** Multi-swap behavior with *reject-while-busy* policy for `@seqlok/hotswap`  
+**Scope:** Multi-swap behavior with _reject-while-busy_ policy for `@seqlok/hotswap`  
 **Audience:** Seqlok contributors, hotswap implementers, and TLA⁺ authors
 
 This document describes the formal specification of the hot-swap protocol
 extended with a **reject-while-busy** policy:
 
-* Multiple sequential swaps (e.g. Engine1 → Engine2 → Engine3 → …).
-* Overlapping swap requests are immediately rejected (no queueing).
-* Host-level tracking of accepted and rejected requests.
-* All base `HotSwapSingle` safety and liveness properties preserved.
+- Multiple sequential swaps (e.g. Engine1 → Engine2 → Engine3 → …).
+- Overlapping swap requests are immediately rejected (no queueing).
+- Host-level tracking of accepted and rejected requests.
+- All base `HotSwapSingle` safety and liveness properties preserved.
 
 The specification is encoded in `HotSwapRejectBusy.tla` and is verified using
 the TLC model checker.
 
 For the base single-swap protocol, see `../single/HotSwapSingle.md`.
+
+For the orthogonal continuity-class model, see [`../persistent-handoff/HotSwapPersistentHandoff.md`](../persistent-handoff/HotSwapPersistentHandoff.md)
+and [`../../adr/hotswap-continuity-classes-and-persistent-handoff.md`](../../adr/hotswap-continuity-classes-and-persistent-handoff.md).
+
+This spec covers **overlap policy only**; it does not prove persistent handoff semantics.
 
 ---
 
@@ -27,9 +32,9 @@ packages/hotswap/docs/formal/policies/reject-busy/tla/HotSwapRejectBusy.cfg
 packages/hotswap/docs/formal/policies/reject-busy/tla/HotSwapRejectBusy.invonly.cfg
 ```
 
-* `.tla` – TLA⁺ specification of the reject-while-busy protocol.
-* `.cfg` – full model-checking configuration (safety + liveness).
-* `.invonly.cfg` – invariants-only configuration for faster checks.
+- `.tla` – TLA⁺ specification of the reject-while-busy protocol.
+- `.cfg` – full model-checking configuration (safety + liveness).
+- `.invonly.cfg` – invariants-only configuration for faster checks.
 
 ---
 
@@ -41,11 +46,11 @@ packages/hotswap/docs/formal/policies/reject-busy/tla/HotSwapRejectBusy.invonly.
 
 The model introduces a finite set of concrete engine identities:
 
-* `Engine1`, `Engine2`, `Engine3`, and `NoEngine` as a sentinel.
+- `Engine1`, `Engine2`, `Engine3`, and `NoEngine` as a sentinel.
 
 Swaps can chain, for example:
 
-* Engine1 → Engine2 → Engine3 → Engine1 → …
+- Engine1 → Engine2 → Engine3 → Engine1 → …
 
 The spec tracks the currently active engine and the in-flight target engine.
 
@@ -53,15 +58,15 @@ The spec tracks the currently active engine and the in-flight target engine.
 
 The integration layer behavior (e.g. `scheduleSwap`) is modeled explicitly with:
 
-* `swapRequests` – total swap requests issued.
-* `swapsAccepted` – requests admitted into the protocol (idle lane).
-* `swapsRejected` – requests rejected because the lane is busy.
-* `completedSwaps` – sequence of completed engine transitions.
+- `swapRequests` – total swap requests issued.
+- `swapsAccepted` – requests admitted into the protocol (idle lane).
+- `swapsRejected` – requests rejected because the lane is busy.
+- `completedSwaps` – sequence of completed engine transitions.
 
 This allows the model to prove that:
 
-* Accounting is consistent.
-* Completed engine history matches the lane’s `currentEngine`.
+- Accounting is consistent.
+- Completed engine history matches the lane’s `currentEngine`.
 
 ### 3. Reject-While-Busy Policy
 
@@ -110,7 +115,7 @@ The following invariants are checked in both the full and invariants-only
 configurations:
 
 | Property                      | Description                                                      |
-|-------------------------------|------------------------------------------------------------------|
+| ----------------------------- | ---------------------------------------------------------------- |
 | `TypeOK`                      | All variables remain in their declared domains                   |
 | `AtMostTwoEngines`            | No more than two engines active (current + next) at any time     |
 | `NoGapDuringCrossfade`        | Both engines active during crossfade                             |
@@ -121,16 +126,16 @@ configurations:
 
 These invariants ensure that:
 
-* Engine slot usage is bounded and well-structured.
-* The reject-while-busy policy does not corrupt the active swap.
-* The recorded history matches the lane state.
+- Engine slot usage is bounded and well-structured.
+- The reject-while-busy policy does not corrupt the active swap.
+- The recorded history matches the lane state.
 
 ### Liveness Properties
 
 The full configuration additionally checks temporal properties:
 
 | Property                | Description                                            |
-|-------------------------|--------------------------------------------------------|
+| ----------------------- | ------------------------------------------------------ |
 | `EventuallyIdle`        | Every accepted swap eventually returns the lane idle   |
 | `MultipleSwapsComplete` | Accepted multi-swap sequences eventually settle        |
 | `NoLivelockPrewarm`     | The protocol does not remain in prewarm indefinitely   |
@@ -154,8 +159,8 @@ pnpm tla:hotswap -- --policy reject-busy
 pnpm tla:hotswap:full -- --policy reject-busy
 ```
 
-* With `-- --policy reject-busy`, `tla:hotswap` runs TLC with `HotSwapRejectBusy.invonly.cfg`.
-* With `-- --policy reject-busy`, `tla:hotswap:full` runs TLC with `HotSwapRejectBusy.cfg`.
+- With `-- --policy reject-busy`, `tla:hotswap` runs TLC with `HotSwapRejectBusy.invonly.cfg`.
+- With `-- --policy reject-busy`, `tla:hotswap:full` runs TLC with `HotSwapRejectBusy.cfg`.
 
 ### Direct TLC Invocation
 
@@ -183,16 +188,16 @@ Model checking completed. No error has been found.
 
 Key points:
 
-* “No error has been found” indicates that all specified invariants and temporal
+- “No error has been found” indicates that all specified invariants and temporal
   properties hold for the explored state space.
-* `states generated` and `distinct states found` give a sense of coverage.
-* Depth values indicate the length of the longest behavior explored.
+- `states generated` and `distinct states found` give a sense of coverage.
+- Depth values indicate the length of the longest behavior explored.
 
 Compared to `HotSwapSingle`, this model typically explores fewer distinct states,
 since:
 
-* The configuration constrains the number of swap attempts.
-* The goal is to verify host-level policy behavior rather than re-explore all
+- The configuration constrains the number of swap attempts.
+- The goal is to verify host-level policy behavior rather than re-explore all
   prewarm/fade combinations in detail.
 
 ---
@@ -215,9 +220,9 @@ NoEngine = "NoEngine"
 
 These settings imply:
 
-* A single prewarm block per swap in the model.
-* Short crossfades to keep the state space tractable.
-* Up to three completed swaps recorded in `completedSwaps`.
+- A single prewarm block per swap in the model.
+- Short crossfades to keep the state space tractable.
+- Up to three completed swaps recorded in `completedSwaps`.
 
 The behavior constraint in the TLA spec is:
 
@@ -229,9 +234,9 @@ BehaviorBound ==
 
 This bound:
 
-* Limits the length of swap chains.
-* Limits the total number of swap attempts.
-* Keeps model checking practical while still exercising multi-swap behavior and
+- Limits the length of swap chains.
+- Limits the total number of swap attempts.
+- Keeps model checking practical while still exercising multi-swap behavior and
   overlapping request patterns.
 
 Values can be adjusted to trade off runtime against exploration depth.
@@ -242,22 +247,22 @@ Values can be adjusted to trade off runtime against exploration depth.
 
 Typical tuning patterns:
 
-* **Development runs (fast feedback):**
+- **Development runs (fast feedback):**
 
-  * Lower `MAX_BEHAVIORS` (e.g. 2).
-  * Lower `MAX_FADE_FRAMES`.
-  * Tighten `swapRequests` bound.
+  - Lower `MAX_BEHAVIORS` (e.g. 2).
+  - Lower `MAX_FADE_FRAMES`.
+  - Tighten `swapRequests` bound.
 
-* **CI / pre-release runs (deeper coverage):**
+- **CI / pre-release runs (deeper coverage):**
 
-  * Increase `MAX_BEHAVIORS` (e.g. 4).
-  * Increase `MAX_FADE_FRAMES`.
-  * Relax `swapRequests` bound modestly.
+  - Increase `MAX_BEHAVIORS` (e.g. 4).
+  - Increase `MAX_FADE_FRAMES`.
+  - Relax `swapRequests` bound modestly.
 
-* **Exploratory runs:**
+- **Exploratory runs:**
 
-  * Relax `swapRequests` and `MAX_BEHAVIORS` further.
-  * Expect substantially longer runtimes due to combinatorial growth.
+  - Relax `swapRequests` and `MAX_BEHAVIORS` further.
+  - Expect substantially longer runtimes due to combinatorial growth.
 
 ---
 
@@ -279,9 +284,9 @@ Example pattern:
 
 The model verifies that:
 
-* At most two engines are active at any time.
-* `completedSwaps` ends with `Engine3`.
-* Idle states are consistent with the completed history.
+- At most two engines are active at any time.
+- `completedSwaps` ends with `Engine3`.
+- Idle states are consistent with the completed history.
 
 ### Overlapping Requests
 
@@ -296,10 +301,10 @@ Example pattern:
 
 The model verifies that:
 
-* `Engine3` does not appear as `currentEngine` or `nextEngine` during the active
+- `Engine3` does not appear as `currentEngine` or `nextEngine` during the active
   swap.
-* `swapsRejected` reflects the rejected request.
-* The active swap and its invariants are not affected by the rejection.
+- `swapsRejected` reflects the rejected request.
+- The active swap and its invariants are not affected by the rejection.
 
 ---
 
@@ -308,24 +313,24 @@ The model verifies that:
 The reject-while-busy protocol corresponds to the integration behavior described
 in the ADRs for multi-swap hotswap requirements. The formal model covers:
 
-* Sequential multi-swap behavior.
-* Immediate rejection of overlapping requests.
-* Preservation of base hotswap invariants.
+- Sequential multi-swap behavior.
+- Immediate rejection of overlapping requests.
+- Preservation of base hotswap invariants.
 
 Implementation mapping:
 
-* `RequestSwap` corresponds to the host-side `scheduleSwap` function.
-* `swapsAccepted` / `swapsRejected` correspond to host-level counters that can
+- `RequestSwap` corresponds to the host-side `scheduleSwap` function.
+- `swapsAccepted` / `swapsRejected` correspond to host-level counters that can
   be mirrored in telemetry or diagnostics.
-* `completedSwaps` corresponds to derived or explicitly tracked engine histories
+- `completedSwaps` corresponds to derived or explicitly tracked engine histories
   used for debugging and observability.
 
 The TLA model and the TypeScript/C++ implementations should exhibit equivalent
 observable behavior with respect to:
 
-* Engine transitions.
-* Accepted vs rejected requests.
-* Invariants over engine activity and swap phases.
+- Engine transitions.
+- Accepted vs rejected requests.
+- Invariants over engine activity and swap phases.
 
 ---
 
@@ -335,11 +340,11 @@ The reject-while-busy protocol forms the basis for more advanced policies.
 
 Possible extensions include:
 
-* **Future overlap handling:** accept additional swaps while one is active,
+- **Future overlap handling:** accept additional swaps while one is active,
   with defined Level 3+ behavior.
-* **Cancellation:** introduce a host-level action that transitions an in-flight
+- **Cancellation:** introduce a host-level action that transitions an in-flight
   swap to a safe cancellation path.
-* **Additional engine identities:** expand `Engines` to four or more concrete
+- **Additional engine identities:** expand `Engines` to four or more concrete
   values, with additional bounds to keep state space manageable.
 
 Such extensions would be modeled in separate TLA modules (for example
@@ -349,7 +354,6 @@ future overlap-handling module(s) (Level 3+)) that build on the same core invari
 
 ## References
 
-* `../single/HotSwapSingle.md` – base single-swap protocol specification.
-* `../single/tla/HotSwapSingle.tla` / `.cfg` – formal model and configuration for the base protocol.
-* ADR documents under `packages/hotswap/docs/adr/` describing multi-swap requirements.
-
+- `../single/HotSwapSingle.md` – base single-swap protocol specification.
+- `../single/tla/HotSwapSingle.tla` / `.cfg` – formal model and configuration for the base protocol.
+- ADR documents under `packages/hotswap/docs/adr/` describing multi-swap requirements.

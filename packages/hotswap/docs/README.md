@@ -1,161 +1,147 @@
 # @seqlok/hotswap docs
 
-> Map of the hotswap docs folder: where to start and what is normative.
+This folder documents the Seqlok hotswap substrate.
 
-This directory explains the hot-swap protocol from three angles:
+The docs are split by ownership:
 
-- **Contract:** what the host and engines MUST do.
-- **Implementation:** how Seqlok/Dekzer actually wires it.
-- **Formal + reference:** TLA+ spec and cross-checked C++/TS state machines.
+- **Contract**: shipped protocol law
+- **Implementation**: host/runtime wiring and operational integration
+- **Engine**: lifecycle semantics and engine-author ABI
+- **Formal**: TLA+ models, English formal specs, and reference artefacts
+- **ADR**: accepted or proposed design decisions
+- **Exploratory**: future-facing, non-binding design parking lot
+
+This file is an index. It is not a second handbook.
 
 ---
 
-## 1. Document map
+## Start here
+
+### If you need the shipped protocol contract
+
+Read:
+
+- [CONTRACT.md](./CONTRACT.md)
+
+This is the normative contract for the supported hotswap policy surface.
+
+### If you need to wire the runtime or driver
+
+Read:
+
+- [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)
+
+This covers ticket flow, runtime sequencing, orchestration, and caller responsibilities.
+
+### If you are implementing an engine
+
+Read in this order:
+
+- [engine/engine-lifecycle-spec.md](./engine/engine-lifecycle-spec.md)
+- [engine/engine-sdk-guide.md](./engine/engine-sdk-guide.md)
+
+The lifecycle spec explains swap phase semantics.
+The SDK guide owns the engine ABI and engine-author contract.
+
+### If you care about formal verification
+
+Read:
+
+- [formal/README.md](./formal/README.md)
+
+That document owns the formal model map, supported policy families, and TLC execution instructions.
+
+---
+
+## Supported doctrine
+
+Seqlok hotswap currently has two separate axes.
+
+### 1. Swap policy axis
+
+Supported policy levels are:
+
+- **Level 1**: `single`
+- **Level 2**: `reject-busy`
+
+Anything beyond that is not part of the shipped policy contract.
+
+### 2. Continuity axis
+
+Continuity is orthogonal to swap policy:
+
+- **`aligned`**: continuity by alignment context, bounded warm-up, and crossfade
+- **`persistent`**: continuity by explicit handoff snapshot, install, catchup, and guarded retire
+
+See:
+
+- [adr/hotswap-continuity-classes-and-persistent-handoff.md](./adr/hotswap-continuity-classes-and-persistent-handoff.md)
+
+Do not treat continuity class as another policy level.
+
+---
+
+## Directory map
 
 ### Core docs
 
 - [CONTRACT.md](./CONTRACT.md)  
-  Normative contract between the hotswap driver and engines (Levels 1–2).  
-  Read this first if you are changing protocol behavior or driver semantics.
+  Normative shipped protocol contract.
 
 - [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)  
-  How the composite driver, SwapTicket, and command ring glue together in
-  real code. This is the "how to wire it in a real system" companion to the
-  contract.
+  Runtime and driver integration guide.
 
-### Engine author docs
-
-- [engine/engine-architecture-vision.md](./engine/engine-architecture-vision.md)  
-  High-level vision for the engine ecosystem and how hotswap fits into it.
+### Engine docs
 
 - [engine/engine-lifecycle-spec.md](./engine/engine-lifecycle-spec.md)  
-  Concrete lifecycle for engines: create -> prime -> pre-warm -> crossfade ->
-  retire. If you are implementing an engine, this is your main spec.
+  Lifecycle semantics for aligned and persistent swap flows.
 
 - [engine/engine-sdk-guide.md](./engine/engine-sdk-guide.md)  
-  SDK-style guide for DSP authors who want their engines to plug into Seqlok
-  and benefit from sample-accurate swaps.
+  Engine ABI, handoff capability surface, and engine-author requirements.
 
-### Formal + reference bundle
+### ADRs
+
+- [adr/hotswap-multi-swap-requirements.md](./adr/hotswap-multi-swap-requirements.md)  
+  Level 2 overlap policy requirements.
+
+- [adr/hotswap-continuity-classes-and-persistent-handoff.md](./adr/hotswap-continuity-classes-and-persistent-handoff.md)  
+  Orthogonal continuity-class decision for `aligned` and `persistent`.
+
+### Formal bundle
 
 - [formal/README.md](./formal/README.md)  
-  Entry point for the formal model and reference artefacts:
-  - TLA+ specs (single-swap and multi-swap)
-  - Reference C++ header
-  - English formal specs
+  Entry point for supported formal policy models, experimental models, reference artefacts, and TLC instructions.
 
-If you care about **invariants, model checking, or cross-language parity**,
-start there.
+### Exploratory material
 
-### ADRs and archive
-
-- [adr/hotswap-multi-swap-requirements.md](adr/hotswap-multi-swap-requirements.md)  
-  Requirements and constraints for Level 2 (`reject-busy`) behavior.
-
-- [adr/hotswap-advanced-multi-swap-exploratory.md](adr/hotswap-advanced-multi-swap-exploratory.md)  
-  Exploratory Level 3+ behavior (queues, retarget, fancy policies). Vision
-  only; **not** binding for v0.3.x.
-
-- [archive/stretch-engine-config-v0-design.md](./archive/stretch-engine-config-v0-design.md)  
-  Older stretch-engine configuration design kept for historical context.
+- [exploratory/hotswap-advanced-multi-swap.md](./exploratory/hotswap-advanced-multi-swap.md)  
+  Non-binding future exploration for queueing, retargeting, and richer overlap behavior.
 
 ---
 
-## 2. Who should read what?
+## Ownership rules
 
-- **Seqlok/Dekzer core devs**  
-  Start with:
-  - [CONTRACT.md](./CONTRACT.md)
-  - [IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)
-  - [formal/policies/single/HotSwapSingle.md](./formal/policies/single/HotSwapSingle.md) for base invariants
-  - [formal/policies/reject-busy/HotSwapRejectBusy.md](./formal/policies/reject-busy/HotSwapRejectBusy.md) for multi-swap
+Use these rules when editing the docs:
 
-- **Engine authors (DSP / C++)**  
-  Start with:
-  - [engine/engine-lifecycle-spec.md](./engine/engine-lifecycle-spec.md)
-  - [engine/engine-sdk-guide.md](./engine/engine-sdk-guide.md)
-  - [formal/hotswap_spec.reference.hpp](formal/reference/cpp/hotswap_spec.reference.hpp) as
-    the reference state machine (kept in sync with the TS spec).
+- `README.md` is an index only.
+- `CONTRACT.md` owns shipped protocol law.
+- `IMPLEMENTATION_GUIDE.md` owns host/runtime integration.
+- `engine-lifecycle-spec.md` owns lifecycle semantics.
+- `engine-sdk-guide.md` owns engine ABI and engine-author contract.
+- `formal/README.md` owns formal execution guidance and model map.
+- `adr/` is for actual decisions.
+- `exploratory/` is for non-binding future material.
 
-- **Formal / verification people**  
-  Start with:
-  - [formal/README.md](./formal/README.md)
-  - [formal/policies/single/HotSwapSingle.md](./formal/policies/single/HotSwapSingle.md)
-  - [formal/policies/reject-busy/HotSwapRejectBusy.md](./formal/policies/reject-busy/HotSwapRejectBusy.md)
-  - [formal/policies/mailbox-latest/HotSwapMailboxLatest.md](./formal/policies/mailbox-latest/HotSwapMailboxLatest.md)
-  - `formal/policies/**/tla/*.tla` specs and configs
+If a concept is defined in two places, the docs are wrong.
 
 ---
 
-## 3. Invariants and levels
+## Editing guidance
 
-This docs tree uses a small, *historical* level taxonomy for what is supported:
+Before adding a new doc, ask:
 
-- **Level 1 = policy `single`**  
-  Base single-swap protocol: at most one in-flight swap per lane/slot.
+1. Does an existing file already own this concept?
+2. Is this shipped law, implementation guidance, formal material, or exploratory thinking?
+3. Will this new file reduce ambiguity, or just duplicate doctrine under a new name?
 
-- **Level 2 = policy `reject-busy`**  
-  Overlap is explicitly defined as: **reject while busy**.
-
-- **Level 3+ = Experimental / Future (not part of supported Levels 1–2)**  
-  Anything beyond “reject while busy” lives here. Today that includes:
-  - `mailbox-latest` (**EXPERIMENTAL**, treat as “Level 3” if you want a number)
-  - Advanced overlap-handling semantics (future-only; see adr/hotswap-advanced-multi-swap-exploratory.md)
-
-For the full list of invariants (safety + liveness), see:
-
-- [formal/policies/single/HotSwapSingle.md](./formal/policies/single/HotSwapSingle.md) - Base protocol invariants
-- [formal/policies/reject-busy/HotSwapRejectBusy.md](./formal/policies/reject-busy/HotSwapRejectBusy.md) - Multi-swap invariants
-- [formal/policies/mailbox-latest/HotSwapMailboxLatest.md](./formal/policies/mailbox-latest/HotSwapMailboxLatest.md) - Latest-wins overlap handling (**EXPERIMENTAL**)
-- The TLA+ specs in `formal/policies/**/tla/` contain formal definitions
-
----
-
-## 4. Running formal verification
-
-From the repo root:
-
-```bash
-# Base protocol (single swap)
-pnpm tla:hotswap              # Fast invariants-only
-pnpm tla:hotswap:full         # Full with liveness
-
-# Multi-swap with reject-while-busy
-pnpm tla:hotswap -- --policy reject-busy
-pnpm tla:hotswap:full -- --policy reject-busy
-
-# EXPERIMENTAL: mailbox-latest overlap handling (may currently fail invariants)
-pnpm tla:hotswap -- --policy mailbox-latest
-pnpm tla:hotswap:full -- --policy mailbox-latest
-```
-
-See [formal/README.md](./formal/README.md) for detailed instructions.
-
----
-
-## 5. Policy-based naming
-
-The TLA+ specs use policy-based names instead of arbitrary level numbers:
-
-| Policy            | Spec                        | Level | Description                       |
-|------------------|-----------------------------|-------|-----------------------------------|
-| `single`         | HotSwapSingle.tla           | 1     | Base single-swap protocol         |
-| `reject-busy`    | HotSwapRejectBusy.tla       | 2     | Overlap defined as reject-while-busy |
-| `mailbox-latest` | HotSwapMailboxLatest.tla    | 3     | **EXPERIMENTAL**: latest-wins mailbox |
-
-Levels 1–2 are the supported taxonomy. Anything beyond that should be treated
-as **experimental/future**, not as a supported “Level 2.x”.
-
----
-
-## 6. Cross-language conformance
-
-All implementations (TypeScript, C++, future Rust/Zig) must:
-
-1. Implement the same state machine as defined in the TLA+ specs
-2. Pass the same test vectors in `archive/test-vectors.json`
-3. Maintain the same invariants (verified by property tests)
-
-The reference C++ implementation (`formal/hotswap_spec.reference.hpp`) is kept
-in lockstep with the TypeScript implementation and both are traceable to the
-TLA+ models.
+Prefer fewer docs with sharper ownership.

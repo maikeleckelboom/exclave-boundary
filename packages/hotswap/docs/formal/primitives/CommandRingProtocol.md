@@ -14,7 +14,6 @@ This is the intended formalization target for a bounded FIFO ring transport:
 ```text
 packages/hotswap/docs/formal/primitives/tla/CommandRingProtocol.tla
 packages/hotswap/docs/formal/primitives/tla/CommandRingProtocol.cfg
-packages/hotswap/docs/archive/command-ring-test-vectors.json
 ```
 
 ## Target invariants (sketch)
@@ -23,4 +22,3 @@ packages/hotswap/docs/archive/command-ring-test-vectors.json
 - `CapacityBound` (\(writeIndex - readIndex \le CAPACITY\))
 - `FIFOOrdering` (\(consumed = SubSeq(produced, 1, Len(consumed))\))
 - `NoPhantomRead`
-

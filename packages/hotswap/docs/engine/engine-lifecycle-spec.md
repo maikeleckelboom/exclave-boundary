@@ -1,369 +1,459 @@
 # Seqlok Hotswap Lifecycle Specification
 
-> **Version:** 0.1.0-draft  
-> **Status:** Design Document  
-> **Scope:** Generic engine lifecycle protocol for glitch-free configuration changes
+> **Status:** Design specification  
+> **Scope:** Engine lifecycle semantics for aligned and persistent hot-swaps
 
-## Overview
+## 1. Purpose
 
-The Seqlok Hotswap Protocol defines a generic, reusable lifecycle for swapping DSP engine instances without audible glitches. It is designed to be algorithm-agnostic—whether the underlying engine is Signalsmith-stretch, Bungee, Bungee Pro, a simple varispeed resampler, or any future DSP implementation, the same protocol governs how configuration changes are applied.
+This document defines the lifecycle semantics for swapping DSP engine instances without audible discontinuity.
 
-> **Note on algorithm names:** The algorithm names used throughout this document (Signalsmith, Bungee, Bungee Pro, etc.) are illustrative. The initial Seqlok implementation focuses on Signalsmith-based engines (varispeed + stretch); other algorithms are examples of how the ABI generalizes to future adapters.
+It does **not** own the engine ABI.
+It does **not** own the full driver wiring story.
+It does **not** redefine swap-policy levels.
 
-### Core Invariant
+Ownership split:
 
-> **No live `configure()` on the active engine.**
+- This document owns **lifecycle semantics**
+- [`engine-sdk-guide.md`](./engine-sdk-guide.md) owns the **engine ABI** and engine-author contract
+- [`../IMPLEMENTATION_GUIDE.md`](../IMPLEMENTATION_GUIDE.md) owns **runtime/driver orchestration**
+- [`../CONTRACT.md`](../CONTRACT.md) owns the shipped protocol contract
 
-Any configuration change that would cause transients, require re-initialization, or alter the internal processing kernel must go through the hotswap lifecycle rather than mutating the active engine in place.
+---
 
-## Design Philosophy
+## 2. Core law
 
-### Why Hotswap Instead of Live Configuration?
+> **No live structural reconfiguration on the active engine.**
 
-Traditional DSP engines often expose a `configure()` or `setParameter()` method that can be called at any time. This creates several problems in real-time audio:
+If a change would invalidate internal state, require rebuild/reinit, change algorithmic structure, or otherwise risk transients, that change must happen by replacing the active instance through the hotswap lifecycle.
 
-1. **Transients and glitches** when internal state is invalidated
-2. **Unbounded latency** if the engine must reallocate or recompute
-3. **Race conditions** between the audio thread reading state and the control thread writing it
-4. **Undefined behavior** during the transition period
+The active engine instance is replaced.
+It is not structurally mutated in place.
 
-The hotswap approach sidesteps all of these by treating configuration changes as *instance replacements* rather than *mutations*.
+This remains true for Signalsmith-based stretch engines, varispeed engines, and any future engine family.
 
-### The Mental Model
+---
 
-Think of engines as immutable configuration snapshots that process audio. When you need a different configuration, you don't modify the running engine—you spin up a new one alongside it, blend between them, then retire the old one.
+## 3. Two continuity classes
 
-This is analogous to how modern web servers handle deployments: blue-green deployment, not in-place mutation.
+Seqlok recognizes two different continuity classes for a structural swap:
 
-## Lifecycle Phases
+- **`aligned`**
+- **`persistent`**
 
-The hotswap protocol consists of five phases:
+These are not additional policy levels.
+They are an orthogonal continuity axis.
 
-```
+### 3.1 `aligned`
+
+`aligned` continuity means the incoming engine is started using alignment context such as:
+
+- playback position
+- recent input history
+- engine-defined auxiliary alignment state
+
+This is the current continuity model formalized.
+
+It is strong, but it is **not** a guarantee that full internal DSP state survives the swap.
+
+### 3.2 `persistent`
+
+`persistent` continuity means the incoming engine receives an explicit handoff snapshot from the outgoing engine, installs it, is advanced through catchup/replay as needed, and only then participates in crossfade.
+
+This is the stronger continuity class.
+
+### 3.3 Critical distinction
+
+`prime()` belongs to **aligned** continuity.
+
+`prime()` by itself is **not** a persistent-state transfer guarantee.
+
+If persistent continuity is requested, the lifecycle must include explicit handoff and catchup semantics.
+Do not overload `prime()` into pretending it already solves that problem.
+
+---
+
+## 4. Structural vs non-structural change
+
+Not all changes use hotswap.
+
+### Structural changes
+
+Structural changes require instance replacement through the lifecycle in this document.
+
+Typical examples:
+
+- algorithm family
+- quality tier
+- FFT/window/hop sizing
+- sample rate
+- channel count
+- major transient/formant modes
+- any change the engine family considers rebuild-only
+
+### Non-structural changes
+
+Non-structural changes remain live-update territory.
+
+Typical examples:
+
+- `stretchRatio`
+- `pitchRatio`
+- gain
+- small smooth psychoacoustic controls the engine can safely absorb live
+
+That means:
+
+- active stretch or pitch processing may be running during a structural hot-swap
+- but ordinary stretch-ratio or pitch-ratio control changes are not themselves normal hotswap triggers
+
+See the SDK guide for the engine-author contract behind this distinction.
+
+---
+
+## 5. Lifecycle overview
+
+There are two lifecycle families.
+
+> **Runtime truth:** The `@seqlok/hotswap` package currently implements **only** the aligned lifecycle in its RT protocol. The persistent lifecycle is documented here as the intended design, but `spec.ts` does not yet expose `capture`, `install`, or `catchup` phases.
+
+### 5.1 Aligned lifecycle
+
+```text
 spawn → prime → preWarm → crossFade → retire
 ```
 
-> **Naming convention:** The phase names above are canonical. In code, string literals may be lowercased (`'prewarm'`, `'crossfade'`); the documentation uses mixed case (`preWarm`, `crossFade`) for readability. The semantics are identical.
+### 5.2 Persistent lifecycle
 
-### 1. Spawn
-
-Create a new engine instance with the desired configuration. The engine is constructed but not yet ready to process audio.
-
-**Requirements:**
-- Must not block the audio thread
-- May allocate memory, initialize FFT tables, etc.
-- The new engine exists but is "cold"
-
-### 2. Prime
-
-Provide the new engine with context it needs to produce seamless output from its first sample. This typically includes:
-
-- Current playback position
-- Recent input history (for algorithms that need look-back)
-- Phase information from the outgoing engine (if applicable)
-- Any other state needed for sample-accurate alignment
-
-**Requirements:**
-- Must provide enough context for the engine to "catch up" to the current position
-- Should be idempotent (calling prime multiple times produces the same result)
-
-### 3. PreWarm
-
-Run the new engine in parallel with the active engine, discarding its output. This ensures:
-
-- Internal buffers are filled
-- Any lazy initialization is complete
-- The engine is producing stable, predictable output
-
-**Requirements:**
-- The engine processes real input data
-- Output is discarded (not mixed to main output)
-- Duration is algorithm-dependent (typically one or more processing blocks)
-
-### 4. CrossFade
-
-Both engines run in parallel, with their outputs blended over a configurable duration:
-
-```
-output = (1 - t) * oldEngine.output + t * newEngine.output
+```text
+spawn → capture → install → catchup → preWarm → crossFade → retire
 ```
 
-where `t` ramps from 0 to 1 over the fade duration.
+The persistent lifecycle is a strict expansion of the aligned lifecycle.
+It is not merely "better prime."
 
-**Requirements:**
-- Both engines must process the same input simultaneously
-- Fade duration should be musically meaningful (e.g., aligned to beats/bars)
-- Fade curve may be linear, equal-power, or custom
+---
 
-**Responsibility split:**
+## 6. Aligned lifecycle semantics
 
-| Concern | Owner |
-|---------|-------|
-| When to start swap | Driver |
-| Fade shape and duration | Driver |
-| Allocating / destroying engines | Driver |
-| Blending the two output streams | Driver |
-| Producing stable, predictable output | Engine |
-| Being safe for parallel running | Engine |
-| Reporting accurate latency | Engine |
+The aligned lifecycle is the correct model when the engine family supports alignment continuity but not formal persistent handoff.
 
-> **Important:** Engines should **not** attempt to "help" by ducking, pre-fading, or otherwise compensating for the crossfade. The host owns blending entirely. Engines just produce their normal output; anything else causes double-fading artifacts.
+### 6.1 `spawn`
 
-### 5. Retire
+Create a new engine instance with the requested structural configuration.
 
-The old engine is decommissioned:
+Requirements:
 
-- Stop calling `process()` on it
-- Clean up resources
-- Destroy the instance
+- off audio thread
+- allocation allowed
+- initialization allowed
+- resulting engine is not yet in the audio path
 
-**Requirements:**
-- Must not block the audio thread
-- Resource cleanup may be deferred to a background thread
+### 6.2 `prime`
 
-## Engine ABI
+Provide alignment context so the incoming engine can start meaningfully from the current musical/runtime position.
 
-Engines are black boxes that implement the `EngineABI` interface. This is the canonical contract—all engine implementations, regardless of language, must satisfy this shape:
+Typical alignment context includes:
 
-```typescript
-/**
- * EngineABI - The canonical engine interface.
- * 
- * In TypeScript implementations, this is typically exposed as a
- * class or object. The C/C++ equivalent uses function pointers.
- */
-interface EngineABI<TConfig, THandle> {
-  /**
-   * Construct a new engine instance with the given immutable configuration.
-   * May allocate, may be slow. Called off the audio thread.
-   */
-  create(config: TConfig): THandle;
+- playback position
+- recent input history
+- engine-defined auxiliary alignment state
 
-  /**
-   * Provide context for seamless startup.
-   * Called before the engine enters the audio path.
-   */
-  prime(handle: THandle, ctx: PrimeContext): void;
+Requirements:
 
-  /**
-   * Process one block of audio.
-   * Must be real-time safe: no allocation, no blocking, bounded execution time.
-   */
-  process(
-    handle: THandle,
-    input: readonly Float32Array[],
-    output: Float32Array[],
-    frames: number
-  ): void;
+- enough context for a warm aligned start
+- no implication that full running state is preserved
+- semantics owned by the engine family ABI
 
-  /**
-   * Release all resources associated with this engine instance.
-   * May be called from a background thread after the engine is retired.
-   */
-  destroy(handle: THandle): void;
-}
+### 6.3 `preWarm`
+
+Run the incoming engine on real input while discarding its output.
+
+Purpose:
+
+- fill buffers
+- complete lazy warm-up
+- stabilize the engine before blend
+
+Requirements:
+
+- output not yet audible
+- bounded duration
+- engine must process real input
+
+### 6.4 `crossFade`
+
+Run outgoing and incoming engines in parallel on the same input and blend in the driver.
+
+Requirements:
+
+- same input into both engines
+- blend owned by the driver, not the engine
+- engine must tolerate parallel execution
+
+### 6.5 `retire`
+
+Retire the outgoing engine after crossfade completes.
+
+Requirements:
+
+- old engine stops participating in output
+- reclamation may happen later on a non-RT thread
+- memory ordering / reclamation legality belongs to the runtime layer
+
+---
+
+## 7. Persistent lifecycle semantics
+
+The persistent lifecycle is required when a caller requests strong state continuity and the engine family honestly supports it.
+
+### 7.1 `spawn`
+
+Create the candidate engine instance.
+
+Same basic requirements as aligned `spawn`.
+
+### 7.2 `capture`
+
+Capture a handoff snapshot from the outgoing engine at a known frame boundary.
+
+Purpose:
+
+- freeze the outgoing engine's exportable running state
+- create a lineage-tied snapshot for the accepted swap
+
+Requirements:
+
+- RT-safe
+- no allocation
+- no blocking
+- bounded execution time
+- associated with a specific capture frame
+- associated with the currently active engine lineage
+
+### 7.3 `install`
+
+Install the captured snapshot into the candidate engine.
+
+Purpose:
+
+- reconstruct or resume the engine's internal running state in the new instance
+
+Requirements:
+
+- explicit success or failure
+- incompatible payloads must be rejected explicitly
+- config/ABI lineage must be checked
+- no silent acceptance of invalid snapshots
+
+### 7.4 `catchup`
+
+Advance the candidate engine from capture frame to intended crossfade start by replaying the relevant input stream.
+
+This phase is critical.
+
+If the outgoing engine was captured at frame `F`, but the swap becomes audible at frame `F + N`, then the incoming engine must be advanced through that interval or the contract is not honestly persistent.
+
+Requirements:
+
+- deterministic replay input window
+- correct frame lineage from capture point to crossfade start
+- output remains discarded during catchup
+
+### 7.5 `preWarm`
+
+After install and catchup, continue warm-up until the candidate engine is stable for blend.
+
+Purpose:
+
+- stabilize the imported and replayed engine instance before it becomes audible
+
+### 7.6 `crossFade`
+
+Run outgoing and incoming engines in parallel on the same live input and blend in the driver.
+
+Requirements:
+
+- same input
+- driver owns blend
+- engine remains parallel-safe
+
+### 7.7 `retire`
+
+Retire the outgoing engine only after the persistent continuity obligations for the accepted swap have been satisfied.
+
+Requirements:
+
+- no retire before successful install
+- no retire before required catchup is complete
+- no silent downgrade if persistent continuity was required and downgrade was disallowed
+
+---
+
+## 8. Failure semantics
+
+Failure handling depends on continuity class.
+
+### 8.1 Aligned lifecycle failures
+
+Possible failure points:
+
+- create/spawn failure
+- alignment/prime failure
+- prewarm failure
+- crossfade-time engine failure
+- retire/reclamation failure
+
+Allowed outcomes:
+
+- reject the swap before audio-path impact
+- keep old engine active
+- degrade to aligned cold-ish startup behavior if the contract allows it
+- never drop to silence as the normal recovery path
+
+Aligned continuity may still permit weaker startup behavior if the engine family cannot fully align from available context.
+That does **not** constitute persistent continuity.
+
+### 8.2 Persistent lifecycle failures
+
+Possible failure points:
+
+- capture failure
+- install failure
+- catchup failure
+- prewarm failure
+- crossfade-time engine failure
+
+Rules:
+
+- if persistent continuity was requested and downgrade is **not** allowed, the swap must abort explicitly
+- if downgrade is allowed, the downgrade must be explicit in runtime outcome state
+- persistent-required swaps must never silently proceed as merely aligned or cold
+
+### 8.3 No silent downgrade
+
+This is a lifecycle law:
+
+> If `persistent` continuity is required and downgrade is disallowed, the runtime must not proceed into audible swap completion under weaker continuity.
+
+That rule must be reflected in both runtime behavior and formal modeling.
+
+---
+
+## 9. Engine responsibilities during lifecycle
+
+The engine family must support the lifecycle it claims.
+
+### For aligned continuity
+
+The engine must:
+
+- accept alignment context
+- warm from that context meaningfully
+- process deterministically for a given config and input
+- run safely in parallel with another instance during blend
+
+### For persistent continuity
+
+The engine must additionally support:
+
+- explicit handoff capability declaration
+- snapshot export/import semantics
+- supported-transition judgment
+- deterministic replay/catchup semantics as required by the runtime contract
+
+An engine family must not claim `persistent` unless it can support that honestly.
+
+---
+
+## 10. Signalsmith-class implication
+
+This lifecycle exists in part to support structural hot-swaps while audio is already playing through active time-stretch or pitch-processing engines.
+
+That includes Signalsmith-class stretch engines.
+
+The clean rule is:
+
+- active stretch or pitch DSP may be running during a structural hotswap
+- persistent continuity is available only when the adapter/engine family can actually export/import or reconstruct enough running state to support it honestly
+- otherwise the engine family may support only `aligned`
+
+Do not promise persistent continuity for a stretch engine just because it has `prime()`.
+
+That would be a naming lie.
+
+---
+
+## 11. Relationship to swap policy
+
+Lifecycle semantics and overlap policy are separate concerns.
+
+Examples:
+
+- `single` + `aligned`
+- `single` + `persistent`
+- `reject-busy` + `aligned`
+- `reject-busy` + `persistent`
+
+Supported shipped policy levels remain defined elsewhere.
+This document does not redefine those levels.
+
+---
+
+## 12. Formal-model implications
+
+This document does not contain the TLA+ model, but it defines lifecycle obligations that the formal model must reflect.
+
+Persistent continuity requires modeling at least:
+
+- capture state
+- install state
+- catchup state
+- continuity requested vs continuity granted
+- downgrade legality
+- retire gating
+
+TLA+ should prove lifecycle legality and lineage rules.
+It should not be used to prove psychoacoustic transparency or waveform closeness.
+
+See:
+
+- [`../formal/README.md`](../formal/README.md)
+- [`../adr/hotswap-continuity-classes-and-persistent-handoff.md`](../adr/hotswap-continuity-classes-and-persistent-handoff.md)
+
+---
+
+## 13. What this document deliberately does not own
+
+This document does not own:
+
+- engine ABI type definitions
+- runtime command transport details
+- ticket delivery mechanics
+- crossfade curve implementation details
+- TLA+ execution instructions
+- exploratory future overlap policies
+
+Those belong elsewhere by design.
+
+---
+
+## 14. Final summary
+
+The aligned lifecycle is:
+
+```text
+spawn → prime → preWarm → crossFade → retire
 ```
 
-### PrimeContext
+The persistent lifecycle is:
 
-The prime context provides everything a new engine needs to produce output that aligns with the outgoing engine. It is strictly about **engine state alignment**—scheduling information (when to start the crossfade, fade duration, etc.) is managed separately by the driver and is not part of this contract.
-
-```typescript
-interface PrimeContext {
-  /** Current playback position in samples */
-  positionSamples: number;
-
-  /** Current playback position in seconds */
-  positionSeconds: number;
-
-  /** Recent input history for look-back algorithms */
-  inputHistory: readonly Float32Array[];
-
-  /** Number of valid samples in inputHistory */
-  historyLength: number;
-
-  /** Phase state from outgoing engine (algorithm-specific, opaque) */
-  phaseState?: unknown;
-}
+```text
+spawn → capture → install → catchup → preWarm → crossFade → retire
 ```
 
-> **Note:** Crossfade scheduling (start sample, duration, curve) is owned by the `SwapSchedule` structure in the driver layer. Engines never see scheduling details—they only receive alignment context.
+That distinction is the architectural correction.
 
-### Latency Reporting
+`prime()` remains the correct aligned-start mechanism.
+Persistent continuity requires more than that.
 
-Engines must report their algorithmic latency so the driver can compensate during playback and crossfades:
-
-```typescript
-interface EngineABI<TConfig, THandle> {
-  // ... other methods ...
-  
-  /**
-   * Return the engine's input-to-output latency in samples.
-   */
-  getLatency(handle: THandle): number;
-}
-```
-
-> **Latency semantics:**
-> - Latency is reported as **non-negative input-to-output delay** in samples.
-> - Latency is measured at the **current configuration**—if quality tier affects latency, report the latency for the active tier.
-> - The driver uses this value to align playback timing and to schedule crossfades correctly when swapping between engines with different latencies.
-
-## Parameter Classification
-
-Not all parameter changes require a hotswap. Parameters are classified as either **structural** or **non-structural**:
-
-### Structural Parameters (Require Hotswap)
-
-Changes that invalidate internal state, require reallocation, or would cause transients:
-
-- Algorithm selection (e.g., Signalsmith → Bungee)
-- Quality tier (eco / normal / insane)
-- FFT size, window length, hop size
-- Sample rate
-- Channel count
-- Transient detection mode
-- Formant preservation mode
-
-**Rule of thumb:** If the underlying library recommends "rebuild / reinit for this change," it's structural.
-
-### Non-Structural Parameters (Live Update)
-
-Changes that can be applied smoothly without reinitialization:
-
-- Stretch ratio
-- Pitch ratio
-- Gain / volume
-- Small psychoacoustic tweaks the library handles smoothly
-
-These can be updated via a separate parameter channel without triggering the hotswap lifecycle.
-
-## Scheduling
-
-Hotswaps can be scheduled musically:
-
-- **Immediate:** Begin the swap as soon as the new engine is primed
-- **Beat-aligned:** Begin crossfade on the next beat boundary
-- **Bar-aligned:** Begin crossfade on the next bar boundary
-- **Sample-accurate:** Begin crossfade at a specific sample position
-
-The CompositeDriver maintains scheduling state and coordinates with the transport system.
-
-### SwapSchedule
-
-The driver uses a `SwapSchedule` structure to control crossfade timing. This is **driver-only**—engines never see it; they only receive `PrimeContext` for alignment.
-
-```typescript
-interface SwapSchedule {
-  /** Absolute start sample of the crossfade (global timeline) */
-  startSample: number;
-
-  /** Fade duration in samples */
-  durationSamples: number;
-
-  /** Fade curve identifier */
-  curve: 'linear' | 'equalPower';
-
-  /** Optional musical annotation for debugging (e.g., "bar 65") */
-  label?: string;
-}
-```
-
-**Separation of concerns:**
-
-| Structure | Owner | Purpose |
-|-----------|-------|---------|
-| `SwapSchedule` | Driver | When and how to crossfade |
-| `PrimeContext` | Engine | Where to align internal state |
-
-The driver translates `SwapSchedule` into timing decisions; engines just receive `PrimeContext` and produce audio.
-
-## Concurrency Model
-
-The hotswap protocol assumes:
-
-1. **Single Writer (Control Thread):** Initiates swaps, creates new engines, schedules crossfades
-2. **Single Reader (Audio Thread):** Calls `process()` on active engine(s), performs crossfades
-
-Communication between threads uses the SWSR (Single-Writer Single-Reader) command ring defined elsewhere in Seqlok.
-
-### Thread Safety Guarantees
-
-- `create()` and `destroy()` are called off the audio thread
-- `prime()` is called off the audio thread, before the engine enters the audio path
-- `process()` is called only from the audio thread
-- During crossfade, both engines' `process()` methods are called from the audio thread
-
-## Failure Model
-
-Failures can occur at each lifecycle phase. The handling strategy depends on the phase and failure type:
-
-### Phase-Specific Failures
-
-| Phase | Failure Type | Handling |
-|-------|--------------|----------|
-| **spawn/create** | Allocation failure, invalid config | Error returned to caller; swap aborted before affecting audio path |
-| **prime** | Missing history, invalid phase state | Warning logged; engine proceeds with cold start (may have transient) |
-| **preWarm** | Processing error | Swap aborted; old engine continues; error surfaced to driver |
-| **crossFade** | One engine fails mid-fade | Emergency cut to surviving engine; error logged |
-| **retire/destroy** | Cleanup failure | Logged but not fatal; may leak resources |
-
-### Error Classification
-
-Failures map to Seqlok's error system domains:
-
-| Domain | Examples |
-|--------|----------|
-| `env.*` | SharedArrayBuffer unavailable, AudioWorklet not supported |
-| `backing.*` | Buffer allocation failed, invalid buffer state |
-| `hotswap.*` | Swap timeout, prime failure, crossfade abort |
-
-### Recovery Strategies
-
-- **Swap failures before audio path:** Safe to retry with different config
-- **Swap failures during crossfade:** Fall back to old engine if healthy, or new engine if old failed
-- **Catastrophic failures:** Surface to application for user notification
-
-> **Principle:** Failures should never cause silence. The system always falls back to *some* engine producing audio, even if it's not the desired configuration.
-
-## Implementation Notes
-
-### For Seqlok/Dekzer (Outer Hotswap)
-
-The CompositeDriver owns:
-
-- The SWSR command ring for swap requests
-- SwapTicket state machine tracking active/pending engines
-- Crossfade scheduling and execution
-- Engine lifecycle management
-
-Engines are purely passive—they don't know about the swap protocol, they just implement the ABI.
-
-**Latency handling:** The driver may query per-instance latency via `EngineABI.getLatency()` and compensate at the mixer or deck level. Hotswap itself does not require perfect latency reporting; it only assumes latency is non-negative and does not change for the lifetime of an instance. Engines with different latencies can be swapped; the driver is responsible for any timeline alignment.
-
-### For Engine Authors (Inner Hotswap)
-
-Engine authors can apply the same pattern internally for mode switches that would otherwise cause transients. However, internal hotswaps:
-
-- Don't need the SWSR ring or SwapTicket
-- Just need to follow the mental model: "don't mutate the live kernel, build another and blend"
-
-This keeps the canonical hotswap implementation in one place (Seqlok) while allowing the pattern to propagate.
-
-## Relationship to Existing Technologies
-
-| Technology | Relationship |
-|------------|--------------|
-| Bungee / Bungee Pro | Different algorithms behind the same ABI |
-| Signalsmith-stretch | One implementation of a stretch engine |
-| Rubberband, Elastique | Additional algorithms that could implement the ABI |
-| Web Audio AudioWorklet | The runtime environment where engines execute |
-
-The hotswap protocol is the "XLR connector" that all these DSP engines plug into.
-
-## Future Considerations
-
-- **Cross-language ABI:** C/C++ header for native engine implementations
-- **Engine capability discovery:** Querying what parameters are structural vs non-structural
-- **Advanced latency compensation:** Automatic timeline alignment when swapping between engines with different latencies
-- **Resource budgeting:** CPU/memory constraints for quality tier selection
+If a structural swap needs strong running-state continuity, the lifecycle must say so explicitly, the engine must support it honestly, and the runtime must enforce it without silent downgrade.

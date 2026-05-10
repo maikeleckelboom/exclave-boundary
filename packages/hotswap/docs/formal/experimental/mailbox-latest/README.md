@@ -22,7 +22,8 @@ stop.
 
 ## Phase lifecycle
 
-All policies share the same 6-phase lifecycle:
+The `mailbox-latest` model uses the aligned 6-phase lifecycle:
 
 `idle → spawn → prime → prewarm → crossfade → retire → idle`
 
+(The orthogonal `persistent-handoff` continuity class extends this with `capture`, `install`, and `catchup`.)

@@ -17,6 +17,9 @@ Then re-export what you want:
 - RT lane: `hotswap_rt_lane::RtLane`
 
 Notes
+
 - Levels 1–2 are **bounded** and contain **no multi-ticket buffering semantics**.
-- “Spam hotswap” UX is implemented host-side via a **single-slot latest intent** mailbox.
+- "Spam hotswap" UX is implemented host-side via a **single-slot latest intent** mailbox.
 - Anything multi-ticket / retarget / coalesce belongs to Level 3+ and is intentionally absent here.
+- Persistent-handoff reference work is a future follow-up after the model and API land.
+- `latest_intent_mailbox.rs` covers experimental mailbox-latest semantics and is not part of the supported surface.

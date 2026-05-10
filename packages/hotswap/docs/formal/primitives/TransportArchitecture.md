@@ -18,7 +18,7 @@ they require.
 
 **Model:** single-slot, overwrite allowed, coalescing.
 
-- Producer writes *latest intent* (may overwrite unread).
+- Producer writes _latest intent_ (may overwrite unread).
 - Consumer samples at RT cadence and may skip intermediate values.
 - Often paired with a **monotonic seqno** to detect missed updates.
 
@@ -59,11 +59,11 @@ This is a **command transport**.
 
 ## 2. Policy mapping (real-world fitness)
 
-| Policy            | Overlap behavior                 | Transport fit | Example use case                  |
-|------------------|----------------------------------|---------------|-----------------------------------|
-| `single`         | Not modeled / no overlap          | (n/a)         | Manual DJ mixing (human-paced)    |
-| `reject-busy`    | Reject overlapping requests       | Ring-like     | Conservative automation           |
-| `mailbox-latest` | Overwrite pending with latest     | Mailbox       | Responsive UI spam / auditioning  |
+| Policy           | Overlap behavior              | Transport fit | Example use case                 |
+| ---------------- | ----------------------------- | ------------- | -------------------------------- |
+| `single`         | Not modeled / no overlap      | (n/a)         | Manual DJ mixing (human-paced)   |
+| `reject-busy`    | Reject overlapping requests   | Ring-like     | Conservative automation          |
+| `mailbox-latest` | Overwrite pending with latest | Mailbox       | Responsive UI spam / auditioning |
 
 ---
 
@@ -78,4 +78,3 @@ Regardless of transport:
 
 Mailbox is preferred when semantics allow, because it naturally enforces bounded
 work and bounded memory while matching “latest wins” UX expectations.
-

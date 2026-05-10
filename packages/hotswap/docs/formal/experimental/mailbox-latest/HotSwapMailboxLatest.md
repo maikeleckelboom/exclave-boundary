@@ -1,7 +1,7 @@
 # Hot-Swap Protocol: Mailbox Latest (Latest-Wins)
 
 **Status:** **EXPERIMENTAL** – TLA⁺ spec and configs present (not part of supported Levels 1–2)  
-**Scope:** Multi-swap behavior with *latest-wins mailbox* overlap handling for `@seqlok/hotswap`  
+**Scope:** Multi-swap behavior with _latest-wins mailbox_ overlap handling for `@seqlok/hotswap`  
 **Audience:** Seqlok contributors, hotswap implementers, and TLA⁺ authors
 
 > **EXPERIMENTAL (Level 3+)**: This policy is intentionally **not** part of the
@@ -26,9 +26,9 @@ auditioning) where you want “latest intent wins” without unbounded accumulat
 ## Files
 
 ```text
-packages/hotswap/docs/formal/policies/mailbox-latest/tla/HotSwapMailboxLatest.tla
-packages/hotswap/docs/formal/policies/mailbox-latest/tla/HotSwapMailboxLatest.cfg
-packages/hotswap/docs/formal/policies/mailbox-latest/tla/HotSwapMailboxLatest.invonly.cfg
+packages/hotswap/docs/formal/experimental/mailbox-latest/tla/HotSwapMailboxLatest.tla
+packages/hotswap/docs/formal/experimental/mailbox-latest/tla/HotSwapMailboxLatest.cfg
+packages/hotswap/docs/formal/experimental/mailbox-latest/tla/HotSwapMailboxLatest.invonly.cfg
 ```
 
 The spec also depends on a shared primitive:
@@ -39,9 +39,11 @@ The spec also depends on a shared primitive:
 
 ## Relation to other policies
 
-All policies share the same 6-phase lifecycle:
+These overlap-policy models use the aligned 6-phase lifecycle:
 
 `idle → spawn → prime → prewarm → crossfade → retire → idle`
+
+(The orthogonal `persistent-handoff` continuity class extends this with `capture`, `install`, and `catchup`.)
 
 They differ only in **overlap handling** (what happens if a new request arrives
 while `phase != idle`):
@@ -105,4 +107,3 @@ The property the policy is designed to guarantee is:
 For the shared transport decision (mailbox vs ring), see:
 
 - `../../primitives/TransportArchitecture.md`
-

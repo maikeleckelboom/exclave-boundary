@@ -38,7 +38,7 @@ If you need RT-safe telemetry schemas and SAB rings, that belongs in `@seqlok/di
 - UI decoding, dashboards, counters, or analysis tools
 - any domain concepts like decks, BPM, tracks, cues, or host workflow policy
 
-If a type starts to describe *what* the data means rather than *how* it moves or is stored, it probably does not belong in `@seqlok/primitives`.
+If a type starts to describe _what_ the data means rather than _how_ it moves or is stored, it probably does not belong in `@seqlok/primitives`.
 
 ---
 

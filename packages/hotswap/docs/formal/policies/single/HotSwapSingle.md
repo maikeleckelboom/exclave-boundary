@@ -10,10 +10,14 @@ TLA⁺ and verified with the TLC model checker.
 
 The focus is:
 
-* A single in-flight swap (no queuing, no overlapping requests).
-* At most two engines active: one current, one next.
-* No gaps during crossfade.
-* Eventual completion of each accepted swap.
+- A single in-flight swap (no queuing, no overlapping requests).
+- At most two engines active: one current, one next.
+- No gaps during crossfade.
+- Eventual completion of each accepted swap.
+
+This model proves base lifecycle, engine-count, and liveness.
+It does **not** prove persistent-handoff semantics.
+Those are modeled separately in `../persistent-handoff/HotSwapPersistentHandoff.md`.
 
 Multi-swap behavior with reject-while-busy policy is specified separately in
 `../reject-busy/HotSwapRejectBusy.md`.
@@ -28,9 +32,9 @@ packages/hotswap/docs/formal/policies/single/tla/HotSwapSingle.cfg
 packages/hotswap/docs/formal/policies/single/tla/HotSwapSingle.invonly.cfg
 ```
 
-* `.tla` – TLA⁺ specification of the single-swap protocol.
-* `.cfg` – full model-checking configuration (safety + liveness).
-* `.invonly.cfg` – invariants-only configuration for faster safety checks.
+- `.tla` – TLA⁺ specification of the single-swap protocol.
+- `.cfg` – full model-checking configuration (safety + liveness).
+- `.invonly.cfg` – invariants-only configuration for faster safety checks.
 
 ---
 
@@ -42,7 +46,7 @@ The model checks the following invariants in both the full and invariants-only
 configurations:
 
 | Property                    | Description                                              |
-|-----------------------------|----------------------------------------------------------|
+| --------------------------- | -------------------------------------------------------- |
 | `TypeOK`                    | All state variables remain within their declared domains |
 | `AtMostTwoEngines`          | No more than two engines are active at any time          |
 | `NoGapDuringCrossfade`      | Both engines are active during crossfade                 |
@@ -59,7 +63,7 @@ a structurally valid swap lifecycle in all reachable states.
 The full configuration additionally checks temporal properties:
 
 | Property                 | Description                                              |
-|--------------------------|----------------------------------------------------------|
+| ------------------------ | -------------------------------------------------------- |
 | `EventuallyIdle`         | Every non-idle state eventually leads back to idle       |
 | `ProgressNeverDecreases` | `stepIndex` is monotonically non-decreasing              |
 | `NoLivelockPrewarm`      | The protocol does not remain in `prewarm` indefinitely   |
@@ -120,8 +124,8 @@ Finished in 01min 38s
 
 This indicates that:
 
-* All invariants and temporal properties in the configuration hold.
-* The explored state space (millions of states) contains no counterexamples.
+- All invariants and temporal properties in the configuration hold.
+- The explored state space (millions of states) contains no counterexamples.
 
 ### Counterexample
 
@@ -153,38 +157,38 @@ violation and is suitable for mapping back to implementation-level scenarios.
 
 The spec models a finite set of phases:
 
-* `idle`
+- `idle`
   No active swap. Exactly one engine is running (current engine).
 
-* `spawn`
+- `spawn`
   Swap ticket was accepted; next engine instance now exists but has not yet
   processed audio.
 
-* `prime`
+- `prime`
   First processing block for the next engine. Output is discarded; internal
   state is initialized.
 
-* `prewarm`
+- `prewarm`
   Additional processing blocks for the next engine. Output is discarded; e.g.
   reverb tails or lookahead buffers settle.
 
-* `crossfade`
+- `crossfade`
   Current and next engines both produce output. The caller performs the actual
   mix; the protocol tracks remaining fade frames.
 
-* `retire`
+- `retire`
   Crossfade finished. Engine handles are swapped; the old engine is retired and
   the protocol returns to `idle`.
 
 The TLA⁺ `Next` relation includes:
 
-* `AcceptTicket(prewarm, fade)` – transition from `idle` into `spawn`.
-* `StepSpawn` – `spawn → prime`.
-* `StepPrime` – `prime → prewarm` or `prime → crossfade`.
-* `StepPrewarm` – `prewarm → prewarm` or `prewarm → crossfade`.
-* `StepCrossfade` – `crossfade → crossfade` or `crossfade → retire`.
-* `StepRetire` – `retire → idle`.
-* `StepIdle` – self-loop in `idle` to represent no-op blocks.
+- `AcceptTicket(prewarm, fade)` – transition from `idle` into `spawn`.
+- `StepSpawn` – `spawn → prime`.
+- `StepPrime` – `prime → prewarm` or `prime → crossfade`.
+- `StepPrewarm` – `prewarm → prewarm` or `prewarm → crossfade`.
+- `StepCrossfade` – `crossfade → crossfade` or `crossfade → retire`.
+- `StepRetire` – `retire → idle`.
+- `StepIdle` – self-loop in `idle` to represent no-op blocks.
 
 All valid sequences of these actions are explored by TLC.
 
@@ -228,10 +232,10 @@ MAX_STEP_INDEX     = 20000  \* Upper bound on stepIndex for behaviors
 
 Interpretation:
 
-* Larger `MAX_PREWARM_BLOCKS` and `MAX_FADE_FRAMES` increase the state space by
+- Larger `MAX_PREWARM_BLOCKS` and `MAX_FADE_FRAMES` increase the state space by
   exploring more combinations of prewarm and fade durations.
-* `BLOCK_FRAMES` controls how fade frames are decremented per block.
-* `MAX_STEP_INDEX` bounds the length of behaviors TLC considers, preventing
+- `BLOCK_FRAMES` controls how fade frames are decremented per block.
+- `MAX_STEP_INDEX` bounds the length of behaviors TLC considers, preventing
   unbounded stuttering paths.
 
 These values are chosen to keep the state space tractable while exercising a
@@ -246,22 +250,22 @@ independent of any specific language or engine implementation.
 
 Key correspondences:
 
-* `currentEngineActive` / `nextEngineActive`
+- `currentEngineActive` / `nextEngineActive`
   Map to engine-slot occupancy in the runtime (e.g. engine pointers or handles).
 
-* `preWarmBlocksRemaining` / `fadeFramesRemaining` / `totalFadeFrames`
+- `preWarmBlocksRemaining` / `fadeFramesRemaining` / `totalFadeFrames`
   Map to counters or scheduler state driving prewarm and crossfade phases.
 
-* `stepIndex`
+- `stepIndex`
   Represents a logical progression counter. In implementations, similar
   progression can be expressed via block counters, frame indices, or command
   sequence numbers.
 
 The specification guarantees that, under the modeled assumptions:
 
-* No more than two engine instances are active per lane.
-* Crossfade operations do not leave gaps in engine activity.
-* Every accepted swap eventually completes and returns the protocol to
+- No more than two engine instances are active per lane.
+- Crossfade operations do not leave gaps in engine activity.
+- Every accepted swap eventually completes and returns the protocol to
   `idle`.
 
 Implementations in TypeScript, C++, or other languages are expected to preserve
@@ -274,13 +278,13 @@ to validate conformance.
 
 `HotSwapSingle` serves as the foundation for more complex behaviors:
 
-* `HotSwapRejectBusy` extends the single-swap protocol with:
+- `HotSwapRejectBusy` extends the single-swap protocol with:
 
-  * Multiple concrete engine identities.
-  * Host-level scheduling policy (reject-while-busy).
-  * Accounting for accepted and rejected swap requests.
+  - Multiple concrete engine identities.
+  - Host-level scheduling policy (reject-while-busy).
+  - Accounting for accepted and rejected swap requests.
 
-Multi-swap properties (e.g. “A→B→C ends on C” under a given policy) are
+Multi-swap properties (e.g. "A→B→C ends on C" under a given policy) are
 verified in the extended specification, while the core engine lifecycle
 invariants (two engines, no gaps, eventual completion) remain shared.
 
@@ -288,8 +292,8 @@ invariants (two engines, no gaps, eventual completion) remain shared.
 
 ## References
 
-* `../reject-busy/HotSwapRejectBusy.md` – multi-swap protocol with reject-while-busy policy.
-* `../reject-busy/tla/HotSwapRejectBusy.tla` / `.cfg` – formal model and configuration for the extended protocol.
-* Lamport, *Specifying Systems* – TLA⁺ reference text.
-* TLA⁺ Toolbox and TLC documentation for further details on model checking.
-
+- `../reject-busy/HotSwapRejectBusy.md` – multi-swap protocol with reject-while-busy policy.
+- `../persistent-handoff/HotSwapPersistentHandoff.md` – persistent-handoff continuity model.
+- `../reject-busy/tla/HotSwapRejectBusy.tla` / `.cfg` – formal model and configuration for the extended protocol.
+- Lamport, _Specifying Systems_ – TLA⁺ reference text.
+- TLA⁺ Toolbox and TLC documentation for further details on model checking.

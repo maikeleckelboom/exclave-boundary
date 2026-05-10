@@ -23,17 +23,28 @@ These properties are captured in the TLA⁺ specs:
 
 - **Base protocol:** `formal/policies/single/tla/HotSwapSingle.tla`
 - **Multi-swap (reject-while-busy):** `formal/policies/reject-busy/tla/HotSwapRejectBusy.tla`
-- **Multi-swap (mailbox-latest):** `formal/policies/mailbox-latest/tla/HotSwapMailboxLatest.tla` (**EXPERIMENTAL**)
 
 and are model-checked with TLC.
 
 **Supported levels:** This contract is normative for Levels 1–2:
 
 - **Level 1** = policy `single` (base single-swap protocol)
-- **Level 2** = policy `reject-busy` (overlap defined as “reject while busy”)
+- **Level 2** = policy `reject-busy` (overlap defined as "reject while busy")
 
-Anything beyond that (including `mailbox-latest`) is **experimental/future** and
+Anything beyond that is **experimental/future** and
 is not part of the shipped contract surface.
+
+## Continuity class is orthogonal to policy level
+
+Swap policy and continuity class are two different axes.
+
+- **`aligned`** — continuity by alignment context, bounded warm-up, and crossfade.
+- **`persistent`** — continuity by explicit handoff snapshot, install, catchup, and guarded retire.
+
+The current base contract remains valid for callers that do not opt into persistent continuity.
+See [`adr/hotswap-continuity-classes-and-persistent-handoff.md`](./adr/hotswap-continuity-classes-and-persistent-handoff.md).
+
+Do not treat continuity class as another policy level.
 
 ## What the caller is responsible for
 
@@ -60,7 +71,7 @@ The caller (engine host / driver) must:
   - `runBothForCrossfade`  
     Run both engines, then mix their outputs according to a
     crossfade curve derived from `fadeFramesRemaining` and the
-    ticket’s `fadeFrames`.
+    ticket's `fadeFrames`.
 
   - `retireNow`  
     After this block, swap engine handles (next → current), and
@@ -105,13 +116,14 @@ implemented policy:
 This reject-while-busy policy is proven correct in
 `formal/policies/reject-busy/tla/HotSwapRejectBusy.tla`.
 
-Experimental / future policies (Level 3+) are intentionally out of scope for Levels 1–2; see adr/hotswap-advanced-multi-swap-exploratory.md.
+Experimental / future policies (Level 3+) are intentionally out of scope for Levels 1–2; see [exploratory/hotswap-advanced-multi-swap.md](./exploratory/hotswap-advanced-multi-swap.md).
 
 ## Formal verification
 
 All properties are formally verified using TLA⁺ model checking:
 
 - **Base protocol** (single swap): `formal/policies/single/tla/HotSwapSingle.tla`
+
   - Millions of states explored.
   - Proves: `AtMostTwoEngines`, `NoGapDuringCrossfade`,
     `EventuallyIdle`, etc.
