@@ -1,9 +1,10 @@
 import type {
   TimelineCommand,
   TimelineDriver,
-} from "../transport/timeline-driver";
+} from "./timeline-driver";
 import type { CommandConsumer } from "@seqlok/commands";
 import type { HotswapCommand } from "@seqlok/hotswap";
+
 
 export interface HotswapDrainContext<K extends number> {
   readonly mailboxConsumer: CommandConsumer<HotswapCommand<K>>;

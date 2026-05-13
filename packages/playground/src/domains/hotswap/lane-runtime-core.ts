@@ -11,12 +11,12 @@ import {
 import {
   createHotswapSlotDriver,
   type HotswapSlotDriver,
-} from "../hotswap/slot-driver";
+} from "./hotswap-slot-driver";
 import {
   type TimelineCommand,
   type TimelineDriver,
-} from "../transport/timeline-driver";
-import { createSlicerState } from "../transport/timeline-slicer";
+} from "./timeline-driver";
+import { createSlicerState } from "./timeline-slicer";
 
 export interface LaneRuntimeCore<EngineKindEnum extends number> {
   readonly mailbox: {
@@ -32,12 +32,12 @@ export interface LaneRuntimeCore<EngineKindEnum extends number> {
 }
 
 /**
- * Canonical “lane substrate”:
+ * Playground-owned hotswap lane substrate:
  *
  * - allocates a command mailbox for the lane
  * - wires a TimelineDriver to a HotswapSlotDriver
  * - builds a HotswapSchedulerConfig that enqueues install-swap commands
- * - defines the lane-busy policy (“non-idle swap state → busy”)
+ * - defines the lane-busy policy ("non-idle swap state -> busy")
  */
 export function createLaneRuntimeCore<EngineKindEnum extends number>(
   mailboxId: string,

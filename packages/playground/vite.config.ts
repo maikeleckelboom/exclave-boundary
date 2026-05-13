@@ -18,13 +18,9 @@ const config: UserConfig = defineConfig({
   },
   optimizeDeps: {
     exclude: [
-      "@seqlok/base",
       "@seqlok/primitives",
-      "@seqlok/introspect",
-      "@seqlok/core",
       "@seqlok/commands",
       "@seqlok/hotswap",
-      "@seqlok/integration",
     ],
   },
   server: {

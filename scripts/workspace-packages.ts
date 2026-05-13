@@ -11,7 +11,6 @@ export const SEQLOK_PACKAGES = [
   "core",
   "commands",
   "hotswap",
-  "integration",
   "introspect",
   "playground",
 ] as const;

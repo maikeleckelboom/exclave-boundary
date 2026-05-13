@@ -2,7 +2,7 @@
  * Host-side helper for scheduling hotswap tickets into a command mailbox.
  *
  * This lives in @seqlok/hotswap so tests and host code can share the same
- * semantics without reaching into @seqlok/integration.
+ * semantics directly from the protocol package.
  */
 
 import { isSeqlokError } from "@seqlok/base";

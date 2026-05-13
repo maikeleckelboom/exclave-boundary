@@ -5,13 +5,18 @@ import {
   type SwapStepDecisionRT,
   type SwapTicketRT,
 } from "@seqlok/hotswap";
+
+import {
+  drainHotswapMailboxIntoTimeline,
+} from "./hotswap-timeline-drain";
 import {
   createLaneRuntimeCore,
-  drainHotswapMailboxIntoTimeline,
-  processTimelineBlock,
   type LaneRuntimeCore,
+} from "./lane-runtime-core";
+import {
+  processTimelineBlock,
   type TimelineCommand,
-} from "@seqlok/integration";
+} from "./timeline-driver";
 
 export enum EngineKind {
   None = 0,

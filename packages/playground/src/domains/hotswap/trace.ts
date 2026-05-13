@@ -1,10 +1,15 @@
 import { scheduleSwap } from "@seqlok/hotswap";
+
+import {
+  drainHotswapMailboxIntoTimeline,
+} from "./hotswap-timeline-drain";
 import {
   createLaneRuntimeCore,
-  drainHotswapMailboxIntoTimeline,
+} from "./lane-runtime-core";
+import {
   processTimelineBlock,
   type TimelineCommand,
-} from "@seqlok/integration";
+} from "./timeline-driver";
 
 import type {
   SwapPhase,

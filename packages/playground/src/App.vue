@@ -29,13 +29,6 @@ const domains: readonly PlaygroundDomainNavItem[] = [
     description: "Command ring + mailbox lab",
     routeName: "commands-ring-lab",
   },
-  {
-    id: "integration",
-    label: "Integration",
-    description: "Future: end-to-end integration demos",
-    routeName: "integration-timeline-lab",
-    disabled: true,
-  },
 ];
 
 const activeDomain = computed<PlaygroundDomainNavItem["id"]>({
@@ -91,7 +84,7 @@ const activeDomain = computed<PlaygroundDomainNavItem["id"]>({
               Seqlok Playground
             </span>
             <span class="text-[11px] text-zinc-500 truncate">
-              Real-time shared-state labs: hotswap, command rings, integration.
+              Real-time shared-state labs: hotswap and command rings.
             </span>
           </div>
         </div>

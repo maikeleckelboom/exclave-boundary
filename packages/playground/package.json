@@ -18,12 +18,8 @@
     "test:types": "pnpm --workspace-root test:types"
   },
   "dependencies": {
-    "@seqlok/base": "workspace:*",
     "@seqlok/commands": "workspace:*",
-    "@seqlok/core": "workspace:*",
     "@seqlok/hotswap": "workspace:*",
-    "@seqlok/integration": "workspace:*",
-    "@seqlok/introspect": "workspace:*",
     "@seqlok/primitives": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "reka-ui": "catalog:",

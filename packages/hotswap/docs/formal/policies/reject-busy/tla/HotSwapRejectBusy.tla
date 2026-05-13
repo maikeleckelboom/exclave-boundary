@@ -124,7 +124,7 @@ Init ==
  *   - If lane is idle: accept and start swap
  *   - If lane is busy: reject immediately (no queueing)
  *
- * This models scheduleSwap() in @seqlok/integration.
+ * This models scheduleSwap() in @seqlok/hotswap.
  *)
 RequestSwap(targetEngine, prewarm, fade) ==
     /\ targetEngine \in Engines
@@ -342,4 +342,3 @@ THEOREM Spec => EventuallyIdle
 THEOREM Spec => MultipleSwapsComplete
 
 ====
-

@@ -50,10 +50,6 @@ Each package is a node in a strict one-way dependency graph.
 
 ### Host / Apps
 
-- `@seqlok/integration`  
-  Host-side glue and higher-level adapters  
-  Wiring examples for worklets, nodes, demos and host policies
-
 - `@seqlok/playground`  
   Interactive UI labs  
   Visualizers, debug panels and example surfaces
@@ -100,7 +96,6 @@ flowchart LR
   end
 
   subgraph Host
-    integration
     playground
   end
 
@@ -121,15 +116,9 @@ flowchart LR
   workletMount --> diagnostics
 
 %% Host
-  integration --> hotswap
-  integration --> commands
-  integration --> core
-  integration --> streambuf
-  integration --> workletMount
-  integration --> diagnostics
-  integration --> introspect
-  playground --> integration
-  playground --> introspect
+  playground --> primitives
+  playground --> commands
+  playground --> hotswap
 
 %% Tooling (observatory above Runtime)
   introspect --> base

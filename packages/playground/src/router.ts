@@ -9,7 +9,7 @@ import HotswapLab from "./domains/hotswap/HotswapLab.vue";
 
 declare module "vue-router" {
   interface RouteMeta {
-    readonly domain: "hotswap" | "commands" | "integration";
+    readonly domain: "hotswap" | "commands";
     readonly label: string;
   }
 }
@@ -47,18 +47,6 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  // Future:
-  // {
-  //   path: "/integration",
-  //   children: [
-  //     {
-  //       path: "timeline-lab",
-  //       name: "integration-timeline-lab",
-  //       component: IntegrationTimelineLab,
-  //       meta: { domains: "integration", label: "Integration Timeline Lab" },
-  //     },
-  //   ],
-  // },
 ];
 
 export const router = createRouter({

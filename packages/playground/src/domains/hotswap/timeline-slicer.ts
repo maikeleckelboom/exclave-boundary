@@ -1,43 +1,22 @@
 /**
  * @fileoverview
- * Block slicer for timeline-level scheduled commands.
- *
- * @remarks
- * A "timeline" here is a single monotonically advancing timebase
- * (e.g., a playback lane or control lane) with commands scheduled at
- * absolute frame indices. This module:
- *
- * - knows nothing about audio, lanes or engines
- * - slices blocks into "render N frames, then apply commands" segments
- * - is pure and RT-friendly
+ * Playground block slicer for timeline-level scheduled commands.
  */
 
 export interface ScheduledCommandBase {
   /**
    * Absolute frame at which this command should take effect.
-   *
-   * @remarks
-   * - Measured in the same timebase as the timeline's `frame` counter.
-   * - Used for sample-accurate scheduling via block slicing.
    */
   readonly atFrame: number;
 
   /**
    * Priority used to break ties between commands scheduled at the same frame.
-   *
-   * @remarks
-   * Lower values run first. Callers define their own ordering scheme
-   * (e.g., seek before play swap).
    */
   readonly priority: number;
 }
 
 /**
  * A single slice of an audio block on a timeline.
- *
- * Semantics:
- * - Render `frames` samples under the *current* timeline/engine state.
- * - Then apply each command in `commandsAfter` at the boundary that follows.
  */
 export interface BlockSegment<C extends ScheduledCommandBase> {
   readonly frames: number;
@@ -46,10 +25,6 @@ export interface BlockSegment<C extends ScheduledCommandBase> {
 
 /**
  * Per-timeline slicer state.
- *
- * @remarks
- * - `pending` holds all commands scheduled for `atFrame >= currentBlockStart`.
- * - Commands are not required to be sorted; `sliceBlock` takes care of ordering.
  */
 export interface SlicerState<C extends ScheduledCommandBase> {
   readonly pending: readonly C[];
@@ -66,9 +41,6 @@ export function createSlicerState<
 
 /**
  * Append newly drained commands to the slicer state.
- *
- * @remarks
- * This does not sort; sorting happens inside {@link sliceBlock}.
  */
 export function appendCommands<C extends ScheduledCommandBase>(
   state: SlicerState<C>,
@@ -94,10 +66,6 @@ export function appendCommands<C extends ScheduledCommandBase>(
  * @param state        Current slicer state.
  * @param blockStart   Frame index of the first frame in this block.
  * @param blockFrames  Number of frames in this block.
- *
- * @returns
- * - `segments`: ordered list of "render frames, then apply commands" slices.
- * - `nextState`: updated slicer state with future commands still pending.
  */
 export function sliceBlock<C extends ScheduledCommandBase>(
   state: SlicerState<C>,
@@ -147,7 +115,6 @@ export function sliceBlock<C extends ScheduledCommandBase>(
       i += 1;
     }
 
-    // Single segment: render `frames` (possibly 0), then apply commands.
     segments.push({
       frames,
       commandsAfter: commandsAtFrame,

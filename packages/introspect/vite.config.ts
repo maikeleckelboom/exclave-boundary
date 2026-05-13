@@ -1,5 +1,5 @@
 /**
- * @file Vite build configuration for @seqlok/integration.
+ * @file Vite build configuration for @seqlok/introspect.
  */
 
 import { createLibraryViteConfig } from "../../scripts/vite/vite.base.config";

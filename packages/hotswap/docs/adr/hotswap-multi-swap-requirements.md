@@ -21,7 +21,7 @@ Level 2 extends this to:
 - sequences of swaps (A→B→C), and
 - overlapping swap _requests_ on one lane (A→B while B→C is requested mid-fade).
 
-**Core principle:** multiple swaps in a row must not turn the lane into a chaos goblin.
+**Core principle:** multiple swaps in a row must keep the lane predictable.
 
 > Scope note: Seqlok only knows about **lanes** and engines. Hosts (e.g. “decks” in an audio app) are free to treat a
 > lane as “the deck’s audio lane”, but this ADR is lane-only.
@@ -37,12 +37,12 @@ These must remain green before Level 2 can be considered complete. They are enfo
 
 **Important architectural note:**
 
-Level 2 focuses on **lane + engine-bank semantics** where swaps are issued via `scheduleSwap` through a mailbox and
+Level 2 focuses on **lane + engine semantics** where swaps are issued via `scheduleSwap` through a mailbox and
 processed by the hotswap slot driver. This is distinct from the **pure timeline layer** which supports
 cancel-by-replacement semantics for timeline commands in general.
 
 The timeline layer (`processTimelineBlock`, `TimelineDriver`) can handle arbitrary command replacement patterns. Level 2
-specifically addresses the **higher-level lane integration** where:
+specifically addresses the **higher-level lane flow** where:
 
 - Swaps are scheduled through `scheduleSwap` (not raw timeline commands)
 - The mailbox + hotswap slot driver mediate the behavior
@@ -84,8 +84,8 @@ These are the foundation Level 2 builds on. If any of these regress, Level 2 is 
 ## 1. Sequential Swaps (Requirement 2-S1) ✅
 
 **Status:** PASSING
-**Test (engine-bank harness, Level 1):**
-`lane engine bank integration: higher-order swaps → "supports sequential swaps A→B→C without regressing engines"`
+**Test (lane harness, Level 1):**
+`lane flow: higher-order swaps -> "supports sequential swaps A->B->C without regressing engines"`
 
 **Test (timeline harness, Level 2 sanity):**
 Back-to-back swap coverage in `lane.timeline.integration.test.ts` (sequential cases).
@@ -177,7 +177,7 @@ You never "fall back" to A after the lane has idled on B.
   - `"rejects when the lane reports busy and does not enqueue"`
     (covers `isLaneBusy` + `SwapResult` contract)
 
-- `packages/integration/tests/lane.timeline.integration.test.ts`
+- lane-flow coverage for the playground hotswap lab
 
   - `"ignores overlapping replacement while swap is busy (reject-while-busy)"`
   - `"handles rapid successive swaps (stress test at DJ tempo)"`
@@ -252,7 +252,7 @@ This is Level 3+ design territory; see [exploratory/hotswap-advanced-multi-swap.
 
 **Status:** SATISFIED (but must remain stable)
 
-`createLaneEngineHarness()` is the canonical integration harness for:
+The lane harness is the canonical host-flow harness for:
 
 > mailbox → timeline → hotswap slot → engine bank → audio
 
@@ -327,7 +327,7 @@ Across any finite sequence of swaps on a single lane:
 
 [`IMPLEMENTATION_GUIDE.md`](../IMPLEMENTATION_GUIDE.md) includes a **Multi-Swap Behavior** section that:
 
-- Describes sequential swaps A→B→C and links them to the integration tests.
+- Describes sequential swaps A→B→C and links them to the lane-flow tests.
 - States the overlapping policy as **Reject While Busy**, enforced primarily at the host scheduling layer via
   `scheduleSwap` + `isLaneBusy`, with slot-level ignore as a guard rail.
 - Points to this ADR (`adr/hotswap-multi-swap-requirements.md`) as the normative

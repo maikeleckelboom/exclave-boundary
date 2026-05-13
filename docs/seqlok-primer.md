@@ -156,7 +156,7 @@ stepSwapStateRT(...)
 That layering matters.
 
 A deployment using only `@seqlok/core` is complete.
-Commands, hotswap, and integration layers are additive, not mandatory.
+Commands and hotswap are additive, not mandatory.
 
 ---
 
@@ -290,14 +290,6 @@ The full workspace includes additional tooling and support packages. See `packag
 graph.
 
 ```text
-                                ┌──────────────────────────────┐
-                                │ @seqlok/integration          │
-                                │ reference drivers, timeline, │
-                                │ hotswap slot, boundary glue  │
-                                └──────────────┬───────────────┘
-                                               │
-                           ┌───────────────────┼──────────────────────┐
-                           ▼                   ▼                      ▼
                  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
                  │ @seqlok/hotswap  │  │ @seqlok/commands │  │  @seqlok/core    │
                  │ live swap        │  │ discrete intent  │  │ spec -> layout   │
@@ -326,7 +318,6 @@ graph.
 | `@seqlok/core`        | typed spec -> layout -> alloc -> handoff -> bind lifecycle   |
 | `@seqlok/commands`    | command codec and mailbox over the primitive ring            |
 | `@seqlok/hotswap`     | phase machine and per-block swap instructions                |
-| `@seqlok/integration` | reference drivers, exact-frame scheduling, boundary glue     |
 | `@seqlok/introspect`  | diagnostics and inspection helpers for dev and test          |
 
 ### How to Read the Repo
@@ -338,8 +329,8 @@ It shows the public lifecycle clearly: spec, layout, allocation, handoff, bind.
 
 Drop down into `@seqlok/primitives` and `@seqlok/base` only if you want the substrate details.
 
-Go upward into `@seqlok/commands`, `@seqlok/hotswap`, and `@seqlok/integration` when you want the optional protocol
-layers built on top of the core boundary model.
+Go upward into `@seqlok/commands` and `@seqlok/hotswap` when you want optional protocol layers built on top of the core
+boundary model.
 
 That traversal order matches how the system is meant to be understood.
 

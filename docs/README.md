@@ -69,7 +69,6 @@ Each package owns its own local contract surface through its README and public e
 - **[core](../packages/core/README.md)**
 - **[commands](../packages/commands/README.md)**
 - **[hotswap](../packages/hotswap/README.md)**
-- **[integration](../packages/integration/README.md)**
 - **[introspect](../packages/introspect/README.md)**
 - **[streambuf](../packages/streambuf/README.md)**
 - **[worklet-mount](../packages/worklet-mount/README.md)**
@@ -96,9 +95,6 @@ The monorepo currently centers around these package families:
 
 - **`hotswap`**  
   Explicit live engine replacement protocol and scheduling helpers.
-
-- **`integration`**  
-  Higher-order runtime wiring across lanes, timelines, engine banks, plugins, and hotswap coordination.
 
 - **`introspect`**  
   Error registry export, counters, budgets, sessions, and runtime observability surfaces.

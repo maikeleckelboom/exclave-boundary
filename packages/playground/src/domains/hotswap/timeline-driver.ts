@@ -1,11 +1,6 @@
 /**
  * @fileoverview
- * Timeline driver wiring: slicer + hotswap slot + timeline transport state.
- *
- * @remarks
- * A "timeline" is a single monotonically advancing frame counter with
- * scheduled commands. Applications may interpret a timeline as a lane,
- * track, control lane, etc., but Seqlok stays neutral here.
+ * Playground timeline driver wiring: slicer + hotswap slot + timeline state.
  */
 
 import {
@@ -15,7 +10,7 @@ import {
   type SlicerState,
 } from "./timeline-slicer";
 
-import type { HotswapSlotDriver } from "../hotswap/slot-driver";
+import type { HotswapSlotDriver } from "./hotswap-slot-driver";
 import type { SwapTicketRT, TicketId } from "@seqlok/hotswap";
 
 export interface TimelineCommand<EngineKind extends number>
@@ -32,12 +27,7 @@ export interface TimelineCommand<EngineKind extends number>
 }
 
 /**
- * Driver for a single timeline.
- *
- * @remarks
- * - Maintains a frame counter (`frame`) and play/stop state.
- * - Uses the slicer to apply timeline commands sample-accurately.
- * - Delegates engine behavior to callbacks and the hotswap slot driver.
+ * Driver for a single playground timeline.
  */
 export interface TimelineDriver<EngineKind extends number> {
   /**
@@ -79,7 +69,7 @@ export interface TimelineProcessCallbacks<EngineKind extends number> {
  * @param timeline        Timeline driver instance.
  * @param blockFrames     Number of frames in this block.
  * @param drainedCommands Commands decoded from the mailbox for this block.
- * @param callbacks       Engine / hotswap integration callbacks.
+ * @param callbacks       Engine / hotswap callbacks.
  */
 export function processTimelineBlock<EngineKind extends number>(
   timeline: TimelineDriver<EngineKind>,
@@ -135,7 +125,6 @@ function applyTimelineCommand<EngineKind extends number>(
 
     case "seek":
       timeline.frame = payload.targetFrame;
-      // Engine-specific seek handling (buffer flush, etc.) lives above.
       break;
 
     case "installSwap":
@@ -143,7 +132,6 @@ function applyTimelineCommand<EngineKind extends number>(
       break;
 
     case "cancelSwap":
-      // We might later add a HotswapSlotDriver helper that cancels by ticketId.
       break;
   }
 }

@@ -34,7 +34,6 @@ seqlok/
 │   ├── hotswap/        # Engine lifecycle and explicit swap protocol
 │   ├── worklet-mount/  # AudioWorklet / WASM mount runtime and boundary wiring
 │   ├── introspect/     # Tooling, counters, health, registry export, analysis
-│   ├── integration/    # Host-side glue, timelines, drivers, adapters
 │   └── playground/     # Interactive labs and visualization surfaces
 ├── scripts/
 │   ├── eslint/         # Shared ESLint config factory
@@ -319,7 +318,7 @@ feat(core): add observer binding for telemetry consumers
 fix(primitives): prevent torn read on seqlock retry
 docs(hotswap): document TLA+ model checking workflow
 refactor(base): extract error envelope serialization
-test(integration): add cross-thread coherence tests
+test(playground): add hotswap lab coherence tests
 ```
 
 ---
@@ -355,7 +354,7 @@ pnpm test:watch
 ### Add a workspace dependency
 
 ```bash
-pnpm -F @seqlok/integration add @seqlok/hotswap
+pnpm -F @seqlok/playground add @seqlok/hotswap
 ```
 
 ### Add an external dev dependency
@@ -386,7 +385,7 @@ At a high level:
 - `core` owns spec, layout, backing, handoff, and bindings
 - `commands`, `streambuf`, `hotswap`, and `worklet-mount` build specialized protocol/runtime layers above the substrate
 - `introspect` is tooling-side, not hot-path runtime
-- `integration` and `playground` sit at the host/app edge
+- `playground` sits at the host/app edge
 
 **Rule:** lower layers do not import higher layers.
 
