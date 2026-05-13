@@ -5,4 +5,4 @@ coverage
 .idea
 pnpm-lock.yaml
 package-lock.json
-packages\playground\src\components.d.ts
+apps\playground\src\components.d.ts

@@ -35,7 +35,6 @@ import type {
   ParamKeys,
   ScalarParamKeys,
 } from "../../spec/types";
-import type { CanonicalSpec } from "@seqlok/schema";
 import type {
   ArrayParamView,
   ControllerBinding,
@@ -57,7 +56,7 @@ import type {
   ValidatedParamSlot,
 } from "../common/validate";
 import type { JsonValue } from "@seqlok/base";
-import type { ParamDef } from "@seqlok/schema";
+import type { CanonicalSpec , ParamDef } from "@seqlok/schema";
 
 /**
  * Convert an unknown value into a compact, JSON-safe diagnostic payload.

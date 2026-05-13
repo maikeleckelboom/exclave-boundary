@@ -15,7 +15,6 @@
       "@seqlok/commands": ["packages/commands/src/index.ts"],
       "@seqlok/streambuf": ["packages/streambuf/src/index.ts"],
       "@seqlok/hotswap": ["packages/hotswap/src/index.ts"],
-      "@seqlok/playground": ["packages/playground/src/index.ts"],
       "@seqlok/worklet-mount": ["packages/worklet-mount/src/index.ts"],
       "@seqlok/worklet-mount/worklet": [
         "packages/worklet-mount/src/worklet/index.ts"

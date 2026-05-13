@@ -26,11 +26,11 @@ function findWorkspaceRoot(startDir: string): string {
 type AliasMap = Record<string, string>;
 
 /**
- * Build Vite aliases that point @seqlok/* to workspace source.
+ * Build Vite aliases that point reusable @seqlok/* packages to workspace source.
  *
  * - Uses process.cwd() as the starting directory.
  * - Walks up until it finds pnpm-workspace.yaml.
- * - Maps each package to `<root>/packages/<n>/src`.
+ * - Maps each reusable package to `<root>/packages/<n>/src`.
  */
 export function createSeqlokWorkspaceAliases(): AliasMap {
   const root = findWorkspaceRoot(process.cwd());

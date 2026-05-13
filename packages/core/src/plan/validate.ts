@@ -15,8 +15,7 @@ import { createSpecError } from "../errors/spec";
 import { getMeterKindEntry, getParamKindEntry } from "../spec/kinds";
 
 import type { EntrySlot, LockStrideBytes, PlaneByteLengths } from "./types";
-import type { CanonicalSpec } from "@seqlok/schema";
-import type {
+import type { CanonicalSpec ,
   MeterDef,
   ParamDef,
   ScalarMeterDef,

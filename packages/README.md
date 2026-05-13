@@ -1,6 +1,6 @@
 # Seqlok Packages
 
-This directory holds the layered Seqlok workspace.  
+This directory holds the reusable Seqlok library packages.  
 Each package is a node in a strict one-way dependency graph.
 
 ## Packages
@@ -48,12 +48,6 @@ Each package is a node in a strict one-way dependency graph.
   Observability and analysis tools  
   Health counters, lenses, tracing helpers, UI-friendly decoding
 
-### Host / Apps
-
-- `@seqlok/playground`  
-  Interactive UI labs  
-  Visualizers, debug panels and example surfaces
-
 ## Diagnostics
 
 Diagnostics is split into two parts:
@@ -68,13 +62,13 @@ while diagnostics owns the meaning (snapshot schemas and layouts).
 
 ## Dependency graph
 
-Arrows show allowed imports between packages.  
+Arrows show allowed imports between reusable packages.  
 `A --> B` means **package `A` may import `@seqlok/B`**.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"textColor":"#ffffff","primaryTextColor":"#ffffff","lineColor":"#94a3b8","primaryColor":"#111827","secondaryColor":"#0f172a","tertiaryColor":"#0b1220","clusterBkg":"#0f172a","clusterBorder":"#334155","primaryBorderColor":"#94a3b8"}} }%%
 flowchart LR
-%% Layering left → right: Base → Runtime → Tooling → Host
+%% Layering left → right: Base → Runtime → Tooling
   subgraph Base
     base
     schema
@@ -95,10 +89,6 @@ flowchart LR
     introspect
   end
 
-  subgraph Host
-    playground
-  end
-
 %% Runtime
   primitives --> base
   diagnostics --> primitives
@@ -114,11 +104,6 @@ flowchart LR
   hotswap --> core
   workletMount --> base
   workletMount --> diagnostics
-
-%% Host
-  playground --> primitives
-  playground --> commands
-  playground --> hotswap
 
 %% Tooling (observatory above Runtime)
   introspect --> base

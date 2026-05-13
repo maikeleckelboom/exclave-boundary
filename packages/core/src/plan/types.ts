@@ -5,8 +5,8 @@
  */
 
 import type { SpecHash } from "../spec/types";
-import type { CanonicalSpec } from "@seqlok/schema";
 import type { PlaneKey } from "@seqlok/primitives";
+import type { CanonicalSpec } from "@seqlok/schema";
 
 /**
  * Logical stride (in bytes) reserved around seqlock planes (PU/MU).

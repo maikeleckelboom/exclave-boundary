@@ -47,7 +47,7 @@ When you need exact implementation or package surface detail, use the repo itsel
   Root project entry point and top-level package overview.
 
 - **[Packages Overview](../packages/README.md)**  
-  Package map for the monorepo.
+  Reusable package map for the monorepo.
 
 ### Core architecture docs
 
@@ -79,7 +79,7 @@ For exact exported APIs, use each package `src/index.ts`.
 
 ## Current Package Families
 
-The monorepo currently centers around these package families:
+The reusable library substrate currently centers around these package families:
 
 - **`base`**  
   Shared error algebra, invariants, numeric domain support, panic/invariant infrastructure.
@@ -108,7 +108,9 @@ The monorepo currently centers around these package families:
 - **`worklet-mount`**  
   Worklet mounting and host/worklet wiring utilities.
 
-- **`playground`**  
+## Apps
+
+- **[`playground`](../apps/playground/)**  
   Interactive experimentation and visualization surface.
 
 ---

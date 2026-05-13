@@ -19,11 +19,11 @@ import {
 } from "../../backing/map-views";
 import { makeWithin } from "../common/coherent";
 import { claimBinding, releaseBinding } from "../common/registry";
+import { asEphemeralView } from "../common/types";
 import { throwUnknownKey } from "../common/validate";
 
 import type { Backing } from "../../backing/types";
 import type { Plan } from "../../plan/types";
-import type { CanonicalSpec } from "@seqlok/schema";
 import type {
   Ephemeral,
   MeterWriter,
@@ -34,8 +34,8 @@ import type {
   ProcessorParams,
   PUSeq,
 } from "../common/types";
-import { asEphemeralView } from "../common/types";
 import type { MeterPlane, ParamPlane } from "../common/validate";
+import type { CanonicalSpec } from "@seqlok/schema";
 
 type WithinCallback<S extends CanonicalSpec> = Parameters<
   ProcessorParams<S>["within"]

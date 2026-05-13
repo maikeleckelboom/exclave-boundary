@@ -1,5 +1,5 @@
 /**
- * Single source of truth for all @seqlok/* workspace packages.
+ * Single source of truth for reusable @seqlok/* library packages.
  * Import this anywhere you need the package list.
  */
 export const SEQLOK_PACKAGES = [
@@ -12,7 +12,6 @@ export const SEQLOK_PACKAGES = [
   "commands",
   "hotswap",
   "introspect",
-  "playground",
 ] as const;
 
 export type SeqlokPackageName = (typeof SEQLOK_PACKAGES)[number];

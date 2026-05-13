@@ -7,7 +7,7 @@
 
 import { createSchemaError } from "./errors/schema";
 
-import type { ParamDef, MeterDef, SpecNamespace } from "./ast";
+import type { SpecNamespace } from "./ast";
 
 type SpecPlane = "params" | "meters";
 type AuthoredPath = readonly string[];
@@ -182,7 +182,7 @@ function visitNamespaceNode<TLeaf>(
     visitNamespaceNode(
       state,
       childPath,
-      child as SpecNamespace<TLeaf>,
+      child,
       isLeaf,
       normalizeLeafDef,
     );

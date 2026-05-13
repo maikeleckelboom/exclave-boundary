@@ -3,13 +3,13 @@
  * Public owner of AST-to-canonical spec canonicalization.
  */
 
+import { generateAnonymousSpecId } from "./canonical-hash";
+import { compilePlane, isLeafDef } from "./collapse";
 import { createSchemaError } from "./errors/schema";
-
 import { validateSpecAst } from "./validate";
+
 import type { ParamDef, MeterDef, SpecAstInput } from "./ast";
 import type { CanonicalSpec } from "./canonical";
-import { compilePlane, isLeafDef } from "./collapse";
-import { generateAnonymousSpecId } from "./canonical-hash";
 
 const F32_MAX = 3.4028234663852886e38;
 const DEFAULT_F32_RANGE: Readonly<{ min: number; max: number }> = {
@@ -86,17 +86,29 @@ function normalizeRange(
 
 function cloneParamDef(def: ParamDef): ParamDef {
   const base: Record<string, unknown> = { kind: def.kind };
-  if ("length" in def) base.length = def.length;
-  if ("values" in def) base.values = [...def.values];
-  if ("min" in def) base.min = def.min;
-  if ("max" in def) base.max = def.max;
+  if ("length" in def) {
+    base.length = def.length;
+  }
+  if ("values" in def) {
+    base.values = [...def.values];
+  }
+  if ("min" in def) {
+    base.min = def.min;
+  }
+  if ("max" in def) {
+    base.max = def.max;
+  }
   return base as ParamDef;
 }
 
 function cloneMeterDef(def: MeterDef): MeterDef {
   const base: Record<string, unknown> = { kind: def.kind };
-  if ("length" in def) base.length = def.length;
-  if ("values" in def) base.values = [...def.values];
+  if ("length" in def) {
+    base.length = def.length;
+  }
+  if ("values" in def) {
+    base.values = [...def.values];
+  }
   return base as MeterDef;
 }
 

@@ -12,12 +12,11 @@
  */
 
 import { canonicalizeSpecAst } from "@seqlok/schema";
+
 import { parseArrayLen, asNonEmpty } from "./builder-support";
 
 import type {
   CanonicalSpecFromAst,
-  MeterDef,
-  ParamDef,
   ScalarRange,
   SpecAstInput,
 } from "@seqlok/schema";

@@ -377,11 +377,11 @@ Seqlok stays at the coordination boundary.
 
 | What you need                                  | Where to look                                          |
 | ---------------------------------------------- | ------------------------------------------------------ |
-| full workspace graph and package relationships | `packages/README.md`                                   |
+| reusable package graph and relationships       | `packages/README.md`                                   |
 | per-package API surfaces                       | `packages/*/README.md` or `index.ts`                   |
 | concurrency model and role rules               | `docs/03-seqlok-concurrency-model-and-roles`           |
 | error domain registry and numeric codes        | `docs/15-seqlok-error-system-and-fail-fast-philosophy` |
-| hotswap visualization or playground            | `packages/playground`                                  |
+| hotswap visualization or playground            | `apps/playground`                                      |
 | architecture decisions and design rationale    | `docs/`                                                |
 
 The source of truth for any specific API is always the package's own `index.ts`.

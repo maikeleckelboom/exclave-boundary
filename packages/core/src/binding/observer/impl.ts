@@ -33,7 +33,6 @@ import {
 import type { Backing } from "../../backing/types";
 import type { Plan } from "../../plan/types";
 import type { MeterKeys, ParamKeys } from "../../spec/types";
-import type { CanonicalSpec } from "@seqlok/schema";
 import type {
   MetersSnapshot,
   MUSeq,
@@ -45,7 +44,7 @@ import type {
   PUSeq,
 } from "../common/types";
 import type { SeqPair } from "@seqlok/primitives";
-import type { ParamDef } from "@seqlok/schema";
+import type { CanonicalSpec , ParamDef } from "@seqlok/schema";
 
 /**
  * Narrow slot shape used by observer snapshots.

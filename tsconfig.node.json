@@ -16,6 +16,9 @@
     "packages/*/*.config.ts",
     "packages/*/*.config.mts",
     "packages/*/rollup*.config.mts",
-    "packages/*/tsup.config.ts"
+    "packages/*/tsup.config.ts",
+    "apps/*/vite.config.ts",
+    "apps/*/vitest.config.ts",
+    "apps/*/*.config.ts"
   ]
 }

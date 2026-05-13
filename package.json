@@ -6,7 +6,7 @@
   "scripts": {
     "prepare": "simple-git-hooks",
     "dev": "concurrently -n types,core \"pnpm dev:types\" \"pnpm -F @seqlok/core run dev\"",
-    "dev:ui": "concurrently -n types,core,app \"pnpm dev:types\" \"pnpm -F @seqlok/core run dev\" \"pnpm -F @seqlok/playground run dev\"",
+    "dev:ui": "concurrently -n types,core,app \"pnpm dev:types\" \"pnpm -F @seqlok/core run dev\" \"pnpm --dir apps/playground run dev\"",
     "dev:types": "tsc -p tsconfig.workspace.json --noEmit --watch",
     "test:types": "tsc -p tsconfig.workspace.json --noEmit",
     "build": "pnpm -r -F \"@seqlok/*\" run build",
@@ -26,7 +26,7 @@
     "format": "prettier --ignore-path .prettierignore --write .",
     "clean": "pnpm -r -F \"@seqlok/*\" run clean && rimraf .eslintcache pnpm-debug.log",
     "clean:cache": "rimraf node_modules/.cache node_modules/.vite",
-    "purge": "pnpm run clean && pnpm run clean:caches && rimraf node_modules packages/**/node_modules",
+    "purge": "pnpm run clean && pnpm run clean:caches && rimraf node_modules packages/**/node_modules apps/**/node_modules",
     "commitlint": "commitlint --color",
     "tla:fetch": "tsx scripts/tla/fetch-tools.ts",
     "tla:hotswap": "tsx scripts/tla/run-hotswap.ts invonly",

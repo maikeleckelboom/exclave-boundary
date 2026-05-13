@@ -24,6 +24,8 @@ pnpm verify
 
 ```text
 seqlok/
+├── apps/
+│   └── playground/     # Interactive labs and visualization surfaces
 ├── packages/
 │   ├── base/           # Error algebra, invariants, shared protocol shapes
 │   ├── primitives/     # Low-level seqlock, planes, atomics, SWSR ring
@@ -33,8 +35,7 @@ seqlok/
 │   ├── streambuf/      # Bulk stream transport (PCM, bytes, frame streams)
 │   ├── hotswap/        # Engine lifecycle and explicit swap protocol
 │   ├── worklet-mount/  # AudioWorklet / WASM mount runtime and boundary wiring
-│   ├── introspect/     # Tooling, counters, health, registry export, analysis
-│   └── playground/     # Interactive labs and visualization surfaces
+│   └── introspect/     # Tooling, counters, health, registry export, analysis
 ├── scripts/
 │   ├── eslint/         # Shared ESLint config factory
 │   ├── support/        # Shared support utilities
@@ -183,7 +184,7 @@ Use the package `package.json` when you need the exact local truth.
 ### Playground-specific
 
 ```bash
-cd packages/playground
+cd apps/playground
 pnpm dev
 pnpm build
 pnpm preview
@@ -231,6 +232,7 @@ The workspace uses composite project references for incremental builds.
 | `tsconfig.workspace.json`         | Dev-time workspace type-checking                      |
 | `packages/*/tsconfig.json`        | Per-package emit config                               |
 | `packages/*/tsconfig.eslint.json` | ESLint parser config including tests and config files |
+| `apps/*/tsconfig.json`            | Per-app type-check config                             |
 
 ### Key strictness flags
 
@@ -283,7 +285,7 @@ Some packages use Vite for the JS bundle and Rollup for declaration bundling.
 
 ### Playground
 
-`packages/playground` is a Vite app:
+`apps/playground` is a Vite app:
 
 - no declaration bundling
 - workspace packages resolve through the `source` export condition during development
@@ -354,7 +356,7 @@ pnpm test:watch
 ### Add a workspace dependency
 
 ```bash
-pnpm -F @seqlok/playground add @seqlok/hotswap
+pnpm --dir apps/playground add @seqlok/hotswap
 ```
 
 ### Add an external dev dependency
@@ -375,7 +377,7 @@ pnpm verify
 
 ## Package layering
 
-Use `packages/README.md` as the authoritative package map.
+Use `packages/README.md` as the authoritative reusable package map.
 
 At a high level:
 
@@ -385,11 +387,11 @@ At a high level:
 - `core` owns spec, layout, backing, handoff, and bindings
 - `commands`, `streambuf`, `hotswap`, and `worklet-mount` build specialized protocol/runtime layers above the substrate
 - `introspect` is tooling-side, not hot-path runtime
-- `playground` sits at the host/app edge
+- `apps/playground` sits at the host/app edge and imports reusable packages through public entrypoints
 
 **Rule:** lower layers do not import higher layers.
 
-If you are unsure whether an import is legal, check `packages/README.md` before you code.
+If you are unsure whether a reusable package import is legal, check `packages/README.md` before you code.
 
 ---
 
@@ -451,7 +453,7 @@ pnpm build
 ### ESLint cache issues
 
 ```bash
-rm -rf .eslintcache packages/**/.eslintcache
+rm -rf .eslintcache packages/**/.eslintcache apps/**/.eslintcache
 pnpm lint
 ```
 

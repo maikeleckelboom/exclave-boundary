@@ -24,8 +24,7 @@ import { createSpecError } from "../errors/spec";
 import { hashSpec } from "../spec/hash";
 
 import type { EntrySlot, LockStrideBytes, Plan, PlanOptions } from "./types";
-import type { CanonicalSpec } from "@seqlok/schema";
-import type { MeterDef, ParamDef } from "@seqlok/schema";
+import type { CanonicalSpec , MeterDef, ParamDef } from "@seqlok/schema";
 
 /**
  * Default logical stride reserved for each seqlock plane (PU/MU).
