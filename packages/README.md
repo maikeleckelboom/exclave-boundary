@@ -35,9 +35,6 @@ Each package is a node in a strict one-way dependency graph.
   Stream transport  
   Bulk SWSR buffers for PCM, bytes and frame streams (complements commands)
 
-- `@seqlok/hotswap`  
-  Engine lifecycle and swap protocol built on top of core and commands
-
 - `@seqlok/worklet-mount`
   AudioWorklet/WASM mount runtime (kernel + protocol + host helpers)
   Canonical `wm:*` mount/ready/error/log boundary
@@ -81,7 +78,6 @@ flowchart LR
     core
     commands
     streambuf
-    hotswap
     workletMount
   end
 
@@ -100,8 +96,6 @@ flowchart LR
   commands --> primitives
   streambuf --> primitives
   streambuf --> base
-  hotswap --> commands
-  hotswap --> core
   workletMount --> base
   workletMount --> diagnostics
 
@@ -112,7 +106,6 @@ flowchart LR
   introspect --> core
   introspect --> commands
   introspect --> streambuf
-  introspect --> hotswap
   introspect --> workletMount
 ```
 

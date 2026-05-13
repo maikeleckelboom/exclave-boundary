@@ -5,7 +5,6 @@ const external = [
   "@seqlok/primitives",
   "@seqlok/core",
   "@seqlok/commands",
-  "@seqlok/hotswap",
 ];
 
 export default [

@@ -155,11 +155,6 @@ const STREAMBUF_DOMAIN_DESCRIPTOR: DomainDescriptor = buildDomainDescriptor(
   DOMAIN_IDS.streambuf,
 );
 
-const HOTSWAP_DOMAIN_DESCRIPTOR: DomainDescriptor = buildDomainDescriptor(
-  "hotswap",
-  DOMAIN_IDS.hotswap,
-);
-
 const COPROCESSOR_RUNTIME_DOMAIN_DESCRIPTOR: DomainDescriptor =
   buildDomainDescriptor("workletMount", DOMAIN_IDS.workletMount);
 
@@ -182,7 +177,6 @@ export const ALL_DOMAINS: readonly DomainDescriptor[] = [
   INTROSPECT_DOMAIN_DESCRIPTOR,
   COMMANDS_DOMAIN_DESCRIPTOR,
   STREAMBUF_DOMAIN_DESCRIPTOR,
-  HOTSWAP_DOMAIN_DESCRIPTOR,
   COPROCESSOR_RUNTIME_DOMAIN_DESCRIPTOR,
 ];
 

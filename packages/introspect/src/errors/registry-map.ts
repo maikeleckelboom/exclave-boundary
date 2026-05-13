@@ -21,7 +21,6 @@ import {
   PLAN_ERRORS,
   SPEC_ERRORS,
 } from "@seqlok/core";
-import { HOTSWAP_ERRORS } from "@seqlok/hotswap";
 import { PRIMITIVES_ERRORS } from "@seqlok/primitives";
 import { STREAMBUF_ERRORS } from "@seqlok/streambuf";
 import { WORKLET_MOUNT_ERRORS } from "@seqlok/worklet-mount";
@@ -47,7 +46,6 @@ type PlanRegistry = typeof PLAN_ERRORS;
 type HandoffRegistry = typeof HANDOFF_ERRORS;
 type CommandsRegistry = typeof COMMANDS_ERRORS;
 type IntrospectRegistry = typeof INTROSPECT_ERRORS;
-type HotswapRegistry = typeof HOTSWAP_ERRORS;
 type StreamBufRegistry = typeof STREAMBUF_ERRORS;
 type WorkletMountRegistry = typeof WORKLET_MOUNT_ERRORS;
 
@@ -70,7 +68,6 @@ export type DomainRegistry =
   | BindingRegistry
   | HandoffRegistry
   | CommandsRegistry
-  | HotswapRegistry
   | StreamBufRegistry
   | WorkletMountRegistry
   | IntrospectRegistry;
@@ -120,9 +117,6 @@ export function getRegistryForDomain(domain: DomainName): DomainRegistry {
 
     case "introspect":
       return INTROSPECT_ERRORS;
-
-    case "hotswap":
-      return HOTSWAP_ERRORS;
 
     case "streambuf":
       return STREAMBUF_ERRORS;

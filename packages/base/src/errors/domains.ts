@@ -86,7 +86,6 @@ export interface DomainDescriptor {
  * - 50–59:    @seqlok/introspect (observatory, registry)
  * - 60–69:    @seqlok/commands
  * - 70–79:    @seqlok/streambuf
- * - 80–89:    @seqlok/hotswap
  * - 90–99:    @seqlok/worklet-mount
  * - 100–109:  @seqlok/schema
  * - 200–254:  user / extension domains (3rd-party engines, plugins)
@@ -116,9 +115,6 @@ export interface DomainIdsTable {
 
   // @seqlok/streambuf (70–79)
   readonly streambuf: 70;
-
-  // @seqlok/hotswap (80–89)
-  readonly hotswap: 80;
 
   // @seqlok/worklet-mount (90–99)
   readonly workletMount: 90;
@@ -154,9 +150,6 @@ export const DOMAIN_IDS: DomainIdsTable = {
 
   // @seqlok/streambuf (70–79)
   streambuf: 70,
-
-  // @seqlok/hotswap (80–89)
-  hotswap: 80,
 
   // @seqlok/worklet-mount (90–99)
   workletMount: 90,
@@ -215,7 +208,6 @@ export interface DomainRangesTable {
   readonly introspect: DomainRange;
   readonly commands: DomainRange;
   readonly streambuf: DomainRange;
-  readonly hotswap: DomainRange;
   readonly workletMount: DomainRange;
   readonly schema: DomainRange;
   readonly user: DomainRange;
@@ -227,7 +219,6 @@ export const DOMAIN_RANGES: Readonly<DomainRangesTable> = {
   introspect: { min: DOMAIN_IDS.introspect, max: DOMAIN_IDS.introspect },
   commands: { min: DOMAIN_IDS.commands, max: DOMAIN_IDS.commands },
   streambuf: { min: DOMAIN_IDS.streambuf, max: DOMAIN_IDS.streambuf },
-  hotswap: { min: DOMAIN_IDS.hotswap, max: DOMAIN_IDS.hotswap },
   workletMount: {
     min: DOMAIN_IDS.workletMount,
     max: DOMAIN_IDS.workletMount,

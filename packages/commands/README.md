@@ -3,7 +3,7 @@
 Typed command transport for Seqlok.
 
 This package sits between the low-level SWSR rings in `@seqlok/primitives`
-and product code (audio software, hotswap drivers, etc.). It provides:
+and product code (audio software, live transition drivers, etc.). It provides:
 
 - A `commands.*` error domain for transport failures
 - Contracts for typed command codecs and logical mailboxes

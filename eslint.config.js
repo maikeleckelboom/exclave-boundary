@@ -1,5 +1,4 @@
 import coreConfig from "./packages/core/eslint.config.js";
-import hotswapConfig from "./packages/hotswap/eslint.config.js";
 import baseConfig from "./packages/base/eslint.config.js";
 import primitivesConfig from "./packages/primitives/eslint.config.js";
 import introspectConfig from "./packages/introspect/eslint.config.js";
@@ -22,7 +21,6 @@ function prefixPackage(blocks, pkgRoot) {
 
 export default [
   ...prefixPackage(coreConfig, "packages/core"),
-  ...prefixPackage(hotswapConfig, "packages/hotswap"),
   ...prefixPackage(baseConfig, "packages/base"),
   ...prefixPackage(primitivesConfig, "packages/primitives"),
   ...prefixPackage(introspectConfig, "packages/introspect"),

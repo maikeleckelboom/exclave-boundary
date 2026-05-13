@@ -11,6 +11,5 @@ export default createLibraryViteConfig({
     "@seqlok/primitives",
     "@seqlok/core",
     "@seqlok/commands",
-    "@seqlok/hotswap",
   ],
 });

@@ -17,11 +17,7 @@ const config: UserConfig = defineConfig({
     conditions: ["source", "import", "module", "browser", "default"],
   },
   optimizeDeps: {
-    exclude: [
-      "@seqlok/primitives",
-      "@seqlok/commands",
-      "@seqlok/hotswap",
-    ],
+    exclude: ["@seqlok/primitives", "@seqlok/commands"],
   },
   server: {
     headers: {

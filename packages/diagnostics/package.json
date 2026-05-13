@@ -15,8 +15,7 @@
     "diagnostics",
     "telemetry",
     "sharedarraybuffer",
-    "audio",
-    "hotswap"
+    "audio"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",

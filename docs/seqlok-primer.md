@@ -100,22 +100,6 @@ Properties:
 
 An optional higher layer can schedule commands to exact frame positions when needed.
 
-### 3. Hotswap (live replacement)
-
-A protocol for replacing a live stateful processor without tearing down the whole running system.
-
-Seqlok does not define what your engines are.
-It defines the swap contract:
-
-- explicit phases
-- explicit per-block instructions
-- explicit progression rules
-- no hidden authority over engine internals
-
-The result is live replacement with a visible state machine instead of ad hoc handover code.
-
----
-
 ## Canonical Mental Model
 
 Seqlok deployments split cleanly across a boundary.
@@ -146,17 +130,16 @@ params.within(cb)
 meters.publish(cb)
 ```
 
-Optional layers sit above that:
+Optional command layers sit above that:
 
 ```text
 consumer.drain(hooks)
-stepSwapStateRT(...)
 ```
 
 That layering matters.
 
 A deployment using only `@seqlok/core` is complete.
-Commands and hotswap are additive, not mandatory.
+Commands are additive, not mandatory.
 
 ---
 
@@ -231,39 +214,6 @@ A missed command is a visible boundary failure, not an invisible queueing story.
 
 ---
 
-## Hotswap Lifecycle
-
-```text
-┌──────┐   ┌───────┐   ┌───────┐   ┌──────────┐   ┌───────────┐   ┌────────┐
-│ idle │──►│ spawn │──►│ prime │──►│ prewarm  │──►│ crossfade │──►│ retire │
-└──┬───┘   └───────┘   └───────┘   └──────────┘   └───────────┘   └───┬────┘
-   ▲                                                                  │
-   └──────────────────────────────────────────────────────────────────┘
-```
-
-During crossfade, both engines run.
-
-Seqlok defines:
-
-- the phase machine
-- the per-block instruction contract
-- the progression model
-
-Your application defines:
-
-- what the engines are
-- how state is prepared
-- how output blending works
-- what "good replacement" means in domain terms
-
-`stepSwapStateRT` is pure.
-It advances protocol state and returns instructions.
-It does not allocate, block, or reach into engine internals.
-
-That separation is the point.
-
----
-
 ## What Makes Seqlok Distinct
 
 Seqlok is not merely lock-free.
@@ -290,14 +240,14 @@ The full workspace includes additional tooling and support packages. See `packag
 graph.
 
 ```text
-                 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-                 │ @seqlok/hotswap  │  │ @seqlok/commands │  │  @seqlok/core    │
-                 │ live swap        │  │ discrete intent  │  │ spec -> layout   │
-                 │ protocol         │  │ lane             │  │ -> alloc -> bind │
-                 └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
-                          │                     │                     │
-                          └─────────────┬───────┴─────────────┬───────┘
-                                        ▼                     ▼
+                 ┌──────────────────┐  ┌──────────────────┐
+                 │ @seqlok/commands │  │  @seqlok/core    │
+                 │ discrete intent  │  │ spec -> layout   │
+                 │ lane             │  │ -> alloc -> bind │
+                 └────────┬─────────┘  └────────┬─────────┘
+                          │                     │
+                          └─────────────┬───────┘
+                                        ▼
                                ┌──────────────────┐  ┌──────────────────┐
                                │@seqlok/primitives│  │  @seqlok/base    │
                                │ seqlock, SWSR    │  │ typed codes,     │
@@ -317,7 +267,6 @@ graph.
 | `@seqlok/primitives`  | seqlock and SWSR ring on `SharedArrayBuffer`                 |
 | `@seqlok/core`        | typed spec -> layout -> alloc -> handoff -> bind lifecycle   |
 | `@seqlok/commands`    | command codec and mailbox over the primitive ring            |
-| `@seqlok/hotswap`     | phase machine and per-block swap instructions                |
 | `@seqlok/introspect`  | diagnostics and inspection helpers for dev and test          |
 
 ### How to Read the Repo
@@ -329,8 +278,8 @@ It shows the public lifecycle clearly: spec, layout, allocation, handoff, bind.
 
 Drop down into `@seqlok/primitives` and `@seqlok/base` only if you want the substrate details.
 
-Go upward into `@seqlok/commands` and `@seqlok/hotswap` when you want optional protocol layers built on top of the core
-boundary model.
+Go upward into `@seqlok/commands` when you want optional discrete intent on top
+of the core boundary model.
 
 That traversal order matches how the system is meant to be understood.
 
@@ -344,7 +293,6 @@ That traversal order matches how the system is meant to be understood.
 - you need coherent continuous state delivery across a boundary
 - you need metrics or observations to flow back out coherently
 - you need discrete command delivery without blocking the producer
-- you need live replacement of a stateful processor
 - you want ownership boundaries to stay explicit instead of being dissolved into convenience APIs
 
 **Not the right tool:**
@@ -381,7 +329,6 @@ Seqlok stays at the coordination boundary.
 | per-package API surfaces                       | `packages/*/README.md` or `index.ts`                   |
 | concurrency model and role rules               | `docs/03-seqlok-concurrency-model-and-roles`           |
 | error domain registry and numeric codes        | `docs/15-seqlok-error-system-and-fail-fast-philosophy` |
-| hotswap visualization or playground            | `apps/playground`                                      |
 | architecture decisions and design rationale    | `docs/`                                                |
 
 The source of truth for any specific API is always the package's own `index.ts`.

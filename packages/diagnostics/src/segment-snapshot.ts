@@ -37,12 +37,12 @@ export type SegmentSnapshotFlags = number;
 export const SegmentSnapshotFlag: {
   outputNonFinite: number;
   overrun: number;
-  hotswapActive: number;
+  transitionActive: number;
   inputGuardFailed: number;
 } = {
   outputNonFinite: 1 << 0,
   overrun: 1 << 1,
-  hotswapActive: 1 << 2,
+  transitionActive: 1 << 2,
   inputGuardFailed: 1 << 3,
 } satisfies Readonly<Record<string, number>>;
 

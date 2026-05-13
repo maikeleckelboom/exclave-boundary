@@ -10,7 +10,6 @@ It gives you:
 - explicit handoff across trust boundaries
 - role-specific bindings for controller, processor, and observer
 - lock-free SWSR command rings
-- a generic engine-swap protocol
 
 > Seqlok does **not** encode product concepts like decks, tracks, BPM, transport rules, or cues. Those belong in application code built on top of the substrate.
 
@@ -100,8 +99,6 @@ processor.meters.publish((writer) => {
   Stream-oriented shared-buffer utilities.
 - `@seqlok/worklet-mount`  
   Worklet mounting and runtime integration helpers.
-- `@seqlok/hotswap`  
-  Generic engine-swap and overlap protocol.
 
 ---
 

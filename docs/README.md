@@ -68,7 +68,6 @@ Each package owns its own local contract surface through its README and public e
 - **[primitives](../packages/primitives/README.md)**
 - **[core](../packages/core/README.md)**
 - **[commands](../packages/commands/README.md)**
-- **[hotswap](../packages/hotswap/README.md)**
 - **[introspect](../packages/introspect/README.md)**
 - **[streambuf](../packages/streambuf/README.md)**
 - **[worklet-mount](../packages/worklet-mount/README.md)**
@@ -92,9 +91,6 @@ The reusable library substrate currently centers around these package families:
 
 - **`commands`**  
   Typed command transport over ring-backed mailbox infrastructure.
-
-- **`hotswap`**  
-  Explicit live engine replacement protocol and scheduling helpers.
 
 - **`introspect`**  
   Error registry export, counters, budgets, sessions, and runtime observability surfaces.

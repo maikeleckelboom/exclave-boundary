@@ -19,7 +19,6 @@ domain-local ordinal.
 - `50–59` – `@seqlok/introspect` (diagnostics / observability)
 - `60–69` – `@seqlok/commands` (command transport)
 - `70–79` – `@seqlok/streambuf` (bulk stream transport)
-- `80–89` – `@seqlok/hotswap` (engine lifecycle / swap protocol)
 - `200–254` – extensions / third-party domains
 - `255` – reserved sentinel (never assign)
 
@@ -39,4 +38,3 @@ domain-local ordinal.
 |        50 | `introspect` | `@seqlok/introspect` | Counters / sessions / budgets      |
 |        60 | `commands`   | `@seqlok/commands`   | Command ring / mailbox errors      |
 |        70 | `streambuf`  | `@seqlok/streambuf`  | Bulk stream rings (PCM/bytes/etc)  |
-|        80 | `hotswap`    | `@seqlok/hotswap`    | Engine lifecycle / swap protocol   |

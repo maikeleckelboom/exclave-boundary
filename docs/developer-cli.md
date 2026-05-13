@@ -33,7 +33,6 @@ seqlok/
 │   ├── core/           # Spec -> Plan -> Backing -> Handoff -> Bindings
 │   ├── commands/       # Typed command transport over primitive rings
 │   ├── streambuf/      # Bulk stream transport (PCM, bytes, frame streams)
-│   ├── hotswap/        # Engine lifecycle and explicit swap protocol
 │   ├── worklet-mount/  # AudioWorklet / WASM mount runtime and boundary wiring
 │   └── introspect/     # Tooling, counters, health, registry export, analysis
 ├── scripts/
@@ -143,8 +142,8 @@ of truth.
 | Command                 | Description                         |
 | ----------------------- | ----------------------------------- |
 | `pnpm tla:fetch`        | Download TLA+ tools to `tools/tla/` |
-| `pnpm tla:hotswap`      | Run hotswap spec (invariants only)  |
-| `pnpm tla:hotswap:full` | Run hotswap spec (full model check) |
+The repo no longer carries a built-in live-swap protocol model; app-owned swap
+models should live with the app or demo that owns the runtime.
 
 ---
 
@@ -156,7 +155,7 @@ You can work in isolation from any package directory.
 
 ```bash
 cd packages/core
-# or base, primitives, diagnostics, introspect, hotswap, etc.
+# or base, primitives, diagnostics, introspect, etc.
 ```
 
 ### Common per-package scripts
@@ -202,9 +201,6 @@ pnpm -F @seqlok/core run test
 
 # Build a specific package
 pnpm -F @seqlok/primitives run build
-
-# Watch tests in hotswap
-pnpm -F @seqlok/hotswap run test:watch
 
 # Regenerate introspect registry snapshots
 pnpm -F @seqlok/introspect run errors:registry:schema:snapshots
@@ -318,9 +314,8 @@ Commits are validated through commitlint and git hooks.
 ```text
 feat(core): add observer binding for telemetry consumers
 fix(primitives): prevent torn read on seqlock retry
-docs(hotswap): document TLA+ model checking workflow
 refactor(base): extract error envelope serialization
-test(playground): add hotswap lab coherence tests
+test(playground): add command ring lab coherence tests
 ```
 
 ---
@@ -356,7 +351,7 @@ pnpm test:watch
 ### Add a workspace dependency
 
 ```bash
-pnpm --dir apps/playground add @seqlok/hotswap
+pnpm --dir apps/playground add @seqlok/commands
 ```
 
 ### Add an external dev dependency
@@ -385,7 +380,7 @@ At a high level:
 - `primitives` builds low-level shared-memory mechanisms on top of `base`
 - `diagnostics` adds RT-safe telemetry structures on top of low-level runtime pieces
 - `core` owns spec, layout, backing, handoff, and bindings
-- `commands`, `streambuf`, `hotswap`, and `worklet-mount` build specialized protocol/runtime layers above the substrate
+- `commands`, `streambuf`, and `worklet-mount` build specialized protocol/runtime layers above the substrate
 - `introspect` is tooling-side, not hot-path runtime
 - `apps/playground` sits at the host/app edge and imports reusable packages through public entrypoints
 

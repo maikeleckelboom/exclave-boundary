@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@seqlok/commands": "workspace:*",
-    "@seqlok/hotswap": "workspace:*",
     "@seqlok/primitives": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "reka-ui": "catalog:",

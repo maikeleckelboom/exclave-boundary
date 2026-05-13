@@ -18,12 +18,6 @@ const route = useRoute();
 
 const domains: readonly PlaygroundDomainNavItem[] = [
   {
-    id: "hotswap",
-    label: "Hotswap",
-    description: "Engine swap protocol lab",
-    routeName: "hotswap-lab",
-  },
-  {
     id: "commands",
     label: "Commands",
     description: "Command ring + mailbox lab",
@@ -39,7 +33,7 @@ const activeDomain = computed<PlaygroundDomainNavItem["id"]>({
     }
 
     const first = domains[0];
-    return first ? first.id : "hotswap";
+    return first ? first.id : "commands";
   },
   set(nextDomainId) {
     const target = domains.find(
@@ -84,7 +78,7 @@ const activeDomain = computed<PlaygroundDomainNavItem["id"]>({
               Seqlok Playground
             </span>
             <span class="text-[11px] text-zinc-500 truncate">
-              Real-time shared-state labs: hotswap and command rings.
+              Real-time shared-state labs: command rings.
             </span>
           </div>
         </div>

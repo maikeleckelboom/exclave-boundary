@@ -203,30 +203,6 @@ It sits above the shared-state boundary model rather than replacing it.
 
 ---
 
-## Hotswap Is Another Layer Above
-
-Hotswap is not hidden magic.
-It is an explicit per-block protocol.
-
-At the RT protocol layer, the current surface is shaped like this:
-
-```ts
-const decision = stepSwapStateRT(
-  state,
-  blockFrames,
-  activeKind,
-  nextKind,
-  noneKindSentinel,
-);
-```
-
-That is intentionally more explicit than a cute one-liner.
-The protocol needs to know the current active kind, the pending next kind, and the sentinel for "none".
-
-If you want host-side scheduling instead of raw RT stepping, higher layers can build on top of that.
-
----
-
 ## What This Sketch Leaves Out
 
 On purpose, this sketch does **not** try to teach everything Seqlok can do.
@@ -238,7 +214,7 @@ It leaves out, among other things:
 - array staging details
 - introspection and diagnostics entry points
 - bus composition and wider topologies
-- host-level scheduling helpers around hotswap
+- app-owned runtime protocols built above commands
 
 Those are real capabilities.
 They are simply not the job of this sketch.

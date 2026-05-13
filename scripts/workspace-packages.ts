@@ -10,7 +10,6 @@ export const SEQLOK_PACKAGES = [
   "streambuf",
   "core",
   "commands",
-  "hotswap",
   "introspect",
 ] as const;
 

@@ -45,7 +45,6 @@
     "@seqlok/primitives": "workspace:*",
     "@seqlok/core": "workspace:*",
     "@seqlok/commands": "workspace:*",
-    "@seqlok/hotswap": "workspace:*",
     "@seqlok/streambuf": "workspace:*",
     "@seqlok/worklet-mount": "workspace:*"
   },
