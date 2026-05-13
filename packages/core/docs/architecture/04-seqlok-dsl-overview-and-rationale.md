@@ -278,9 +278,17 @@ That would be a naming lie.
 
 ---
 
-## 7. `keysOf(spec)`
+## 7. Optional ergonomic projection with `keysOf(spec)`
 
-`keysOf(spec)` exists to make canonical runtime keys ergonomic to consume.
+`keysOf(spec)` exists for call sites that prefer nested property access while still using canonical runtime keys.
+
+Typed code does not need this helper. The flat string keyspace returned by `defineSpec(...)` is already the canonical,
+strictly typed runtime identity in core:
+
+```ts
+controller.params.set("transport.timeRatio", 1.5);
+observer.meters.snapshot("output.rms", "output.peak");
+```
 
 Example:
 
@@ -305,24 +313,25 @@ That mirror:
 
 - follows the structural authored shape
 - has canonical dot-path strings at the leaves
-- is ergonomic for call sites
+- is optional ergonomic projection over the flat keyspace
 
 ### 7.2 What it is not
 
 `keysOf(spec)` is:
 
 - ergonomic sugar
-- the official ergonomic bridge
 - a projection of canonical identity back into structure
+- outside the kernel ownership spine
 
 It is **not**:
 
 - a second identity system
 - a second ABI
 - a second canonical source of field ownership
+- required for typed usage
 
 The canonical runtime keys still own identity.
-`keysOf(spec)` just makes them pleasant to use.
+`keysOf(spec)` only gives one optional way to refer to them.
 
 ### 7.3 Why that distinction matters
 
@@ -486,7 +495,6 @@ Once the authored contract is normalized, the rest of the flow is straightforwar
 ```ts
 import {
   defineSpec,
-  keysOf,
   planLayout,
   allocateShared,
   buildHandoff,
@@ -512,14 +520,11 @@ const spec = defineSpec(({ param, meter }) => ({
   },
 }));
 
-const keys = keysOf(spec);
 const plan = planLayout(spec);
 const backing = allocateShared(plan);
-
-const controller = bindController(spec, plan, backing);
 const handoff = buildHandoff(plan, backing);
-
 const accepted = acceptHandoff(handoff);
+const controller = bindController(spec, plan, backing);
 const processor = bindProcessor(accepted);
 const observer = bindObserver(accepted);
 ```
@@ -591,7 +596,7 @@ When authoring a Seqlok contract, check the following:
 - plain object or builder input would describe the same authored meaning
 - nested namespaces are used for human-facing structure where helpful
 - canonical runtime identity remains flat dot-path keys
-- `keysOf(spec)` is used as ergonomic projection, not authority
+- `keysOf(spec)`, when used, is ergonomic projection rather than authority
 - arrays are fixed-length
 - enums are closed vocabularies
 - authored `id` is explicit when meaningful
@@ -609,7 +614,7 @@ The right mental model is:
 - `defineSpec(...)` is the semantic-compilation boundary
 - nested authored structure is real and useful for humans
 - canonical flat dot-path keys own runtime identity
-- `keysOf(spec)` projects those keys back into a structural mirror for ergonomics
+- `keysOf(spec)` can optionally project those keys back into a structural mirror for ergonomics
 - explicit authored ids win; omitted ids normalize deterministically
 - planning begins after authored meaning has already been normalized
 

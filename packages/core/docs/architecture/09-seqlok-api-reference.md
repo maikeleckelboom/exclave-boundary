@@ -155,11 +155,14 @@ That means:
 
 ### `keysOf`
 
-Project a resolved spec's canonical flat keyspace back into a structural mirror.
+Optionally project a resolved spec's canonical flat keyspace back into a structural mirror.
 
 ```ts
 function keysOf<const S extends CanonicalSpec>(spec: S): KeyMirrorOf<S>;
 ```
+
+The flat dot-path keyspace is already the canonical, strictly typed runtime identity. Use `keysOf(...)` when nested
+property access is useful at a call site, not as a required step in the kernel flow.
 
 Example:
 
@@ -191,19 +194,19 @@ keys.meters.output.rms;
 // "output.rms"
 ```
 
-`keysOf(spec)` is the official ergonomic bridge from canonical runtime keys back to structural access.
-
 It is:
 
 - ergonomic sugar
 - a structural mirror of canonical keys
 - useful for call sites that want nested access without hand-writing strings
+- outside the `spec → plan → backing → handoff → binding` ownership spine
 
 It is not:
 
 - a second identity system
 - a second ABI
 - an alternative runtime key model
+- required for typed access to fields
 
 Canonical runtime keys still own identity.
 
@@ -661,7 +664,6 @@ Host-side bundle containing:
 The correct public API story is:
 
 - author a contract with `defineSpec(...)`
-- optionally derive ergonomic structural keys with `keysOf(spec)`
 - plan the validated runtime contract with `planLayout(...)`
 - realize backing with `allocateShared(...)`, `allocateSharedPartitioned(...)`, or `allocateWasmShared(...)`
 - build a boundary envelope with `buildHandoff(...)`
@@ -670,4 +672,4 @@ The correct public API story is:
 
 Authored structure is for humans.
 Canonical dot-path keys own runtime identity.
-`keysOf(spec)` is the ergonomic bridge, not a second identity model.
+`keysOf(spec)` is optional ergonomic projection over those keys, not a second identity model.

@@ -3,8 +3,9 @@
 This guide shows practical patterns for using the enum helpers in Seqlok
 to drive real UI controls, fixtures, and tools.
 
-All helpers are spec-driven: they read the enum vocabulary from your
-`CanonicalSpec`, so whenever you tweak the DSL, your UI and tools stay in sync.
+All helpers are spec-driven: they read enum vocabulary from your `CanonicalSpec`.
+They do not own field identity; they use the same flat typed keyspace as the
+rest of core.
 
 ---
 
@@ -347,5 +348,5 @@ const simModeControl = createEnumButtons(ctl, spec, "simMode", MODE_LABELS);
   `enum.array`.
 - `enumIndexFromLabel` / `enumLabelFromIndex` – explicit numeric coding.
 
-All of this is spec-driven, so the DSL stays the single source of truth for
-both engine and UI.
+All of this is spec-driven helper behavior over the canonical flat keyspace.
+The helper surface does not create a second source of identity for engine or UI.

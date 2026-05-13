@@ -77,13 +77,13 @@ Important points:
 The main public flow is:
 
 1. author a contract with `defineSpec(...)`
-2. optionally derive ergonomic keys with `keysOf(spec)`
-3. derive a deterministic layout with `planLayout(...)`
-4. allocate shared backing
-5. bind the controller on the owner side
-6. build a handoff
-7. accept the handoff on the consumer side
-8. bind a processor and optionally one or more observers
+2. derive a deterministic layout with `planLayout(...)`
+3. allocate shared backing with `allocateShared(...)`
+4. build a handoff with `buildHandoff(...)`
+5. accept the handoff with `acceptHandoff(...)`
+6. bind the owner role with `bindController(...)`
+7. bind the processor role with `bindProcessor(...)`
+8. bind the observer role with `bindObserver(...)`
 
 `planLayout` is called exactly once at the **Spec → Plan** boundary. Backing and bindings consume `Plan`. They do not recompute it.
 
@@ -98,7 +98,7 @@ There is no `bindController(spec, backing)` sugar in core.
 Builder form:
 
 ```ts
-import { defineSpec, keysOf } from "@seqlok/core";
+import { defineSpec } from "@seqlok/core";
 
 export const laneSpec = defineSpec(({ param, meter }) => ({
   id: "lane",
@@ -122,7 +122,6 @@ export const laneSpec = defineSpec(({ param, meter }) => ({
   },
 }));
 
-export const laneKeys = keysOf(laneSpec);
 export type LaneSpec = typeof laneSpec;
 ```
 
@@ -166,20 +165,20 @@ import {
   planLayout,
   type Handoff,
 } from "@seqlok/core";
-import { laneKeys, laneSpec, type LaneSpec } from "./spec";
+import { laneSpec, type LaneSpec } from "./spec";
 
 const plan = planLayout(laneSpec);
 const backing = allocateShared(plan);
 
-const controller = bindController(laneSpec, plan, backing);
 const handoff: Handoff<LaneSpec> = buildHandoff(plan, backing);
+const controller = bindController(laneSpec, plan, backing);
 
-controller.params.set(laneKeys.params.transport.timeRatio, 1.5);
+controller.params.set("transport.timeRatio", 1.5);
 controller.params.update({
-  [laneKeys.params.transport.mode]: "granular",
+  "transport.mode": "granular",
 });
 
-controller.params.stage(laneKeys.params.mixer.eqBands, (view) => {
+controller.params.stage("mixer.eqBands", (view) => {
   for (let i = 0; i < view.length; i += 1) {
     view[i] = i < 4 ? -3 : 3;
   }
@@ -195,7 +194,7 @@ import {
   type Handoff,
   type ProcessorBinding,
 } from "@seqlok/core";
-import { laneKeys, type LaneSpec } from "./spec";
+import type { LaneSpec } from "./spec";
 
 type InitMessage = {
   type: "handoff";
@@ -213,13 +212,13 @@ function processBlock(): void {
   if (!processor) return;
 
   processor.params.within((params) => {
-    const timeRatio = params[laneKeys.params.transport.timeRatio];
+    const timeRatio = params["transport.timeRatio"];
 
     processor.meters.publish((writer) => {
-      writer.set(laneKeys.meters.output.rms, 0.5);
-      writer.set(laneKeys.meters.output.peak, 0.9);
+      writer.set("output.rms", 0.5);
+      writer.set("output.peak", 0.9);
       writer.set(
-        laneKeys.meters.engine.framesProcessed,
+        "engine.framesProcessed",
         Math.floor(128 * timeRatio),
       );
     });
@@ -236,7 +235,7 @@ import {
   type Handoff,
   type ObserverBinding,
 } from "@seqlok/core";
-import { laneKeys, type LaneSpec } from "./spec";
+import type { LaneSpec } from "./spec";
 
 let observer: ObserverBinding<LaneSpec> | undefined;
 
@@ -251,13 +250,13 @@ function sampleTelemetry(): void {
   if (!observer) return;
 
   const params = observer.params.snapshot(
-    laneKeys.params.transport.timeRatio,
-    laneKeys.params.transport.mode,
+    "transport.timeRatio",
+    "transport.mode",
   );
 
   const meters = observer.meters.snapshot(
-    laneKeys.meters.output.rms,
-    laneKeys.meters.output.peak,
+    "output.rms",
+    "output.peak",
   );
 
   console.log({ params, meters });
@@ -288,6 +287,32 @@ const handoff = buildHandoff(ctx);
 
 This does not change the underlying model.
 It is convenience over the same explicit flow.
+
+---
+
+## Optional key projection
+
+Core's runtime identity is the strictly typed flat string keyspace:
+
+```ts
+controller.params.set("transport.timeRatio", 1.5);
+processor.meters.publish((writer) => {
+  writer.set("output.rms", 0.5);
+});
+```
+
+If a call site prefers nested property access, `keysOf(spec)` can project that same flat keyspace back into a structural mirror:
+
+```ts
+import { keysOf } from "@seqlok/core";
+import { laneSpec } from "./spec";
+
+const keys = keysOf(laneSpec);
+
+controller.params.set(keys.params.transport.timeRatio, 1.5);
+```
+
+`keysOf(...)` is optional ergonomic projection. It is not part of the kernel flow and it does not create a second identity model.
 
 ---
 
@@ -322,7 +347,6 @@ That is why core does not own:
 The core surface stays centered on:
 
 - `defineSpec`
-- `keysOf`
 - `planLayout`
 - `allocateShared`
 - `buildHandoff`

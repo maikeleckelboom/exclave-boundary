@@ -387,6 +387,10 @@ const wire = createSharedWire(spec);
 
 That is fine, as long as the helper is transparently built on top of the explicit kernel verbs.
 
+The same rule applies to key ergonomics. `keysOf(spec)` may project the canonical flat keyspace into a structural
+mirror for call sites that want nested property access, but it sits outside the ownership spine. It is not a pipeline
+stage between spec and planning, and it does not own runtime identity.
+
 The rule is:
 
 - helpers may compress the ceremony
