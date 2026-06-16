@@ -20,7 +20,6 @@ This package is deliberately narrow. It describes authored structure. It does no
 - Semantic compilation.
 - Runtime namespace flattening.
 - Canonical runtime key generation.
-- `keysOf(...)`.
 - Runtime defaults.
 - Anonymous runtime id generation.
 - Spec hashing or compatibility policy.

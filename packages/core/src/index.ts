@@ -15,8 +15,6 @@ export {
   type MeterBuilders,
 } from "./spec/define";
 export type { CanonicalSpec, CanonicalSpecFromAst } from "./spec/types";
-export { keysOf } from "./spec/keys";
-export type { ParamKeyMirror, MeterKeyMirror } from "./spec/keys";
 
 // PLAN
 export { planLayout } from "./plan/layout";

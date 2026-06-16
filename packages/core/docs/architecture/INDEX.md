@@ -21,7 +21,7 @@ These explain the concepts, roles, and flows behind the API. If you want to unde
    The runtime ownership model: controller, processor, observer, and one writer per domain.
 
 5. [04-seqlok-dsl-overview-and-rationale.md](./04-seqlok-dsl-overview-and-rationale.md)
-   The authored-contract model, authoring surfaces, canonical runtime identity, and where `keysOf(spec)` fits.
+   The authored-contract model, authoring surfaces, and canonical runtime identity.
 
 6. [05-enum-arrays-runtime-behavior.md](./05-enum-arrays-runtime-behavior.md)
    How enum arrays map from schema to runtime data and why they live as indices in shared memory.

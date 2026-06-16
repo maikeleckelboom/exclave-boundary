@@ -5,9 +5,9 @@
 
 import { normalizeSpecAst } from "@seqlok/schema";
 
-import { createSpecError } from "../errors/spec";
 import { generateAnonymousSpecId } from "./canonical-hash";
 import { compilePlane, isLeafDef } from "./collapse";
+import { createSpecError } from "../errors/spec";
 
 import type { CanonicalSpec } from "./types";
 import type { MeterDef, ParamDef, SpecAstInput } from "@seqlok/schema";

@@ -23,8 +23,6 @@ Everything in `@seqlok/core` centers on one explicit flow:
 
 `defineSpec -> planLayout -> allocateShared / allocateSharedPartitioned / allocateWasmShared -> buildHandoff -> acceptHandoff -> bindController / bindProcessor / bindObserver`
 
-`keysOf(spec)` exists too, but it is ergonomic sugar. It projects canonical runtime keys back into the authored shape. It is not part of runtime identity.
-
 ---
 
 ## Minimal example
@@ -37,7 +35,6 @@ import {
   bindProcessor,
   buildHandoff,
   defineSpec,
-  keysOf,
   planLayout,
 } from "@seqlok/core";
 
@@ -58,30 +55,28 @@ export const deckSpec = defineSpec(({ param, meter }) => ({
   },
 }));
 
-export const deckKeys = keysOf(deckSpec);
-
 const plan = planLayout(deckSpec);
 const backing = allocateShared(plan);
 
 const controller = bindController(deckSpec, plan, backing);
 const handoff = buildHandoff(plan, backing);
 
-controller.params.set(deckKeys.params.playback.rate, 1);
+controller.params.set("playback.rate", 1);
 controller.params.update({
-  [deckKeys.params.mixer.volume]: 0.8,
+  "mixer.volume": 0.8,
 });
 
 const accepted = acceptHandoff(handoff);
 const processor = bindProcessor(accepted);
 
 processor.params.within((params) => {
-  const rate = params[deckKeys.params.playback.rate];
-  const gain = params[deckKeys.params.mixer.volume];
+  const rate = params["playback.rate"];
+  const gain = params["mixer.volume"];
   processAudioBlock(rate, gain);
 });
 
 processor.meters.publish((writer) => {
-  writer.set(deckKeys.meters.output.level, computeLevel());
+  writer.set("output.level", computeLevel());
 });
 ```
 

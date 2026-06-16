@@ -15,7 +15,6 @@ For rationale and naming doctrine, see:
 - [Core](#core)
 
   - [`defineSpec`](#definespec)
-  - [`keysOf`](#keysof)
   - [`planLayout`](#planlayout)
   - [`allocateShared`](#allocateshared)
   - [`allocateSharedPartitioned`](#allocatesharedpartitioned)
@@ -150,65 +149,6 @@ That means:
 - same anonymous authored meaning yields the same normalized identity
 - different anonymous authored meaning yields a different normalized identity
 - identity does not depend on placeholders, randomness, or timestamps
-
----
-
-### `keysOf`
-
-Optionally project a resolved spec's canonical flat keyspace back into a structural mirror.
-
-```ts
-function keysOf<const S extends CanonicalSpec>(spec: S): KeyMirrorOf<S>;
-```
-
-The flat dot-path keyspace is already the canonical, strictly typed runtime identity. Use `keysOf(...)` when nested
-property access is useful at a call site, not as a required step in the kernel flow.
-
-Example:
-
-```ts
-const spec = defineSpec(({ param, meter }) => ({
-  id: "lane",
-  params: {
-    transport: {
-      timeRatio: param.f32({ min: 0.25, max: 4 }),
-      mode: param.enum(["normal", "granular"]),
-    },
-  },
-  meters: {
-    output: {
-      rms: meter.f32(),
-    },
-  },
-}));
-
-const keys = keysOf(spec);
-
-keys.params.transport.timeRatio;
-// "transport.timeRatio"
-
-keys.params.transport.mode;
-// "transport.mode"
-
-keys.meters.output.rms;
-// "output.rms"
-```
-
-It is:
-
-- ergonomic sugar
-- a structural mirror of canonical keys
-- useful for call sites that want nested access without hand-writing strings
-- outside the `spec → plan → backing → handoff → binding` ownership spine
-
-It is not:
-
-- a second identity system
-- a second ABI
-- an alternative runtime key model
-- required for typed access to fields
-
-Canonical runtime keys still own identity.
 
 ---
 
@@ -672,4 +612,3 @@ The correct public API story is:
 
 Authored structure is for humans.
 Canonical dot-path keys own runtime identity.
-`keysOf(spec)` is optional ergonomic projection over those keys, not a second identity model.

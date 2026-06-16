@@ -455,55 +455,7 @@ They should be treated as stable unless there is a truly better semantic replace
 
 ---
 
-## 12. Why `keysOf` exists, and why it is not central doctrine
-
-`keysOf(spec)` exists because Seqlok wants structural ergonomics without inventing a second runtime identity system.
-
-It projects canonical runtime keys back into a structural mirror.
-
-Example:
-
-```ts
-const keys = keysOf(spec);
-
-keys.params.transport.timeRatio;
-// "transport.timeRatio"
-```
-
-Why this name works:
-
-- it is short and literal
-- it communicates derivation from the spec
-- it does not imply ownership of identity
-- it reads as helper surface, not substrate authority
-
-The ordering matters here.
-
-`keysOf(spec)` is:
-
-- optional
-- ergonomic sugar
-- downstream of the real model
-
-It is useful, but it is not one of the primary architectural pillars.
-The primary model is still:
-
-- authored contract
-- semantic compilation
-- canonical runtime identity
-- planning
-- backing
-- handoff
-- bindings
-
-Only after that does `keysOf(spec)` appear as ergonomic projection.
-
-The canonical identity model remains the flat dot-path runtime keyspace.
-`keysOf(spec)` is the ergonomic bridge.
-
----
-
-## 13. Why there is no giant do-everything API
+## 12. Why there is no giant do-everything API
 
 Seqlok deliberately avoids “one big surface” thinking.
 
@@ -527,7 +479,7 @@ Seqlok avoids that by keeping the names blunt and layer-specific.
 
 ---
 
-## 14. Naming rules that fall out of the doctrine
+## 13. Naming rules that fall out of the doctrine
 
 A good Seqlok public name should do at least one of these clearly, and preferably more than one:
 
@@ -550,7 +502,7 @@ Not whether a word sounds modern.
 
 ---
 
-## 15. What is stable and what is still just convenience
+## 14. What is stable and what is still just convenience
 
 Mostly stable at the doctrinal level:
 
@@ -566,17 +518,13 @@ Mostly stable at the doctrinal level:
 - controller / processor / observer role names
 - the split between narrow hot-path verbs and colder bulk/setup verbs
 
-Useful but explicitly secondary convenience surface:
-
-- `keysOf(spec)`
-
 Convenience surfaces should always remain subordinate to the primary model.
 
 If a future convenience helper starts to obscure those boundaries, it should be treated with suspicion.
 
 ---
 
-## 16. Short version
+## 15. Short version
 
 The public Seqlok naming system is trying to preserve a few truths:
 
@@ -589,7 +537,7 @@ The public Seqlok naming system is trying to preserve a few truths:
 - binding attaches a role to a substrate, it does not invent the substrate
 - narrow verbs should stay narrow
 - bulk/setup verbs should admit they are bulk/setup work
-- `keysOf(spec)` is useful but optional ergonomic projection, not a co-equal architectural pillar
+- convenience helpers may exist, but they are not co-equal architectural pillars
 
 That is why the names look the way they do.
 

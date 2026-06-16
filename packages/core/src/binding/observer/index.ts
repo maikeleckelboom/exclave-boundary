@@ -26,9 +26,9 @@ import type { Backing } from "../../backing/types";
 import type { SharedContext } from "../../context/types";
 import type { Handoff, AcceptedHandoff } from "../../handoff/types";
 import type { Plan } from "../../plan/types";
+import type { CanonicalSpec } from "../../spec/types";
 import type { ParamDefs } from "../common/param-defs";
 import type { ObserverBinding, ObserverOptions } from "../common/types";
-import type { CanonicalSpec } from "../../spec/types";
 
 /**
  * Bind an observer from a high-level source.

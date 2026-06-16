@@ -24,6 +24,7 @@ import { throwUnknownKey } from "../common/validate";
 
 import type { Backing } from "../../backing/types";
 import type { Plan } from "../../plan/types";
+import type { CanonicalSpec } from "../../spec/types";
 import type {
   Ephemeral,
   MeterWriter,
@@ -35,7 +36,6 @@ import type {
   PUSeq,
 } from "../common/types";
 import type { MeterPlane, ParamPlane } from "../common/validate";
-import type { CanonicalSpec } from "../../spec/types";
 
 type WithinCallback<S extends CanonicalSpec> = Parameters<
   ProcessorParams<S>["within"]

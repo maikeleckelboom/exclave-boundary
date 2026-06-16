@@ -68,7 +68,6 @@ Important points:
 - the authored AST is the canonical authored contract
 - `defineSpec(...)` compiles authored structure into the runtime contract
 - flat dot-path keys remain the runtime identity in core
-- `keysOf(spec)` is optional ergonomic sugar, not a second identity model
 
 ---
 
@@ -287,32 +286,6 @@ const handoff = buildHandoff(ctx);
 
 This does not change the underlying model.
 It is convenience over the same explicit flow.
-
----
-
-## Optional key projection
-
-Core's runtime identity is the strictly typed flat string keyspace:
-
-```ts
-controller.params.set("transport.timeRatio", 1.5);
-processor.meters.publish((writer) => {
-  writer.set("output.rms", 0.5);
-});
-```
-
-If a call site prefers nested property access, `keysOf(spec)` can project that same flat keyspace back into a structural mirror:
-
-```ts
-import { keysOf } from "@seqlok/core";
-import { laneSpec } from "./spec";
-
-const keys = keysOf(laneSpec);
-
-controller.params.set(keys.params.transport.timeRatio, 1.5);
-```
-
-`keysOf(...)` is optional ergonomic projection. It is not part of the kernel flow and it does not create a second identity model.
 
 ---
 

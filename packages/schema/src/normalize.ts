@@ -25,7 +25,7 @@ function cloneLeafDef<T extends AuthoredLeaf>(def: T): T {
   const sorted: Record<string, unknown> = {};
   for (const key of Object.keys(def).sort()) {
     const value = (def as Record<string, unknown>)[key];
-    sorted[key] = Array.isArray(value) ? [...value] : value;
+    sorted[key] = Array.isArray(value) ? [...(value as unknown[])] : value;
   }
   return sorted as T;
 }
@@ -38,8 +38,9 @@ function normalizeNamespace<T extends AuthoredLeaf>(
   for (const key of Object.keys(namespace).sort()) {
     const value = namespace[key];
     if (isLeafDef(value)) {
-      out[key] = cloneLeafDef(value as T);
+      out[key] = cloneLeafDef(value);
     } else {
+      // eslint-disable-next-line @typescript-eslint/non-nullable-type-assertion-style
       out[key] = normalizeNamespace(value as SpecNamespace<T>);
     }
   }

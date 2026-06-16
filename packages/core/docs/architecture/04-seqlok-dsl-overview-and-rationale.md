@@ -7,7 +7,6 @@ This document explains:
 - what a spec is in Seqlok
 - how authored input enters the system
 - how nested authored structure relates to runtime identity
-- where `keysOf(spec)` fits
 - how authored input becomes planning input
 
 If you are defining a Seqlok contract, this is the doc that should leave your mental model straight.
@@ -278,77 +277,7 @@ That would be a naming lie.
 
 ---
 
-## 7. Optional ergonomic projection with `keysOf(spec)`
-
-`keysOf(spec)` exists for call sites that prefer nested property access while still using canonical runtime keys.
-
-Typed code does not need this helper. The flat string keyspace returned by `defineSpec(...)` is already the canonical,
-strictly typed runtime identity in core:
-
-```ts
-controller.params.set("transport.timeRatio", 1.5);
-observer.meters.snapshot("output.rms", "output.peak");
-```
-
-Example:
-
-```ts
-const keys = keysOf(spec);
-
-keys.params.transport.timeRatio;
-// "transport.timeRatio"
-
-keys.params.transport.mode;
-// "transport.mode"
-
-keys.meters.output.rms;
-// "output.rms"
-```
-
-### 7.1 What it does
-
-`keysOf(spec)` projects canonical runtime keys back into a structural mirror.
-
-That mirror:
-
-- follows the structural authored shape
-- has canonical dot-path strings at the leaves
-- is optional ergonomic projection over the flat keyspace
-
-### 7.2 What it is not
-
-`keysOf(spec)` is:
-
-- ergonomic sugar
-- a projection of canonical identity back into structure
-- outside the kernel ownership spine
-
-It is **not**:
-
-- a second identity system
-- a second ABI
-- a second canonical source of field ownership
-- required for typed usage
-
-The canonical runtime keys still own identity.
-`keysOf(spec)` only gives one optional way to refer to them.
-
-### 7.3 Why that distinction matters
-
-If people start treating the mirror itself as authority, the model decays.
-
-The actual order is:
-
-- authored structure
-- semantic compilation
-- canonical runtime keys
-- optional ergonomic mirror via `keysOf(spec)`
-
-Not the other way around.
-
----
-
-## 8. Deterministic anonymous ids
+## 7. Deterministic anonymous ids
 
 Authored `id` is authoritative when present.
 
@@ -385,11 +314,11 @@ This matters for:
 
 ---
 
-## 9. Field families and constraints
+## 8. Field families and constraints
 
 The spec stays deliberately narrow.
 
-### 9.1 Param families
+### 8.1 Param families
 
 Core param families include:
 
@@ -421,7 +350,7 @@ const spec = defineSpec(({ param, meter }) => ({
 }));
 ```
 
-### 9.2 Meter families
+### 8.2 Meter families
 
 Core meter families include:
 
@@ -450,7 +379,7 @@ const spec = defineSpec(({ param, meter }) => ({
 }));
 ```
 
-### 9.3 Numeric ranges are scalar-only
+### 8.3 Numeric ranges are scalar-only
 
 Numeric ranges apply to scalar numeric params.
 Arrays are shape-only.
@@ -467,7 +396,7 @@ That keeps planning deterministic and keeps the contract about structure, not be
 
 ---
 
-## 10. What the spec does not own
+## 9. What the spec does not own
 
 The spec does **not** own:
 
@@ -488,7 +417,7 @@ That restraint is a feature.
 
 ---
 
-## 11. From authored contract to live roles
+## 10. From authored contract to live roles
 
 Once the authored contract is normalized, the rest of the flow is straightforward:
 
@@ -540,9 +469,9 @@ Even though this doc is mainly about authorship, the authored contract feeds all
 
 ---
 
-## 12. Common mistakes
+## 11. Common mistakes
 
-### 12.1 Treating the builder callback as the canonical contract
+### 11.1 Treating the builder callback as the canonical contract
 
 Wrong model:
 
@@ -553,7 +482,7 @@ Correct model:
 > The callback is one authoring surface. The authored contract is the real input. `defineSpec(...)` is the boundary that
 > normalizes it.
 
-### 12.2 Treating nested authored shape as runtime identity
+### 11.2 Treating nested authored shape as runtime identity
 
 Wrong model:
 
@@ -563,17 +492,7 @@ Correct model:
 
 > The tree is for authorship. Canonical dot-path keys own runtime identity.
 
-### 12.3 Treating `keysOf(spec)` as authority
-
-Wrong model:
-
-> “The key mirror is another source of truth.”
-
-Correct model:
-
-> The mirror is projection sugar over canonical runtime keys.
-
-### 12.4 Smuggling higher-level semantics into the spec
+### 11.3 Smuggling higher-level semantics into the spec
 
 Wrong examples:
 
@@ -588,7 +507,7 @@ Correct model:
 
 ---
 
-## 13. Checklist for spec authors
+## 12. Checklist for spec authors
 
 When authoring a Seqlok contract, check the following:
 
@@ -596,7 +515,6 @@ When authoring a Seqlok contract, check the following:
 - plain object or builder input would describe the same authored meaning
 - nested namespaces are used for human-facing structure where helpful
 - canonical runtime identity remains flat dot-path keys
-- `keysOf(spec)`, when used, is ergonomic projection rather than authority
 - arrays are fixed-length
 - enums are closed vocabularies
 - authored `id` is explicit when meaningful
@@ -605,7 +523,7 @@ When authoring a Seqlok contract, check the following:
 
 ---
 
-## 14. Summary
+## 13. Summary
 
 The right mental model is:
 
@@ -614,7 +532,6 @@ The right mental model is:
 - `defineSpec(...)` is the semantic-compilation boundary
 - nested authored structure is real and useful for humans
 - canonical flat dot-path keys own runtime identity
-- `keysOf(spec)` can optionally project those keys back into a structural mirror for ergonomics
 - explicit authored ids win; omitted ids normalize deterministically
 - planning begins after authored meaning has already been normalized
 

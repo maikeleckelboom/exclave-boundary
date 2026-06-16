@@ -24,7 +24,7 @@ Think of ADRs as "git commits for architecture": short, focused, and historical.
 - `ADR-00F` – Controller params hydrate
 - `ADR-010` – Ring primitive ownership
 - `ADR-011` – MWMR ground truth
-- `ADR-014` – Nested spec DSL and key mirror contract
+- `ADR-014` – Nested spec DSL contract
 
 ---
 
@@ -38,7 +38,7 @@ Think of ADRs as "git commits for architecture": short, focused, and historical.
 | [ADR-00F](./ADR-00F-controller-params-hydrate.md)           | Controller Params Hydrate      | Cold-path bulk param updates                                              |
 | [ADR-010](./ADR-010-ring-primitive-in-seqlok-core.md)       | Ring Primitive Ownership       | Package ownership: primitives → commands/streambuf → core                 |
 | [ADR-011](./ADR-011-mwmr-ground-truth.md)                   | MWMR Ground Truth              | System model and guardrails                                               |
-| [ADR-014](./ADR-014-lock-nested-spec-dsl-and-key-mirror.md) | Nested Spec DSL and Key Mirror | Authored spec contract, canonical key formation, ergonomic key projection |
+| [ADR-014](./ADR-014-nested-spec-dsl.md) | Nested Spec DSL | Authored spec contract and canonical key formation |
 
 **Do not add to this folder:**
 

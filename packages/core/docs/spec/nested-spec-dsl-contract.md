@@ -1,13 +1,13 @@
-# Nested spec DSL and key mirror contract
+# Nested spec DSL contract
 
 > **Status:** Active implementation contract
-> **Owner:** `@seqlok/core` > **Scope:** authored spec semantic compilation, canonical-key formation, anonymous-id normalization, `keysOf(spec)` output contract
+> **Owner:** `@seqlok/core` > **Scope:** authored spec semantic compilation, canonical-key formation, anonymous-id normalization
 
 ---
 
 ## 1. Purpose
 
-This document defines the implementation contract for nested authored specs and the `keysOf(spec)` key-mirror surface.
+This document defines the implementation contract for nested authored specs.
 
 It exists to make the rules explicit at the semantic-compilation boundary.
 
@@ -31,11 +31,6 @@ This is the contract that implementation, tests, and docs must agree on.
 - duplicate and conflict rejection
 - canonical compiled output formation
 - deterministic anonymous-id generation
-
-### `keysOf(spec)` owns
-
-- ergonomic projection of compiled canonical keys back into a structural mirror
-- no additional identity semantics beyond that projection
 
 ### Planning and bindings do not own
 
@@ -349,69 +344,7 @@ A plain constant placeholder is not acceptable.
 
 ---
 
-## 10. `keysOf(spec)` output contract
-
-`keysOf(spec)` is the official ergonomic key-mirror API.
-
-### 10.1 Required shape
-
-It always returns:
-
-```ts
-{
-  params: ...,
-  meters: ...,
-}
-```
-
-Both top-level planes must always exist in the returned object, even if one plane is empty.
-
-### 10.2 Leaf values
-
-Every leaf value in the returned mirror is the canonical dot-path runtime key string for that field.
-
-Example:
-
-```ts
-const keys = keysOf(spec);
-
-keys.params.transport.tempo;
-// "transport.tempo"
-```
-
-### 10.3 Structural shape
-
-The mirror preserves the compiled authored namespace shape.
-
-It is not a flat map.
-
-### 10.4 Immutability
-
-The returned mirror must be deeply frozen before being exposed publicly.
-
-### 10.5 Memoization
-
-`keysOf(spec)` may memoize by spec object identity.
-
-If memoization exists, it should use `WeakMap`.
-
-Memoization is an implementation optimization.
-It must not change the semantic output contract.
-
-### 10.6 Explicit non-goals
-
-`keysOf(spec)` must not:
-
-- invent alias paths
-- expose camelized alternatives
-- expose a second canonical key model
-- flatten itself into a separate public identity story
-
-Its job is projection, not invention.
-
----
-
-## 11. Error-surface contract
+## 10. Error-surface contract
 
 Semantic-compilation failures for this feature must be explicit enough to explain the authored mistake.
 
@@ -449,11 +382,11 @@ The exact class/type names may differ, but the semantic distinction must remain 
 
 ---
 
-## 12. Test contract
+## 11. Test contract
 
 This feature is not landed unless tests prove the invariants.
 
-### 12.1 Semantic-compilation tests
+### 11.1 Semantic-compilation tests
 
 Must cover at least:
 
@@ -467,18 +400,9 @@ Must cover at least:
 - deterministic anonymous-id generation
 - explicit `id` overriding generated identity
 
-### 12.2 `keysOf(spec)` tests
-
-Must cover at least:
-
-- tree-shaped mirror output
-- canonical dot-path leaf values
-- deep-freeze behavior
-- identity-based memoization if caching is implemented
-
 ---
 
-## 13. Acceptance bar
+## 12. Acceptance bar
 
 This contract is satisfied only when all of the following are true:
 
@@ -486,13 +410,12 @@ This contract is satisfied only when all of the following are true:
 - semantic compilation rejects ambiguous canonical-key outcomes
 - anonymous authored specs normalize to deterministic identity
 - explicit authored ids still win
-- `keysOf(spec)` returns frozen structural mirrors with canonical leaf strings
 - tests prove the above behavior
-- docs teach structural authoring first, canonical compilation second, and `keysOf(spec)` consumption third
+- docs teach structural authoring first and canonical compilation second
 
 ---
 
-## 14. Non-goals
+## 13. Non-goals
 
 This contract does **not** define:
 
@@ -507,11 +430,10 @@ They are not part of this contract.
 
 ---
 
-## 15. Short version
+## 14. Short version
 
 Nested authored structure is real.
 Canonical runtime keys remain flat dot paths.
 Semantic compilation must protect that keyspace.
-`keysOf(spec)` projects canonical keys back into a structural mirror.
 
 That is the contract.

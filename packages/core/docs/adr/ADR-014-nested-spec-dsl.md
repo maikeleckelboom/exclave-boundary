@@ -1,4 +1,4 @@
-# ADR-014: Lock nested spec DSL and key mirror
+# ADR-014: Lock nested spec DSL
 
 > **Status:** Accepted
 > **Date:** 2026-05-10
@@ -12,14 +12,11 @@ Seqlok treats nested authored namespaces as a first-class authoring surface.
 
 Seqlok continues to treat flat dot-path keys as the only canonical runtime identity.
 
-`keysOf(spec)` is the official ergonomic bridge between those two facts.
-
 This ADR locks the following:
 
 - authored `params` and `meters` may be recursive namespace trees
 - semantic compilation flattens those trees into canonical dot-path runtime keys
 - flat canonical keys remain the runtime ABI
-- `keysOf(spec)` returns a structural mirror whose leaf values are those canonical keys
 - ambiguous canonical-key outcomes are rejected during semantic compilation
 - omitted authored `id` remains allowed, but anonymous specs must normalize to a deterministic generated id rather than a fixed placeholder
 
@@ -46,12 +43,11 @@ It also exposes a risk:
 If nested authoring exists but semantic compilation still tolerates ambiguous flattening, then two authored shapes can
 collapse into the same canonical runtime keyspace in ways that depend on traversal behavior or silent overwrite. That is not acceptable.
 
-The feature is therefore not merely “add a helper.”
 The feature is:
 
 - author structurally
 - compile canonically
-- consume through an ergonomic mirror
+- consume the canonical runtime keyspace directly
 - protect the canonical runtime keyspace with explicit rejection
 
 ---
@@ -90,22 +86,17 @@ Those keys remain the runtime ABI.
 They remain the planner-facing identity.
 They remain the binding-facing identity.
 
-### 3.3 Honest ergonomic projection
+### 3.3 Strictly typed canonical keys
 
-Consumers still need a typed ergonomic answer on the TypeScript side.
-
-`keysOf(spec)` is that answer.
-
-It returns a tree-shaped mirror of the authored namespace surface, but its leaves are canonical runtime keys:
+Consumers use the canonical flat dot-path keys directly. The compiled runtime contract is strictly typed, so those
+keys are already an ergonomic, type-safe surface:
 
 ```ts
-const keys = keysOf(spec);
-
-keys.params.transport.tempo;
+spec.params["transport.tempo"];
 // "transport.tempo"
 ```
 
-This gives ergonomic structural authoring and canonical runtime identity without inventing a second identity system.
+This keeps structural authoring and canonical runtime identity without inventing a second identity system.
 
 ---
 
@@ -152,15 +143,14 @@ If `id` is omitted, semantic compilation must generate a deterministic id from c
 
 A constant placeholder such as `"spec"` is not a valid normalized identity for anonymous specs.
 
-### 4.6 `keysOf(spec)` is the official ergonomic answer
+### 4.6 Canonical runtime keys are the typed ergonomic answer
 
-`keysOf(spec)` is the public API for obtaining a typed structural mirror whose leaves are canonical keys.
+The compiled runtime contract exposes params and meters as flat dot-path string keys. Those keys are already strictly
+typed and canonical.
 
-The helper must:
+The contract must:
 
-- always return `{ params, meters }`
-- preserve the authored namespace shape
-- return canonical dot-path strings at leaves
+- expose `{ params, meters }` as flat maps keyed by canonical dot-path strings
 - avoid aliases
 - avoid non-canonical alternative projections
 
@@ -317,11 +307,10 @@ That work includes:
 - duplicate canonical-key rejection
 - leaf/namespace conflict rejection
 - deterministic anonymous id generation
-- `keysOf(spec)` hardening and test coverage
 
 The exact implementation contract is defined in:
 
-- `packages/core/docs/spec/nested-spec-dsl-and-key-mirror-contract.md`
+- `packages/core/docs/spec/nested-spec-dsl-contract.md`
 
 ---
 
@@ -335,8 +324,7 @@ This ADR is only truly landed when all of the following are true:
 - invalid authored segments reject
 - explicit authored `id` still wins
 - omitted authored `id` produces deterministic generated identity
-- `keysOf(spec)` returns canonical-key mirrors
-- docs teach structural authoring plus canonical compilation plus `keysOf(spec)` consumption
+- docs teach structural authoring plus canonical compilation plus direct canonical-key consumption
 
 ---
 
@@ -344,7 +332,7 @@ This ADR is only truly landed when all of the following are true:
 
 Author structurally.
 Compile canonically.
-Consume through `keysOf(spec)`.
+Consume through canonical dot-path keys.
 
 The namespace tree is the authored surface.
 The dot-path key is the runtime identity.

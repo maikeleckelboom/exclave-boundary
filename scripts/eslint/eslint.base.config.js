@@ -87,7 +87,13 @@ export const BASE_RULES = {
   "import/extensions": [
     "error",
     "never",
-    { ts: "never", tsx: "never", js: "never", jsx: "never" },
+    {
+      ts: "never",
+      tsx: "never",
+      js: "never",
+      jsx: "never",
+      json: "always",
+    },
   ],
   "import/no-cycle": ["error", { maxDepth: 2 }],
 };

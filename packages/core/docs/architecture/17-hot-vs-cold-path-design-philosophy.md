@@ -79,7 +79,6 @@ Cold-path properties:
 Examples in Seqlok:
 
 - `defineSpec(...)`
-- `keysOf(spec)`
 - `planLayout(...)`
 - `buildHandoff(...)`
 - `acceptHandoff(...)`
@@ -190,15 +189,6 @@ Seqlok keeps that visible instead of pretending one write verb covers both clean
 This is authored-contract work.
 It belongs to authorship and setup, not runtime loops.
 
-### `keysOf(spec)`
-
-This is ergonomic projection work.
-It is useful, but it is not runtime-temperature doctrine.
-
-Its job is to make canonical keys pleasant to consume.
-It does not own identity.
-It does not belong in hot-path reasoning.
-
 ### `planLayout(...)`
 
 Planning is cold-path work.
@@ -275,7 +265,6 @@ are better than one giant "do everything" abstraction.
 ```ts
 import {
   defineSpec,
-  keysOf,
   planLayout,
   allocateShared,
   buildHandoff,
@@ -300,7 +289,6 @@ const spec = defineSpec(({ param, meter }) => ({
   },
 }));
 
-const keys = keysOf(spec);
 const plan = planLayout(spec);
 const backing = allocateShared(plan);
 const handoff = buildHandoff(plan, backing);
@@ -309,20 +297,17 @@ const controller = bindController(spec, plan, backing);
 const observer = bindObserver(acceptHandoff(handoff));
 
 // narrow write
-controller.params.set(keys.params.transport.timeRatio, 1.25);
+controller.params.set("transport.timeRatio", 1.25);
 
 // bulk restore
 controller.params.hydrate({
-  [keys.params.transport.timeRatio]: 1.0,
-  [keys.params.transport.mode]: "granular",
+  "transport.timeRatio": 1.0,
+  "transport.mode": "granular",
 });
 
 // dedicated read-side loop
 function sampleHud() {
-  const meters = observer.meters.snapshot([
-    keys.meters.output.rms,
-    keys.meters.output.peak,
-  ]);
+  const meters = observer.meters.snapshot(["output.rms", "output.peak"]);
   drawMeters(meters);
 }
 ```
@@ -348,11 +333,10 @@ function everyFrame() {
     meters: {},
   });
 
-  const keys = keysOf(freshSpec);
   const plan = planLayout(freshSpec);
 
   controller.params.hydrate({
-    [keys.params.gain]: Math.random(),
+    gain: Math.random(),
   });
 }
 ```

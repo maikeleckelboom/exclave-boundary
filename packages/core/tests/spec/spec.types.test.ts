@@ -11,8 +11,7 @@ import type {
   ParamKeys,
   ScalarMeterKeys,
   ScalarParamKeys,
-} from "../../src/spec/types";
-import type { CanonicalSpec } from "../../src/spec/types";
+ CanonicalSpec } from "../../src/spec/types";
 
 describe("Spec Keys Splitting (Compile-Time Contracts)", () => {
   it("Param/Meter keys", () => {

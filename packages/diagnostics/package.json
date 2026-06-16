@@ -33,7 +33,7 @@
     "README.md"
   ],
   "scripts": {
-    "clean": "rimraf dist *.tsbuildinfo .eslintcache pnpm-debug.log",
+    "clean": "rimraf dist --glob '*.tsbuildinfo' .eslintcache pnpm-debug.log",
     "build": "vite build && rollup -c rollup.dts.config.mts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
