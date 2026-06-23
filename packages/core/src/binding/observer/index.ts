@@ -3,7 +3,7 @@
  * Public observer binding factory.
  *
  * @remarks
- * - Bridges `ReceivedHandoff` or `SharedContext` into a typed `ObserverBinding`.
+ * - Bridges `AcceptedHandoff` or `SharedContext` into a typed `ObserverBinding`.
  * - Host-side (context/spec) observers can surface rich shapes (e.g. enum labels).
  * - Worker-side (handoff) observers fall back to numeric enum indices.
  * - Can be used in the same thread as the Controller OR in workers.
@@ -15,7 +15,7 @@ import { isSharedContext } from "../../context/guard";
 
 import type { Backing } from "../../backing/types";
 import type { SharedContext } from "../../context/types";
-import type { ReceivedHandoff } from "../../handoff/types";
+import type { AcceptedHandoff } from "../../handoff/types";
 import type { Plan } from "../../plan/types";
 import type { ParamDef, SpecInput } from "../../spec/types";
 import type { ObserverBinding, ObserverOptions } from "../common/types";
@@ -31,7 +31,7 @@ const EMPTY_PARAM_DEFS: Readonly<Record<string, ParamDef>> = {};
  *   (and thus label strings) is not present in the Handoff.
  */
 export function bindObserver<S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+  accepted: AcceptedHandoff<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 
@@ -66,26 +66,26 @@ export function bindObserver<S extends SpecInput>(
  * Implementation of bindObserver dispatching.
  */
 export function bindObserver<S extends SpecInput>(
-  arg1: ReceivedHandoff<S> | SharedContext<S> | S,
+  arg1: AcceptedHandoff<S> | SharedContext<S> | S,
   arg2?: ObserverOptions | Plan<S>,
   arg3?: Backing,
   arg4?: ObserverOptions,
 ): ObserverBinding<S> {
-  // Case 1: ReceivedHandoff (Worker / remote side)
-  if (isReceivedHandoff<S>(arg1)) {
-    const received = arg1;
+  // Case 1: AcceptedHandoff (Worker / remote side)
+  if (isAcceptedHandoff<S>(arg1)) {
+    const accepted = arg1;
     const options = arg2 as ObserverOptions | undefined;
 
     const backing: Backing =
-      received.packing === "shared"
-        ? { kind: "shared", sab: received.sab }
+      accepted.packing === "shared"
+        ? { kind: "shared", sab: accepted.sab }
         : {
             kind: "shared-partitioned",
-            planes: received.planes,
+            planes: accepted.planes,
           };
 
     // No spec on the remote side: enums remain numeric indices.
-    return observerImpl(received.plan, backing, EMPTY_PARAM_DEFS, options);
+    return observerImpl(accepted.plan, backing, EMPTY_PARAM_DEFS, options);
   }
 
   // Case 2: SharedContext (Host ergonomic)
@@ -108,9 +108,9 @@ export function bindObserver<S extends SpecInput>(
   return observerImpl(plan, backing, defs, options);
 }
 
-function isReceivedHandoff<S extends SpecInput>(
-  value: ReceivedHandoff<S> | SharedContext<S> | S,
-): value is ReceivedHandoff<S> {
+function isAcceptedHandoff<S extends SpecInput>(
+  value: AcceptedHandoff<S> | SharedContext<S> | S,
+): value is AcceptedHandoff<S> {
   return (
     typeof value === "object" &&
     "packing" in value &&

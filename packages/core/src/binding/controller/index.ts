@@ -7,7 +7,7 @@
  * - Matches the explicit golden flow:
  *
  *   defineSpec → planLayout → allocateShared → buildHandoff →
- *   receiveHandoff → bindController / bindProcessor
+ *   acceptHandoff → bindController / bindProcessor
  *
  * - The binding layer does not perform planning; callers are responsible
  *   for computing the Plan via `planLayout(spec)` and allocating a Backing

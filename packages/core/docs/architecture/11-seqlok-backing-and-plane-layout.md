@@ -22,7 +22,7 @@ import {
   planLayout,
   allocateShared,
   buildHandoff,
-  receiveHandoff,
+  acceptHandoff,
   bindController,
   bindProcessor,
 } from "@seqlok-internal/prototype-core";
@@ -43,8 +43,8 @@ const handoff = buildHandoff(plan, backing);
 // send `handoff` to another agent...
 
 // Agent-local processor binding (consumer side)
-const received = receiveHandoff(handoff);
-const processor = bindProcessor(received);
+const accepted = acceptHandoff(handoff);
+const processor = bindProcessor(accepted);
 ```
 
 From the user's point of view:
@@ -370,7 +370,7 @@ Internally:
 - Seqlock views (`locks.PU`, `locks.MU`) line up with the slots the bindings expect.
 
 > **Policy:** `mapViews` is an internal/advanced helper. In the canonical flow, the processor only sees a
-> `ReceivedHandoff` and `bindProcessor` builds its views from that; it does **not** call `mapViews` directly.
+> `AcceptedHandoff` and `bindProcessor` builds its views from that; it does **not** call `mapViews` directly.
 
 ---
 
@@ -459,7 +459,7 @@ ABI v1 constrains:
 
 As long as those invariants hold, backings are interchangeable from the perspective of:
 
-- `buildHandoff` / `receiveHandoff`,
+- `buildHandoff` / `acceptHandoff`,
 - `bindController` / `bindProcessor`,
 - the concurrency model documented elsewhere.
 

@@ -100,7 +100,7 @@ Benches are organized by "what decision they inform" rather than by module name:
 - [`bench/e2e-pipeline.bench.ts`](./e2e-pipeline.bench.ts)
   End-to-end setup times:
 
-  - `spec → planLayout → allocateShared/allocateSharedPartitioned → buildHandoff → receiveHandoff → bindController/bindProcessor/bindObserver`
+  - `spec → planLayout → allocateShared/allocateSharedPartitioned → buildHandoff → acceptHandoff → bindController/bindProcessor/bindObserver`
   - measured for small / medium / large specs.
 
 Each file has its own `describe(...)` scope so you can target a suite:

@@ -48,7 +48,7 @@ defineSpec
   -> planLayout
   -> allocateShared / allocateSharedPartitioned / allocateWasmShared
   -> buildHandoff
-  -> receiveHandoff
+  -> acceptHandoff
   -> bindController / bindProcessor / bindObserver
 ```
 
@@ -62,7 +62,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "@seqlok-internal/prototype-core";
 ```
 

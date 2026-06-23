@@ -7,7 +7,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../src";
 import { E2E_BENCH_OPTS } from "../vitest.config";
 
@@ -89,11 +89,11 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       const plan = planLayout(smallSpec);
       const backing = allocateShared(plan);
       const handoff = buildHandoff(plan, backing);
-      const received = receiveHandoff(handoff);
+      const accepted = acceptHandoff(handoff);
 
       // Exercise controller/processor bindings.
       bindController(smallSpec, plan, backing);
-      bindProcessor(received);
+      bindProcessor(accepted);
 
       // Trivial side-effect to keep the pipeline live.
       _blackhole ^= 1;
@@ -107,10 +107,10 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       const plan = planLayout(mediumSpec);
       const backing = allocateShared(plan);
       const handoff = buildHandoff(plan, backing);
-      const received = receiveHandoff(handoff);
+      const accepted = acceptHandoff(handoff);
 
       bindController(mediumSpec, plan, backing);
-      bindProcessor(received);
+      bindProcessor(accepted);
 
       _blackhole ^= 2;
     },
@@ -123,10 +123,10 @@ describe("End-to-end pipeline: plan, allocate, handoff, bind", () => {
       const plan = planLayout(largeSpec);
       const backing = allocateShared(plan);
       const handoff = buildHandoff(plan, backing);
-      const received = receiveHandoff(handoff);
+      const accepted = acceptHandoff(handoff);
 
       bindController(largeSpec, plan, backing);
-      bindProcessor(received);
+      bindProcessor(accepted);
 
       _blackhole ^= 4;
     },

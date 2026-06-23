@@ -6,7 +6,7 @@
  * memory layout and its backing across concurrency boundaries:
  *
  * - {@link Handoff} – owner-side transport envelope (protocol-level shape).
- * - {@link ReceivedHandoff} – processor-side capability (plan + backing descriptor).
+ * - {@link AcceptedHandoff} – processor-side capability (plan + backing descriptor).
  *
  * Design principles:
  *
@@ -15,7 +15,7 @@
  * - **Branded Types**: `Handoff<S>` uses a phantom brand to ensure that only
  *   envelopes created by `buildHandoff` can be passed to typed consumers, preventing
  *   accidental usage of raw objects.
- * - Processors bind from {@link ReceivedHandoff}, not from `(Plan, Backing)`.
+ * - Processors bind from {@link AcceptedHandoff}, not from `(Plan, Backing)`.
  */
 
 import type { Plan } from "../plan/types";
@@ -40,7 +40,7 @@ declare const HandoffBrand: unique symbol;
  * - Future versions may introduce additional packing modes
  *   (e.g. shared Wasm memory or hybrid layouts).
  *
- * This value is consumed by `receiveHandoff` and interpreted by bindings;
+ * This value is consumed by `acceptHandoff` and interpreted by bindings;
  * it is not meant to be inspected by most application code.
  */
 export type HandoffPacking = "shared" | "shared-partitioned";
@@ -61,7 +61,7 @@ interface SharedHandoff<S extends SpecInput = SpecInput> {
    *
    * @remarks
    * - Currently fixed to `1`.
-   * - Checked by `receiveHandoff` at the boundary.
+   * - Checked by `acceptHandoff` at the boundary.
    * - Incremented when making breaking changes to the envelope or its
    *   interpretation semantics.
    */
@@ -118,7 +118,7 @@ interface SharedPartitionedHandoff<S extends SpecInput = SpecInput> {
    *
    * @remarks
    * - Currently fixed to `1`.
-   * - Checked by `receiveHandoff` at the boundary.
+   * - Checked by `acceptHandoff` at the boundary.
    * - Incremented when making breaking changes to the envelope or its
    *   interpretation semantics.
    */
@@ -187,13 +187,13 @@ export type Handoff<S extends SpecInput = SpecInput> =
   | SharedPartitionedHandoff<S>;
 
 /**
- * Receiver-side view of a single-SAB handoff.
+ * Accepted view of a single-SAB handoff.
  *
  * @typeParam S - Spec type (inferred from `handoff.plan`).
  */
-interface ReceivedSharedHandoff<S extends SpecInput = SpecInput> {
+interface AcceptedSharedHandoff<S extends SpecInput = SpecInput> {
   /**
-   * Memory layout strategy used by this received handoff.
+   * Memory layout strategy used by this accepted handoff.
    *
    * @remarks
    * - Preserved from the original {@link Handoff} to allow bindings to
@@ -224,13 +224,13 @@ interface ReceivedSharedHandoff<S extends SpecInput = SpecInput> {
 }
 
 /**
- * Receiver-side view of a partitioned-SAB handoff.
+ * Accepted view of a partitioned-SAB handoff.
  *
  * @typeParam S - Spec type (inferred from `handoff.plan`).
  */
-interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
+interface AcceptedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
   /**
-   * Memory layout strategy used by this received handoff.
+   * Memory layout strategy used by this accepted handoff.
    *
    * @remarks
    * - Preserved from the original {@link Handoff} to allow bindings to
@@ -260,7 +260,7 @@ interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
 }
 
 /**
- * Result of `receiveHandoff` – validated handoff with typed plan.
+ * Result of `acceptHandoff` – validated handoff with typed plan.
  *
  * @typeParam S - Spec type (inferred from `handoff.plan`).
  *
@@ -273,7 +273,7 @@ interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
  *   - the backing descriptor (`sab` or `planes`), and
  *   - how to interpret it (`plan`).
  * - Protocol details like `version` are validated and then discarded by
- *   `receiveHandoff`.
+ *   `acceptHandoff`.
  *
  * **Authority model:**
  *
@@ -282,13 +282,13 @@ interface ReceivedSharedPartitionedHandoff<S extends SpecInput = SpecInput> {
  *   - then builds a {@link Handoff} via `buildHandoff(...)`,
  *   - and transfers it across the boundary.
  * - Processor:
- *   - calls `receiveHandoff(handoff)` and obtains `ReceivedHandoff<S>`,
- *   - then binds via `bindProcessor(received)`.
+ *   - calls `acceptHandoff(handoff)` and obtains `AcceptedHandoff<S>`,
+ *   - then binds via `bindProcessor(accepted)`.
  *
  * Processors do **not** bind directly from `(Plan<S>, Backing)`.
- * `ReceivedHandoff<S>` is the only supported input to `bindProcessor`,
+ * `AcceptedHandoff<S>` is the only supported input to `bindProcessor`,
  * preserving the separation between memory ownership and capability.
  */
-export type ReceivedHandoff<S extends SpecInput = SpecInput> =
-  | ReceivedSharedHandoff<S>
-  | ReceivedSharedPartitionedHandoff<S>;
+export type AcceptedHandoff<S extends SpecInput = SpecInput> =
+  | AcceptedSharedHandoff<S>
+  | AcceptedSharedPartitionedHandoff<S>;

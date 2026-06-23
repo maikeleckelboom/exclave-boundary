@@ -33,7 +33,7 @@ graph TB
   end
 
   subgraph "Worker Thread (Processor)"
-    F --> I[Receive Handoff<br/>receiveHandoff]
+    F --> I[Accept Handoff<br/>acceptHandoff]
     I --> K[Bind Processor<br/>bindProcessor]
     K --> L[Process Loop]
     L --> M[Coherent Param Read<br/>params.within]
@@ -52,7 +52,7 @@ graph TB
   H --> Q
 ```
 
-> **Verification note:** > `verifyHandoff(plan, received)` exists for diagnostics/tests (e.g. asserting a handoff matches a locally planned
+> **Verification note:** > `verifyHandoff(plan, accepted)` exists for diagnostics/tests (e.g. asserting a handoff matches a locally planned
 > layout). It can run on the controller side or in a non-RT worker. It is **not** part of the processor's hot path and
 > is omitted from the canonical runtime pipeline above.
 
@@ -77,8 +77,8 @@ sequenceDiagram
   UI ->> PROC: postMessage({ type: 'HANDOFF', handoff })
 
   Note over UI, RT: 2. WORKER INIT (Processor Side)
-  PROC ->> PROC: receiveHandoff(handoff) → ReceivedHandoff
-  PROC ->> PROC: bindProcessor(ReceivedHandoff)
+  PROC ->> PROC: acceptHandoff(handoff) → AcceptedHandoff
+  PROC ->> PROC: bindProcessor(AcceptedHandoff)
   PROC ->> RT: Start processing loop
 
   Note over UI, RT: 3. RUNTIME FLOW
@@ -265,7 +265,7 @@ gantt
     Meter Reads (ongoing)     :a7, after a5, 300
 
   section Worker Thread
-    Receive Handoff           :b1, after a5, 2
+    Accept Handoff            :b1, after a5, 2
     Bind Processor            :b3, after b1, 3
     Process Loop (ongoing)    :b4, after b3, 300
 

@@ -134,10 +134,10 @@ if (isDiagnosticsFeatureEnabled("seqlockTrace")) {
 const plan = planLayout(spec);
 const backing = allocateShared(plan);
 const handoff = buildHandoff(plan, backing);
-const received = receiveHandoff(handoff);
+const accepted = acceptHandoff(handoff);
 
 const controller = bindController(spec, backing);
-const processor = bindProcessor(received);
+const processor = bindProcessor(accepted);
 ```
 
 ### What's conceptual/future

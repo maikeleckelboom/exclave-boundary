@@ -23,7 +23,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../src";
 import { MICRO_BENCH_OPTS } from "../vitest.config";
 
@@ -46,10 +46,10 @@ describe("Observer read-path benchmarks", () => {
   const plan = planLayout(spec);
   const backing = allocateShared(plan);
   const handoff = buildHandoff(plan, backing);
-  const received = receiveHandoff(handoff);
+  const accepted = acceptHandoff(handoff);
 
   const controller = bindController(spec, plan, backing);
-  const processor = bindProcessor(received);
+  const processor = bindProcessor(accepted);
   const observer = bindObserver(spec, plan, backing);
 
   // Pre-warm: write non-zero values so snapshots see realistic data.

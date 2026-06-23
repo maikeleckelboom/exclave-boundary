@@ -78,7 +78,7 @@ defineSpec
 → planLayout
 → allocateShared / allocateWasmShared
 → buildHandoff
-→ receiveHandoff
+→ acceptHandoff
 → bind{Controller,Processor,Observer}
 ```
 

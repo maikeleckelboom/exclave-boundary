@@ -7,7 +7,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 /**
@@ -28,10 +28,10 @@ function createHarness() {
   const backing = allocateShared(plan);
 
   const handoff = buildHandoff(plan, backing);
-  const received = receiveHandoff(handoff);
+  const accepted = acceptHandoff(handoff);
 
   const ctl = bindController(spec, plan, backing);
-  const proc = bindProcessor(received);
+  const proc = bindProcessor(accepted);
 
   return { ctl, proc };
 }

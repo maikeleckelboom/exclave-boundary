@@ -9,7 +9,7 @@
 
 `@seqlok-internal/prototype-core` deliberately exposes **only** the high-level flow:
 
-- `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` / `receiveHandoff` → `bindController` /
+- `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` / `acceptHandoff` → `bindController` /
   `bindProcessor`
 
 The `primitives` layer (planes, atomics, seqlock internals) is treated as **internal implementation**, not a public API.

@@ -5,7 +5,7 @@ Deep-dive documents for `@seqlok-internal/prototype-core`.
 These are focused walkthroughs and patterns that build on the main README and API reference. They assume you already
 know the basic golden flow:
 
-> `defineSpec → planLayout → allocateShared/allocateWasmShared → buildHandoff → receiveHandoff → bindController / bindProcessor`
+> `defineSpec → planLayout → allocateShared/allocateWasmShared → buildHandoff → acceptHandoff → bindController / bindProcessor`
 
 ---
 

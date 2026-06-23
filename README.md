@@ -111,7 +111,7 @@ export function connectAudioEngine(audioWorkletNode: AudioWorkletNode) {
 ```ts
 import {
   bindProcessor,
-  receiveHandoff,
+  acceptHandoff,
   type Handoff,
 } from "@seqlok-internal/prototype-core";
 
@@ -123,8 +123,8 @@ let processor: ReturnType<typeof createProcessor> | undefined;
 let framesProcessed = 0;
 
 function createProcessor(handoff: Handoff<typeof audioEngineSpec>) {
-  const received = receiveHandoff(handoff);
-  return bindProcessor(received);
+  const accepted = acceptHandoff(handoff);
+  return bindProcessor(accepted);
 }
 
 export function attachHandoff(handoff: Handoff<typeof audioEngineSpec>): void {
@@ -177,7 +177,7 @@ export function processBlock(input: Float32Array): void {
 * `planLayout` lowers that authored structure into deterministic shared-memory field identity.
 * The host writes explicit field paths into shared backing.
 * The processor reads an ergonomic coherent view inside one critical section.
-* `buildHandoff` and `receiveHandoff` make the runtime-boundary artifact explicit instead of relying on ambient process
+* `buildHandoff` and `acceptHandoff` make the runtime-boundary artifact explicit instead of relying on ambient process
   state.
 * The processor publishes meters back to the host through a separate meter plane.
 * Write roles and read roles stay explicit instead of being hidden behind a generic message bus.

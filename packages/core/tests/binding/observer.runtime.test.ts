@@ -10,7 +10,7 @@ import {
   buildHandoff,
   defineSpec,
   planLayout,
-  receiveHandoff,
+  acceptHandoff,
 } from "../../src";
 
 describe("observer binding – coverage edges", () => {
@@ -108,8 +108,8 @@ describe("observer binding – coverage edges", () => {
 
     // Meters version: we at least exercise the meter publish path via handoff.
     const handoff = buildHandoff(plan, backing);
-    const received = receiveHandoff(handoff);
-    const processor = bindProcessor(received);
+    const accepted = acceptHandoff(handoff);
+    const processor = bindProcessor(accepted);
 
     const vM1 = observer.meters.version();
 

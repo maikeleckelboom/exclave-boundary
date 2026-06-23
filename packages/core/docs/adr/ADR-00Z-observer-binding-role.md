@@ -52,7 +52,7 @@ We add `bindObserver` to `@seqlok-internal/prototype-core` as the standard read-
 
 ```ts
 export function bindObserver<S extends SpecInput>(
-  received: ReceivedHandoff<S>,
+  accepted: AcceptedHandoff<S>,
   options?: ObserverOptions,
 ): ObserverBinding<S>;
 
@@ -90,7 +90,7 @@ export interface ObserverOptions {
 
 Notes:
 
-- `bindObserver` is **consumer-side** and always starts from a `ReceivedHandoff<S>`.
+- `bindObserver` is **consumer-side** and always starts from a `AcceptedHandoff<S>`.
 - It shares the same layout / plan as controller & processor.
 - It never has any ability to write into planes.
 

@@ -254,8 +254,8 @@ Policy-heavy helper APIs are intentionally outside the prototype core; higher-le
 
 ```ts
 // concept only – not v0.1.0 API
-const received = receiveHandoff(handoff);
-const observer = bindObserver(received, {
+const accepted = acceptHandoff(handoff);
+const observer = bindObserver(accepted, {
   /* observer options */
 });
 
