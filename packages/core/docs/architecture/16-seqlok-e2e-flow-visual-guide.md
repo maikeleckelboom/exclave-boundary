@@ -291,8 +291,7 @@ gantt
   on `MU`.
 - **Meters (controller):** `controller.meters.snapshot(...)` is a **cold-path, best-effort read** – ideal for HUDs and
   tooling, allowed to observe mixed frames under contention.
-- **Meters (observer, future):** visualizer-grade coherent meter snapshots live in a future **observer binding**
-  (e.g. in `@seqlok/compose`), which will use seqlock-aware helpers over `MU` with budgets and degrade policy.
+- **Meters (observer):** visualizer-grade coherent meter snapshots live in observer-style paths built on seqlock-aware helpers over `MU` with budgets and degrade policy.
 
 3. **Type safety end-to-end**
 

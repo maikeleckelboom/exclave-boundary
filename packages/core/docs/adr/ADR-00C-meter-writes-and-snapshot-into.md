@@ -22,7 +22,7 @@ We finalize two user-visible binding decisions:
 
   - `writer.stage('spectrum', (dst) => { /* mutate */ })`
 
-- There is **no `writer.set(key, valueOrMutator)`** in the core API. Dynamic-key dispatch and “one function to rule them all” patterns live in higher-level helpers (`@seqlok/compose`, product code), not in the kernel binding.
+- There is **no `writer.set(key, valueOrMutator)`** in the core API. Dynamic-key dispatch and “one function to rule them all” patterns live in higher-level helpers and product code, not in the kernel binding.
 
 2. **Controller snapshot keeps `into` as a nested option** (do **not** flatten).
 
@@ -339,7 +339,7 @@ Notes:
 
 - **Room for higher-level libraries**
 
-  - `@seqlok/compose` and product code can add:
+  - topology helpers and product code can add:
 
     - dynamic writers (`setDynamic(writer, key, value)`),
     - preset serializers built on `snapshot`/`hydrate`,

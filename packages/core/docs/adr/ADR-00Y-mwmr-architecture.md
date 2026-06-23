@@ -9,7 +9,7 @@
 - ADR-001 – Seqlok Core Golden Flow
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Z – Observer Binding Role in `@seqlok-internal/prototype-core`
-- ADR-00X – `@seqlok/compose` for System-Level Composition
+- ADR-00X - Historical System-Level Composition Proposal
 - ADR-010 – Ring Primitive in `@seqlok-internal/prototype-core` (SWSR queue)
 
 ---
@@ -96,7 +96,7 @@ The **system** is a graph of such domains wired with:
 - one or more **rings** for **fan-in** (many writers → hub/governor),
 - an optional registry domain for discovery/co-ordination.
 
-`@seqlok-internal/prototype-core` knows only about **domains** and the ring primitive itself. MWMR lives above it (compose + drivers).
+`@seqlok-internal/prototype-core` knows only about **domains** and the ring primitive itself. MWMR lives above it in topology code and drivers.
 
 ### 3.2 New Binding Role: `bindObserver` (delegated to ADR-00Z)
 
@@ -130,7 +130,7 @@ The ring primitive:
 
 - lives in `@seqlok-internal/prototype-core` as a generic, semantic-free SWSR queue,
 - operates over `SharedArrayBuffer` / shared Wasm memory with a fixed ABI,
-- is composed into MPSC patterns by higher layers (e.g. `@seqlok/compose` and drivers).
+- is composed into MPSC patterns by higher-level topology code and drivers.
 
 Rings **do not** expose Seqlok planes directly. They transport **intents**, not shared state.
 
@@ -246,7 +246,7 @@ This ADR clarifies that **orchestration is not** a concern of `@seqlok-internal/
   - owning engine lifecycle (spawn → configure → prime → preWarm → swap via `SwapTicket`),
   - respecting higher-level mode semantics (takeover/edit/passive).
 
-`@seqlok/compose` (ADR-00X) is the topology tool; drivers embed the actual run-time policy.
+ADR-00X preserves the historical topology-tool proposal. Current guidance is neutral: drivers own run-time policy, and topology remains an architectural layer above the prototype core.
 
 ---
 

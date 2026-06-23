@@ -503,8 +503,6 @@ the primitive those tools should be built on:
 - Project save/restore → `snapshot` + serialization + `hydrate`.
 - Future diff/merge helpers → compute `HydratePatch<S>` and call `hydrate`.
 
-Any future MWMR / composition layer (e.g. `@seqlok/compose`) should treat
-`hydrate` as the canonical bulk write primitive for each SWMR domain, layered
-on top of the existing seqlock-based controller/processor split.
+Any future host/runtime integration or topology helper should treat `hydrate` as the canonical bulk write primitive for each SWMR domain, layered on top of the existing seqlock-based controller/processor split.
 
 ---

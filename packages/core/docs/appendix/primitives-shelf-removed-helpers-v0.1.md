@@ -22,7 +22,7 @@ This document captures:
 - What was removed,
 - What it did / was meant to do,
 - The **exact TypeScript implementations** as they existed in v0.1.0 so they can be copy-pasted into other projects or
-  future packages.
+  future extractions.
 
 ---
 

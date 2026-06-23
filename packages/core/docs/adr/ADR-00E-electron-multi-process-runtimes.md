@@ -9,7 +9,7 @@
 - ADR-001 – Seqlok Core Golden Flow
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
-- ADR-00X – `@seqlok/compose` for System-Level Composition
+- ADR-00X - Historical System-Level Composition Proposal
 
 ---
 
@@ -58,7 +58,7 @@ We need to clarify:
 
 - Seqlok’s **core SWMR model**
 - the **MWMR system model** (ADR-00Y)
-- `@seqlok/compose` topology semantics (ADR-00X)
+- topology semantics (ADR-00X)
 
 We explicitly want to avoid:
 
@@ -128,7 +128,7 @@ is done via:
 
 but **not** via Seqlok-managed shared memory.
 
-Seqlok sees **one process at a time**. Anything cross-process is outside `@seqlok-internal/prototype-core` and `@seqlok/compose`.
+Seqlok sees **one process at a time**. Anything cross-process is outside `@seqlok-internal/prototype-core` and the boundary-substrate prototype.
 
 ---
 
@@ -229,13 +229,13 @@ Seqlok does **not** attempt to:
 - hide Electron's process model behind a Seqlok API
 
 Electron-specific features (e.g., window management, menus, OS integration) are handled at the app layer, not in
-`@seqlok-internal/prototype-core` or `@seqlok/compose`.
+`@seqlok-internal/prototype-core`.
 
 ---
 
 ## 6. Consequences
 
-- `@seqlok-internal/prototype-core` and `@seqlok/compose` remain **platform-neutral**:
+- `@seqlok-internal/prototype-core` remains **platform-neutral**:
 
   - no special Electron types or concepts
   - still usable in plain browser / Node / workers
@@ -261,7 +261,7 @@ Electron-specific features (e.g., window management, menus, OS integration) are 
 
   - contrasting “all-in-renderer” vs “split” architectures.
 
-- Optional helper in a **separate** package (not `@seqlok-internal/prototype-core`) to:
+- Optional helper outside `@seqlok-internal/prototype-core` to:
 
   - serialize ring payloads / hydrate patches across IPC
   - document recommended message formats

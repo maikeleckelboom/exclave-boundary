@@ -11,7 +11,7 @@
 - ADR-010 — Ring Primitive in `@seqlok-internal/prototype-core`
 - ADR-00C — Meter Writes & Snapshot `into` (Controller side)
 - ADR-00F — ControllerParams.hydrate() for Cold-Path Bulk Updates
-- ADR-00X — `@seqlok/compose` for System-Level Composition
+- ADR-00X - Historical System-Level Composition Proposal
 
 ---
 
@@ -34,7 +34,7 @@ ADR-00Y, ADR-00Z, and ADR-010 establish the architectural pieces for **lock-free
 - SWMR seqlock planes (params/meters),
 - SWSR ring primitive (intent buses),
 - observer bindings (read-only fan-out),
-- composition via `@seqlok/compose`.
+- composition via neutral topology language and drivers.
 
 This ADR **formalizes the invariants** those decisions imply and establishes normative guardrails for code review, tooling, and documentation.
 
@@ -444,7 +444,7 @@ function renderParticles() {
 This ADR formalizes the MWMR model established by ADR-00Y, ADR-00Z, and ADR-010:
 
 - **Primitives** (`@seqlok-internal/prototype-core`): SWMR planes + SWSR rings
-- **System** (`@seqlok/compose` + drivers): MWMR via composition
+- **System topology and drivers**: MWMR via composition
 - **Hard rule**: "MWMR exists only at the system topology level, never at the primitive/memory level"
 
 Any design that violates the invariants in section 3 or uses patterns from section 4 is architecturally incorrect and must be rejected.

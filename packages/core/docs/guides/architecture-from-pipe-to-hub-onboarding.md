@@ -141,14 +141,14 @@ respective write domains.
 
 ---
 
-## How the packages map to this story
+## How the layers map to this story
 
-Once you have this mental picture (whiteboard → noisy room → mailboxes + hub + cameras), the package structure becomes
-easier to remember.
+Once you have this mental picture (whiteboard -> noisy room -> mailboxes + hub + cameras), the layering becomes easier
+to remember.
 
-These descriptions are intentionally informal — they're here to build intuition, not to replace the technical reference.
+These descriptions are intentionally informal. They are here to build intuition, not to replace the technical reference.
 
-### `@seqlok-internal/prototype-core` – the physics
+### `@seqlok-internal/prototype-core` - the physics
 
 You can think of `core` as the **physics engine** of the shared state:
 
@@ -159,31 +159,31 @@ You can think of `core` as the **physics engine** of the shared state:
   - the **shared buffer layout**,
   - and a primitive **ring** implementation you can use as a mailbox.
 
-- It does **not** know what your app's commands mean. As far as `core` is concerned, it's all just bytes and numbers
+- It does **not** know what your app's commands mean. As far as `core` is concerned, it is all just bytes and numbers
   moving around.
 
-### `@seqlok/compose` – the blueprint
+### Topology and wiring
 
-You can think of `compose` as the **blueprint and wiring**:
+You can think of topology helpers as the **blueprint and wiring**:
 
-- It answers questions like:
+- They answer questions like:
 
-  - “How many domains do I have?”
-  - “Which ones are controllers, processors, observers?”
-  - “Where do I put mailboxes (rings)? Who writes to which mailbox?”
+  - "How many domains do I have?"
+  - "Which ones are controllers, processors, observers?"
+  - "Where do I put mailboxes (rings)? Who writes to which mailbox?"
 
-- It helps you go from a _topology description_ ("I have one engine, one hub, these rings…") to a wired set of bindings
-  and buffers.
-- It doesn't decide what a "PLAY" command does; it just helps you route and organize the pipes and mailboxes.
+- They help you go from a _topology description_ ("I have one engine, one hub, these rings...") to a wired set of
+  bindings and buffers.
+- They do not decide what a "PLAY" command does; they just help route and organize the pipes and mailboxes.
 
-### Your driver / application – the logic
+### Your driver / application - the logic
 
-Finally, there's **your application code**, which plugs Seqlok into a concrete product:
+Finally, there is **your application code**, which plugs Seqlok into a concrete product:
 
 - It defines **what the commands mean**:
 
-  - “When I see a `PLAY` command on this ring, set this param to 1."
-  - “When I see an `ENGINE_SWAP` command, schedule a swap at this frame."
+  - "When I see a `PLAY` command on this ring, set this param to 1."
+  - "When I see an `ENGINE_SWAP` command, schedule a swap at this frame."
 
 - It runs the **hub loop**:
 
@@ -200,24 +200,24 @@ Finally, there's **your application code**, which plugs Seqlok into a concrete p
 In short:
 
 - `core` cares about **how** bytes move safely.
-- `compose` cares about **where** things are connected.
-- Your application cares about **what** those messages _mean_ in your domain.
+- topology helpers care about **where** things are connected.
+- your application cares about **what** those messages _mean_ in your domain.
 
 ---
 
 ## A note about "command" as its own thing
 
-You might eventually see references to a dedicated "command" layer or helpers (for example, a `CommandRing<T>` type or
-common command utilities).
+You might eventually see references to a dedicated command layer or helpers, for example a `CommandRing<T>` type or
+common command utilities.
 
 The idea there is:
 
 - Keep `core` focused on primitives (rings, seqlocks, shared memory).
-- Potentially have a small, reusable set of helpers for "rings that carry commands".
-- Let `compose` focus on wiring those rings into larger topologies.
+- Potentially have a small, reusable set of helpers for rings that carry commands.
+- Let topology helpers focus on wiring those rings into larger systems.
 - Let your application stay in charge of actual behavior and policy.
 
-For now, it's enough to remember the big picture:
+For now, it is enough to remember the big picture:
 
 > Use mailboxes (rings) and a hub to keep the **memory** simple (SWSR) while the **system** feels flexible (MWMR).
-> Seqlok's packages just help you separate those concerns cleanly.
+> Seqlok's layering helps separate those concerns cleanly.

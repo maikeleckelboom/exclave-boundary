@@ -121,8 +121,7 @@ guarantees live in the observer role.
 
 **Who:** High-frequency visualizers (e.g. waveforms, swarms, analyzers) that need consistent frames.
 
-**Status:** architectural role. A dedicated `bindObserver` binding is designed but **not** part of `@seqlok-internal/prototype-core`
-v0.1.x yet; it is expected to live in higher layers (e.g. `@seqlok/compose` or similar).
+**Status:** architectural role. The prototype now includes `bindObserver`; policy-heavy visualizer helpers still belong outside the kernel.
 
 **Responsibilities:**
 
@@ -251,8 +250,7 @@ and the policy is testable in isolation.
 
 ### Usage sketch
 
-Exact API names are intentionally **not** part of `@seqlok-internal/prototype-core` yet; a future higher-level package is expected to
-provide something in this shape:
+Policy-heavy helper APIs are intentionally outside the prototype core; higher-level code can provide something in this shape:
 
 ```ts
 // concept only – not v0.1.0 API

@@ -54,5 +54,4 @@ Exposing low-level primitives as "public API" would increase maintenance cost an
 
 - A code reference for removed helpers, including exact TypeScript implementations, is kept in:
   `docs/appendix/primitives-shelf-removed-helpers-v1.md`.
-- If in the future there is real demand for low-level primitives, they may be extracted into a separate package (e.g.
-  `@seqlok/primitives` or `@typebits/core`) with its own API and stability guarantees.
+- If there is real demand for low-level primitives, that extraction needs a fresh design under the current boundary-substrate direction. This ADR does not reserve or promise a package name.

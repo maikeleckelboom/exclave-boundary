@@ -137,7 +137,7 @@ The Processor is **“the device brain”**: runs tight loops, does DSP / simula
 - UI graphs
 - Logging/metrics jobs
 - Secondary workers doing analysis
-- Future `bindObserver`-style bindings in `@seqlok/compose`
+- Observer bindings and helpers built around the current prototype surface
 
 They should:
 

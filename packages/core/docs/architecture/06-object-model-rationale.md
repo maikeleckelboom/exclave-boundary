@@ -275,9 +275,9 @@ This is **not** a blanket rejection of object-orientation. It's a **scoping deci
 
 Examples of places where OO / context styles are perfectly fine:
 
-- `@seqlok/web` – helpers for AudioWorklet / browser orchestration
-- `@seqlok/react` – React hooks and providers
-- `@seqlok/devtools` – inspector UIs, stateful debug contexts
+- browser orchestration helpers for AudioWorklet and worker setup
+- framework adapters such as hooks and providers
+- inspector UIs and stateful debug contexts
 - App-level "Session" / "Deck" / "Engine" classes in consumer code
 
 These can wrap the golden flow:

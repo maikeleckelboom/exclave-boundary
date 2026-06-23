@@ -582,7 +582,7 @@ Putting `receiveHandoff` inside `bindProcessor` or `bindObserver` breaks that me
 
 #### 4.3.5 Orchestration, registry, and tooling
 
-Higher-level packages (`@seqlok/compose` / orchestration, registries, debug tools) work directly with handoff envelopes:
+Higher-level orchestration, registries, and debug tools work directly with handoff envelopes:
 
 ```ts
 function attachDomain<S extends SpecInput>(handoff: Handoff<S>) {
@@ -888,7 +888,7 @@ controller binding (for example, small helpers that delegate to `params.set` / `
   but not sacred).
 - The exposure shape of debug/verification helpers (`verifyHandoff`, dev-only paranoid modes).
 - Soft limits / tuning knobs for `planLayout` (max array length, total bytes).
-- Where exactly advanced sanity checks live (core vs `@seqlok/debug`-style addon).
+- Where exactly advanced sanity checks live (core vs a diagnostic add-on).
 
 If you change any of the **frozen** names or semantics, this doc should be updated with:
 

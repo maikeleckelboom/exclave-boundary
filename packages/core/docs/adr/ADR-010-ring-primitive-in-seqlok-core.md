@@ -9,7 +9,7 @@
 - ADR-001 – Seqlok Core Golden Flow
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
-- ADR-00X – `@seqlok/compose` for System-Level Composition
+- ADR-00X - Historical System-Level Composition Proposal
 - ADR-00Z – Observer Binding Role in `@seqlok-internal/prototype-core`
 
 ---
@@ -35,8 +35,7 @@ Real-time systems like Dekzer also need a way to express **control flow**:
 - keep the hot path allocation-free and GC-friendly,
 - share the same memory across JS / Wasm / C++ runtimes.
 
-ADR-00Y and ADR-00X assume a **command ring / intent bus** but originally treated it as a separate package (
-`@seqlok/command-ring`).
+ADR-00Y and ADR-00X assume a **command ring / intent bus** but originally treated it as a named package extraction.
 
 This ADR decides that the underlying **ring primitive** is fundamental enough to live directly in `@seqlok-internal/prototype-core`
 alongside `seqlock`.
@@ -58,8 +57,7 @@ these properties:
   - exactly one producer binding,
   - exactly one consumer binding.
 
-Higher-level MPSC / MPMC patterns (MWMR intent buses) are built on top of this primitive by `@seqlok/compose` and
-product drivers.
+Higher-level MPSC / MPMC patterns (MWMR intent buses) are built on top of this primitive by topology code and product drivers.
 
 The primitive is part of `@seqlok-internal/prototype-core` **only as a mechanism**. All command semantics remain outside core.
 

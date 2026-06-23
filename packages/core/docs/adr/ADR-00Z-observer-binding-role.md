@@ -8,7 +8,7 @@
 
 - ADR-001 – Seqlok Core Golden Flow
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
-- ADR-00X – `@seqlok/compose` System Composition
+- ADR-00X - Historical System-Level Composition Proposal
 - ADR-00C – Meter Writes & Snapshot `into` (Controller side)
 
 ---
@@ -190,12 +190,7 @@ MWMR at the system level is achieved by:
   - many writers → ring(s) → one controller/processor pair,
   - one domain → many observers.
 
-Higher-level packages:
-
-- `@seqlok/compose`
-- product drivers like `@dekzer/device-*`
-
-can depend on `bindObserver` as the only way to attach additional readers to a domain.
+Higher-level topology helpers and product drivers can depend on `bindObserver` as the only way to attach additional readers to a domain.
 
 Any design that "needs more writers" must be expressed via:
 

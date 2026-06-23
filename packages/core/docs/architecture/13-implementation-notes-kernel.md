@@ -21,7 +21,7 @@ It intentionally does **not** provide:
 - schema migration or persistence
 - scheduling, scenes, or orchestration
 
-Those live in higher layers (devices, drivers, apps, `@seqlok/compose`).
+Those live in higher layers such as devices, drivers, apps, and host/runtime integration.
 
 ### Fail-fast over fail-safe
 

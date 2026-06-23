@@ -2,11 +2,11 @@
 
 Status: Engineering artifact. R&D prototype. Release held deliberately.
 
-This package is the preserved first Seqlok boundary-substrate implementation. It is now named `@seqlok-internal/prototype-core` and is private. It is public in this repository as engineering evidence, not as the final public API.
+This package is the preserved first Seqlok boundary-substrate implementation. It implements the prototype core behind the repository showcase: authored specs, deterministic layout planning, shared backing allocation, explicit handoff, coherent reads, and role-specific bindings across a runtime boundary.
 
-This repository is not an npm release target. The future Seqlok name remains reserved for a cleaner boundary-substrate extraction.
+The package is private and named `@seqlok-internal/prototype-core`. This repository is public as engineering evidence, not as the final public API or an npm release target. The future Seqlok name remains reserved for a cleaner boundary-substrate extraction.
 
-The original package shape exposed the wrong public mental model around controller, processor, observer, params, and meters. Those terms still exist in the prototype where they describe the historical implementation, but they should not be read as the final public Seqlok API vocabulary.
+The vocabulary around controller, processor, observer, params, and meters remains in this package as preserved prototype vocabulary. It should not be read as final public Seqlok doctrine.
 
 ---
 
@@ -24,6 +24,18 @@ The prototype implements typed shared-memory contracts for timing-sensitive syst
 - tests, regression coverage, and benchmarks for the substrate
 
 Audio and DSP were the first clients, but the implementation is about the broader boundary problem: a soft host/runtime side coordinating with timing-sensitive work across explicit shared-memory contracts.
+
+---
+
+## Prototype Showcase
+
+The root README contains the compact end-to-end example for the current prototype flow:
+
+- authored spec with transport, EQ, and output meters
+- host/controller layout, backing allocation, handoff, param writes, and meter snapshots
+- processor/runtime handoff receive, coherent param reads, and meter publication
+
+See [Prototype Showcase](../../README.md#prototype-showcase).
 
 ---
 
