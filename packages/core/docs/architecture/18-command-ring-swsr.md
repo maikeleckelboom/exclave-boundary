@@ -1,6 +1,6 @@
 # SWSR Command Ring
 
-**Status:** Draft – targeted for `@seqlok/core` v0.3.0
+**Status:** Draft – targeted for `@seqlok-internal/prototype-core` v0.3.0
 **Audience:** Engine orchestration, Dekzer driver, infra
 
 This document specifies a **Single-Writer Single-Reader (SWSR) command ring** used to

@@ -1,6 +1,7 @@
 {
-  "name": "@seqlok/core",
+  "name": "@seqlok-internal/prototype-core",
   "version": "0.2.0",
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",

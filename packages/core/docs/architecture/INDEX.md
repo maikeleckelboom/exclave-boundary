@@ -1,6 +1,6 @@
 # Architecture Docs
 
-Narrative system docs for `@seqlok/core`.
+Narrative system docs for `@seqlok-internal/prototype-core`.
 
 These explain the concepts, roles, and flows behind the API. If you want to understand **why** the primitives and
 bindings look the way they do, this is the place.

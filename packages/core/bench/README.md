@@ -1,4 +1,4 @@
-# `@seqlok/core` Benchmarks
+# `@seqlok-internal/prototype-core` Benchmarks
 
 The benches in `packages/core/bench` track the hot paths of the shared-memory pipeline:
 
@@ -25,7 +25,7 @@ reads, on a typical Node 20 + Vitest bench run.
 From the repo root:
 
 ```bash
-pnpm -F @seqlok/core run bench
+pnpm -F @seqlok-internal/prototype-core run bench
 ```
 
 This runs all `bench/*.bench.ts` files with Vitest's `bench` runner and prints detailed stats (hz, mean, percentiles)
@@ -36,7 +36,7 @@ for each case using the shared `MICRO_BENCH_OPTS` in [`vitest.config.ts`](../vit
 For CI / docs, use the report pipeline:
 
 ```bash
-pnpm -F @seqlok/core run bench:report
+pnpm -F @seqlok-internal/prototype-core run bench:report
 ```
 
 This does three things:
@@ -53,7 +53,7 @@ This does three things:
 - [`docs/performance/bench-results.json`](../docs/performance/bench-results.json) – raw JSON, kept alongside the docs.
 - An ASCII summary printed to stdout (the small bar charts you see in the logs).
 
-Re-run `pnpm -F @seqlok/core run bench:report` whenever you change benches or touch the hot paths.
+Re-run `pnpm -F @seqlok-internal/prototype-core run bench:report` whenever you change benches or touch the hot paths.
 
 ---
 
@@ -106,7 +106,7 @@ Benches are organized by "what decision they inform" rather than by module name:
 Each file has its own `describe(...)` scope so you can target a suite:
 
 ```bash
-pnpm -F @seqlok/core exec vitest bench bench/observer-reads.bench.ts
+pnpm -F @seqlok-internal/prototype-core exec vitest bench bench/observer-reads.bench.ts
 ```
 
 ---

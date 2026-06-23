@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2025-11-12
 **Revised:** 2025-11-22 (align with final `meters.publish` API; remove `writer.set`)
-**Scope:** `@seqlok/core` bindings — meter writing API and controller snapshots
+**Scope:** `@seqlok-internal/prototype-core` bindings — meter writing API and controller snapshots
 **Decision Owners:** Binding/API maintainers
 
 ---

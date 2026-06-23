@@ -128,7 +128,7 @@ is done via:
 
 but **not** via Seqlok-managed shared memory.
 
-Seqlok sees **one process at a time**. Anything cross-process is outside `@seqlok/core` and `@seqlok/compose`.
+Seqlok sees **one process at a time**. Anything cross-process is outside `@seqlok-internal/prototype-core` and `@seqlok/compose`.
 
 ---
 
@@ -229,13 +229,13 @@ Seqlok does **not** attempt to:
 - hide Electron's process model behind a Seqlok API
 
 Electron-specific features (e.g., window management, menus, OS integration) are handled at the app layer, not in
-`@seqlok/core` or `@seqlok/compose`.
+`@seqlok-internal/prototype-core` or `@seqlok/compose`.
 
 ---
 
 ## 6. Consequences
 
-- `@seqlok/core` and `@seqlok/compose` remain **platform-neutral**:
+- `@seqlok-internal/prototype-core` and `@seqlok/compose` remain **platform-neutral**:
 
   - no special Electron types or concepts
   - still usable in plain browser / Node / workers
@@ -261,7 +261,7 @@ Electron-specific features (e.g., window management, menus, OS integration) are 
 
   - contrasting “all-in-renderer” vs “split” architectures.
 
-- Optional helper in a **separate** package (not `@seqlok/core`) to:
+- Optional helper in a **separate** package (not `@seqlok-internal/prototype-core`) to:
 
   - serialize ring payloads / hydrate patches across IPC
   - document recommended message formats

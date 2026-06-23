@@ -42,7 +42,7 @@ We do not create "view classes" or wrapper objects. Instead, you define the memo
 Instead of writing a class with getters and setters, you describe the layout data types:
 
 ```ts
-import { defineSpec } from "@seqlok/core";
+import { defineSpec } from "@seqlok-internal/prototype-core";
 
 // 1. Define the structure (the "schema")
 export const boidSpec = defineSpec(({ param, meter }) => ({
@@ -173,7 +173,7 @@ Seqlok provides built-in utilities to verify the environment before you even att
 Don't wait for a crash. Fail fast during initialization using `assertSabSupport`.
 
 ```ts
-import { assertSabSupport } from "@seqlok/core";
+import { assertSabSupport } from "@seqlok-internal/prototype-core";
 
 function initDevice() {
   try {
@@ -194,7 +194,7 @@ function initDevice() {
 If you want to feature-detect without crashing, use `probeEnv`.
 
 ```ts
-import { probeEnv } from "@seqlok/core";
+import { probeEnv } from "@seqlok-internal/prototype-core";
 
 const env = probeEnv();
 
@@ -215,7 +215,7 @@ Seqlok errors are structured. Instead of parsing error strings, use the `interpr
 This is particularly useful for UI feedback ("Do I tell the user to reload, or just retry?").
 
 ```ts
-import { isSeqlokError, getErrorMeta, interpretHealth } from "@seqlok/core";
+import { isSeqlokError, getErrorMeta, interpretHealth } from "@seqlok-internal/prototype-core";
 
 try {
   // ... seqlok operations ...

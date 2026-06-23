@@ -1,13 +1,13 @@
 # Primitives Shelf: Removed Helpers in v0.1.0 (with Code Reference)
 
 > Status: Accepted
-> Scope: `src/primitives/*` in `@seqlok/core`
+> Scope: `src/primitives/*` in `@seqlok-internal/prototype-core`
 > Intent: Record the intent and **exact implementations** of primitives that were removed from the runtime, so they can
 > be resurrected or reused without spelunking history.
 
 ## 1. Context
 
-`@seqlok/core` deliberately exposes **only** the high-level flow:
+`@seqlok-internal/prototype-core` deliberately exposes **only** the high-level flow:
 
 - `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` / `receiveHandoff` → `bindController` /
   `bindProcessor`

@@ -1,4 +1,4 @@
-# Enum Helpers & UI Wiring (`@seqlok/core`)
+# Enum Helpers & UI Wiring (`@seqlok-internal/prototype-core`)
 
 This guide shows practical patterns for using the enum helpers in Seqlok
 to drive real UI controls, fixtures, and tools.
@@ -20,7 +20,7 @@ import {
   enumLabelFromIndex,
   type EnumLabel,
   type EnumKeyOf,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 ```
 
 Core shape:
@@ -49,8 +49,8 @@ Requirements:
 ## 1. Classic `<select>` bound to an enum param
 
 ```ts
-import type { ControllerBinding } from "@seqlok/core";
-import { enumValues } from "@seqlok/core";
+import type { ControllerBinding } from "@seqlok-internal/prototype-core";
+import { enumValues } from "@seqlok-internal/prototype-core";
 import { spec } from "./spec";
 
 type DemoSpec = typeof spec;
@@ -89,7 +89,7 @@ Use case: simple mode switcher with no hard-coded vocabulary.
 ## 2. Localized labels / pretty names with `enumPaletteFor`
 
 ```ts
-import { enumPaletteFor, type ControllerBinding } from "@seqlok/core";
+import { enumPaletteFor, type ControllerBinding } from "@seqlok-internal/prototype-core";
 import { spec } from "./spec";
 
 type DemoSpec = typeof spec;
@@ -140,7 +140,7 @@ Use case: segmented controls / buttons with localized labels.
 ## 3. Decode `Int32Array` indices → labels (`enum.array`)
 
 ```ts
-import { enumArrayToLabels } from "@seqlok/core";
+import { enumArrayToLabels } from "@seqlok-internal/prototype-core";
 import { spec } from "./spec";
 
 type DemoSpec = typeof spec;
@@ -163,7 +163,7 @@ Out-of-range index → `spec.enumInvalid` with `{ key, values, invalidIndex }`.
 ## 4. Encode labels → `Int32Array` indices
 
 ```ts
-import { enumLabelsToArray } from "@seqlok/core";
+import { enumLabelsToArray } from "@seqlok-internal/prototype-core";
 import { spec } from "./spec";
 
 type DemoSpec = typeof spec;
@@ -193,7 +193,7 @@ Typo in a label → `spec.enumInvalid` with `{ key, values, received }`.
 ## 5. Enum labels to colors/icons (HUD / legend)
 
 ```ts
-import { enumPaletteFor } from "@seqlok/core";
+import { enumPaletteFor } from "@seqlok-internal/prototype-core";
 import { spec } from "./spec";
 
 type DemoSpec = typeof spec;
@@ -245,7 +245,7 @@ import {
   enumIndexFromLabel,
   enumLabelFromIndex,
   enumValues,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 import { spec } from "./spec";
 
 type DemoSpec = typeof spec;
@@ -277,7 +277,7 @@ import {
   enumPaletteFor,
   type ControllerBinding,
   type SpecInput,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 
 export type EnumParamKey<S extends SpecInput> = Extract<
   keyof S["params"],

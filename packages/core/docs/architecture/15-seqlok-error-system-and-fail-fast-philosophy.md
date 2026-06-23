@@ -66,7 +66,7 @@ import {
   isSeqlokError,
   getErrorMeta,
   interpretHealth,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 ```
 
 - `ErrorCode` – finite union of string codes (`'env.unsupported'`, `'backing.allocUndersized'`, …).
@@ -118,7 +118,7 @@ Design constraints:
 Consumers never need to parse error messages. Instead, they use:
 
 ```ts
-import { isSeqlokError, getErrorMeta, interpretHealth } from "@seqlok/core";
+import { isSeqlokError, getErrorMeta, interpretHealth } from "@seqlok-internal/prototype-core";
 
 try {
   // … Seqlok operations …
@@ -431,7 +431,7 @@ import {
   isSeqlokError,
   interpretHealth,
   getErrorMeta,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 
 function createSeqlokDevice() {
   try {

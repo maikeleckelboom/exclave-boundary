@@ -1,4 +1,4 @@
-# @seqlok/core
+# @seqlok-internal/prototype-core
 
 ## 0.2.0
 
@@ -28,4 +28,4 @@
 - Finalize public flow: `defineSpec` → `planLayout` → `allocateShared` → `buildHandoff` → `receiveHandoff` →
   `bindController` / `bindProcessor`.
 - Ship SWMR seqlock primitives, backing/mapViews/handoff pipeline, diagnostics entrypoint
-  (`@seqlok/core/diagnostics`), and error system with tests.
+  (`@seqlok-internal/prototype-core/diagnostics`), and error system with tests.

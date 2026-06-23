@@ -2,7 +2,7 @@
 
 **Status:** Draft / Implementation Guidance
 
-**Scope:** `@seqlok/core` – bindings + diagnostics, _not_ primitives
+**Scope:** `@seqlok-internal/prototype-core` – bindings + diagnostics, _not_ primitives
 
 This doc freezes the mental model for how diagnostics counters and thresholds relate to seqlock usage, **without**
 wiring anything into primitives. It exists so we can implement the hooks later without re-arguing the design.

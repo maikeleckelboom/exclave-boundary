@@ -6,7 +6,7 @@ This doc explains how a validated **Plan** turns into concrete shared memory **B
 including plane layout, packing rules, and how `mapViews` ties it together.
 
 It's written for people working _inside_ Seqlok (or doing advanced diagnostics), not for everyday users of
-`@seqlok/core`.
+`@seqlok-internal/prototype-core`.
 
 ---
 
@@ -25,7 +25,7 @@ import {
   receiveHandoff,
   bindController,
   bindProcessor,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 
 const spec = defineSpec(/* ... */);
 

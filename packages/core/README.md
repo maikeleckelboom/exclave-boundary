@@ -1,391 +1,108 @@
-# @seqlok/core
+# Seqlok Boundary Substrate R&D
 
-**Seqlok**
-Lock-free shared-memory sync for real-time audio, workers, and WebAssembly.
+Status: Engineering artifact. R&D prototype. Release held deliberately.
 
----
+This package is the preserved first Seqlok boundary-substrate implementation. It is now named `@seqlok-internal/prototype-core` and is private. It is public in this repository as engineering evidence, not as the final public API.
 
-## Status: v0.2.0 · SWMR core + observer
+This repository is not an npm release target. The future Seqlok name remains reserved for a cleaner boundary-substrate extraction.
 
-Seqlok v0.2.0 ships the **single-writer, multi-reader (SWMR)** seqlock core, plus a formal observer role:
-
-- One writer, many readers over a shared backing (`SharedArrayBuffer`).
-- Controller ↔ processor bindings with coherent `within` reads and `publish` writes.
-- New **observer binding** for passive / telemetry consumers on the same SWMR planes:
-  - read-only `params.within(...)` and `params.snapshot(...)`,
-  - read-only `meters.snapshot(...)`,
-  - shared coherence/retry policy with controller/processor.
-- Typed-plane layout for params (PF32 / PI32 / PB) and meters (MF32 / MU32 / MF64 / MU).
-- Range-only v1 DSL: numeric scalars, fixed-length arrays, and enum / enum.array.
-- **SWSR ring primitive** (`primitives/swsr-ring`) as the building block for future MWMR command buses.
-- Decoupled mode only (JS + SAB); future MWMR/compose modes live in the design docs.
-- Diagnostics surface (`@seqlok/core/diagnostics`) for counters, env probing, and debug tools.
-
-**Zero-copy, seqlock-based state synchronization for real-time systems.**
-
-A typed shared-memory layer between:
-
-- a **Controller** (main/UI thread),
-- a **Processor** (Worker / AudioWorklet),
-- and optionally an **Observer** (telemetry / monitoring role),
-
-all sharing a single backing:
-
-- **Controller** writes **params** (what you want the engine to do).
-- **Processor** writes **meters** (what the engine is actually doing).
-- **Observer** reads both params/meters, but never writes.
-- All readers use coherent snapshots guarded by a seqlock so no one ever sees torn state.
-
-- **Zero allocations** – direct typed-array access over `SharedArrayBuffer`.
-- **Type-safe** – full TypeScript inference from spec → plan → backing → bindings.
-- **Coherent reads** – readers never observe partial writes.
-- **Predictable** – deterministic memory layout, no hidden orchestration or sugar in the core.
+The original package shape exposed the wrong public mental model around controller, processor, observer, params, and meters. Those terms still exist in the prototype where they describe the historical implementation, but they should not be read as the final public Seqlok API vocabulary.
 
 ---
 
-## Install
+## What This Prototype Explored
 
-```bash
-pnpm add @seqlok/core
+The prototype implements typed shared-memory contracts for timing-sensitive systems on the web and beyond. It covers:
+
+- authored contract compilation into runtime specs
+- deterministic layout planning
+- shared backing allocation, including partitioned and WASM-compatible backing
+- coherent reads over seqlock-protected planes
+- role-specific controller, processor, and observer bindings
+- explicit handoff artifacts for runtime or trust-boundary transfer
+- browser environment probes for `SharedArrayBuffer`, atomics, isolation, and related support
+- tests, regression coverage, and benchmarks for the substrate
+
+Audio and DSP were the first clients, but the implementation is about the broader boundary problem: a soft host/runtime side coordinating with timing-sensitive work across explicit shared-memory contracts.
+
+---
+
+## Prototype Flow
+
+The preserved flow is:
+
+```text
+defineSpec
+  -> planLayout
+  -> allocateShared / allocateSharedPartitioned / allocateWasmShared
+  -> buildHandoff
+  -> receiveHandoff
+  -> bindController / bindProcessor / bindObserver
 ```
 
-### Runtime requirements
-
-- ESM-only: modern browsers (≈2022+) or Node 20+.
-- `SharedArrayBuffer` must be available:
-
-  - **Browser**: correct COOP/COEP headers and `crossOriginIsolated === true`.
-  - **Worker / AudioWorklet**: same process, SAB enabled by the host.
-  - **Node**: recent Node with `SharedArrayBuffer` support (e.g. Node 20+).
-
----
-
-## Core concept: Spec → Plan → Backing → Handoff → Bindings
-
-Seqlok's API is shaped like the underlying protocol. There is **one golden flow** and the core does not provide
-shortcuts.
-
-1. **Spec** – what exists
-
-   ```ts
-   const spec = defineSpec(/* params + meters schema */);
-   ```
-
-2. **Plan** – how it is laid out in memory
-
-   ```ts
-   const plan = planLayout(spec);
-   ```
-
-3. **Backing** – where it lives (actual shared memory)
-
-   ```ts
-   const backing = allocateShared(plan);
-   ```
-
-4. **Handoff** – how layout + backing cross a trust boundary
-
-   ```ts
-   const handoff = buildHandoff(plan, backing);
-   ```
-
-5. **ReceivedHandoff + bindings** – how the other side sees it
-
-   ```ts
-   const received = receiveHandoff(handoff);
-   const controller = bindController(spec, plan, backing);
-   const processor = bindProcessor(received);
-   ```
-
-The important rule:
-
-> `planLayout` is called exactly once at the **Spec → Plan** boundary.
-> Backing and binding **consume** `Plan` — they never recompute it.
-
-There is **no** `bindController(spec, backing)` sugar in core.
-If you want shortcuts, you build them _on top_ of this flow.
-
----
-
-## Quick sketch: controller ↔ processor
-
-This is the minimal shape of a typical setup.
-
-### 1. Define a spec
-
-```ts
-import { defineSpec } from "@seqlok/core";
-
-export const deckSpec = defineSpec(({ param, meter }) => ({
-  id: "deck",
-  params: {
-    timeRatio: param.f32({ min: 0.25, max: 4 }),
-    eqBands: param.f32.array({ length: 8 }),
-    mode: param.enum(["normal", "granular"]),
-  },
-  meters: {
-    rms: meter.f32(),
-    peak: meter.f32(),
-    framesProcessed: meter.u32(),
-  },
-}));
-
-export type DeckSpec = typeof deckSpec;
-```
-
-### 2. Owner thread: spec → plan → backing → controller + handoff
+Example imports should use the private prototype package:
 
 ```ts
 import {
-  planLayout,
   allocateShared,
-  buildHandoff,
   bindController,
-  type Handoff,
-} from "@seqlok/core";
-import { deckSpec, type DeckSpec } from "./spec";
-
-const plan = planLayout(deckSpec);
-const backing = allocateShared(plan);
-const controller = bindController(deckSpec, plan, backing);
-
-const handoff: Handoff<DeckSpec> = buildHandoff(plan, backing);
-
-// handoff is what you post to a Worker / AudioWorklet
-worker.postMessage({ type: "handoff", handoff });
-
-// Example controller usage
-controller.params.set("timeRatio", 1.5);
-controller.params.update({ mode: "granular" });
-
-controller.params.stage("eqBands", (view) => {
-  for (let i = 0; i < view.length; i += 1) {
-    view[i] = i < 4 ? -3 : 3;
-  }
-});
-
-const meters = controller.meters.snapshot("rms", "peak", "framesProcessed");
-console.log(meters);
-```
-
-### 3. Worker / processor side: receive handoff → bind processor
-
-```ts
-import {
-  receiveHandoff,
   bindProcessor,
-  type Handoff,
-  type ProcessorBinding,
-} from "@seqlok/core";
-import type { DeckSpec } from "./spec";
-
-type InitMessage = {
-  type: "handoff";
-  handoff: Handoff<DeckSpec>;
-};
-
-let processor: ProcessorBinding<DeckSpec> | undefined;
-
-self.onmessage = (ev: MessageEvent<InitMessage>) => {
-  if (ev.data.type !== "handoff") return;
-
-  const received = receiveHandoff(ev.data.handoff);
-  processor = bindProcessor(received);
-};
-
-// Somewhere in your audio loop / worker loop
-function processBlock() {
-  if (!processor) return;
-
-  processor.params.within((params) => {
-    const { timeRatio, eqBands } = params;
-    const framesForBlock = Math.floor(128 * timeRatio);
-
-    processor.meters.publish((writer) => {
-      writer.rms(0.5);
-      writer.peak(0.9);
-
-      writer.stage("framesProcessed", () => {
-        // could be a scalar or array depending on the spec
-      });
-
-      // etc.
-    });
-  });
-}
-```
-
----
-
-## Observer: passive telemetry binding
-
-The **observer binding** is a read-only role over the same SWMR backing. It never writes params or meters; it just
-samples them coherently.
-
-### Host-side: bind from spec/plan/backing or SharedContext
-
-```ts
-import {
-  bindObserver,
-  type ObserverBinding,
-  type Handoff,
-  type ReceivedHandoff,
-} from "@seqlok/core";
-
-// Directly from spec + plan + backing
-const observer: ObserverBinding<DeckSpec> = bindObserver(
-  deckSpec,
-  plan,
-  backing,
-);
-
-// Or, if you built a SharedContext:
-import { createSharedContext } from "@seqlok/core";
-
-const ctx = createSharedContext(deckSpec);
-const controller = bindController(ctx);
-const observerFromCtx = bindObserver(ctx);
-```
-
-### Worker-side: bind from a received handoff
-
-```ts
-let observer: ObserverBinding<DeckSpec> | undefined;
-
-self.onmessage = (
-  ev: MessageEvent<{ type: "handoff"; handoff: Handoff<DeckSpec> }>,
-) => {
-  if (ev.data.type !== "handoff") return;
-
-  const received: ReceivedHandoff<DeckSpec> = receiveHandoff(ev.data.handoff);
-  observer = bindObserver(received);
-};
-
-// Periodic telemetry sampling loop
-function sampleTelemetry() {
-  if (!observer) return;
-
-  const meters = observer.meters.snapshot(["rms", "peak"]);
-  const params = observer.params.snapshot(["timeRatio", "mode"]);
-
-  // Ship to logging / HUD / time-series DB, etc.
-}
-```
-
-Observer uses the same seqlock-backed coherence layer as controller/processor, with configurable spin/retry budgets.
-
----
-
-## Host context helper
-
-For host-side code that reuses the same `{ spec, plan, backing }` across multiple bindings and handoffs, Seqlok exposes
-a small ergonomic helper:
-
-```ts
-import {
-  createSharedContext,
-  bindController,
-  bindObserver,
   buildHandoff,
-  type SharedContext,
-} from "@seqlok/core";
-import { deckSpec, type DeckSpec } from "./spec";
-
-const ctx: SharedContext<DeckSpec> = createSharedContext(deckSpec);
-
-// Reuse the same triple everywhere
-const controller = bindController(ctx);
-const observer = bindObserver(ctx);
-const handoff = buildHandoff(ctx);
+  defineSpec,
+  planLayout,
+  receiveHandoff,
+} from "@seqlok-internal/prototype-core";
 ```
 
-This is purely a host convenience; it does not change the underlying golden flow.
+---
+
+## Boundaries
+
+The package keeps the technical substance needed to inspect and validate the first implementation:
+
+- `defineSpec` compiles authored structure into the runtime contract consumed by planning.
+- `planLayout` is called once at the spec-to-plan boundary.
+- backing and bindings consume `Plan`; they do not recompute it.
+- readers use coherent snapshots guarded by seqlock state.
+- diagnostics remain available through the preserved diagnostics entry point.
+
+The prototype does not claim production readiness. It remains useful as evidence for which layout, backing, browser, and coherence decisions held up under tests, and for which API vocabulary should be avoided in the future public surface.
 
 ---
 
 ## Benchmarks
 
-Seqlok ships micro- and scenario-level benchmarks for both primitives (seqlock, SWSR ring) and end-to-end param/meter
-flows.
-
 Run the raw suite:
 
 ```bash
-pnpm bench
+pnpm -F @seqlok-internal/prototype-core run bench
 ```
 
-This executes all Vitest benches with a JSON reporter and writes the raw report to:
-
-```text
-bench-results.json
-```
-
-For a human-readable summary suitable for docs:
+Run and format the benchmark report:
 
 ```bash
-pnpm bench:report
+pnpm -F @seqlok-internal/prototype-core run bench:report
 ```
 
-This is equivalent to:
-
-```bash
-pnpm bench && pnpm bench:format
-```
-
-- `bench` produces `bench-results.json`.
-- `bench:format` (`tsx scripts/format-bench.ts`) reads `bench-results.json` and prints a Markdown-ready summary
-  (ASCII charts for hot-path ops and parameter writes) to stdout, and refreshes:
-
-  - `docs/performance/bench-results.generated.md`
-  - `docs/performance/bench-results.json`
-
-Treat these numbers as **regression guardrails**, not marketing claims.
+Treat these numbers as regression guardrails, not marketing claims.
 
 ---
 
-## Diagnostics
+## Future Seqlok Direction
 
-Diagnostics live on a separate entry point:
+The future public Seqlok name remains reserved for a cleaner boundary-substrate extraction around:
 
-```ts
-import {
-  snapshotCounters,
-  resetCounters,
-  type DiagnosticsCountersSnapshot,
-} from "@seqlok/core/diagnostics";
-```
+- layout
+- core publications
+- commands
+- lineage
+- invalidation
+- host/runtime integration
 
-Use this surface for:
-
-- Environment probing and SAB/COOP/COEP checks.
-- Binding / seqlock counters in stress harnesses.
-- Dev overlays and HUDs.
-
-It's designed so diagnostics can be tree-shaken out of production builds when unused.
+Browser support and future Electron compatibility remain proof constraints for that extraction.
 
 ---
 
 ## Documentation
 
-Full design docs live under `packages/core/docs`.
-
-Recommended entry points:
-
-- [`docs/INDEX.md`](./docs/INDEX.md) – map of all architecture docs and ADRs.
-- Concurrency model, seqlock rationale, planes layout, and architecture diagrams.
-- API reference for the explicit golden flow:
-
-  - `defineSpec`
-  - `planLayout`
-  - `allocateShared`
-  - `buildHandoff`
-  - `receiveHandoff`
-  - `bindController` (spec + plan + backing)
-  - `bindProcessor`
-  - `bindObserver`
-
----
-
-## License
-
-See the LICENSE file in this repository for current licensing terms.
+Additional design docs live under `packages/core/docs`. They describe the preserved prototype implementation and should be read as engineering history, not current public release guidance.

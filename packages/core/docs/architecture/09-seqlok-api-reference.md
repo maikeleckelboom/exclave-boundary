@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API documentation for `@seqlok/core`.
+Complete API documentation for `@seqlok-internal/prototype-core`.
 
 This file is about **shape and signatures**. For rationale and design notes, see:
 
@@ -356,7 +356,7 @@ import {
   buildHandoff,
   bindController,
   type Handoff,
-} from "@seqlok/core";
+} from "@seqlok-internal/prototype-core";
 
 export const spec = defineSpec(/* ... */);
 const plan = planLayout(spec);
@@ -397,8 +397,8 @@ declare function bindProcessor<S extends SpecInput>(
 Typical usage (worker / AudioWorklet):
 
 ```ts
-import { receiveHandoff, bindProcessor } from "@seqlok/core";
-import type { Handoff } from "@seqlok/core";
+import { receiveHandoff, bindProcessor } from "@seqlok-internal/prototype-core";
+import type { Handoff } from "@seqlok-internal/prototype-core";
 import type { Spec } from "./spec";
 
 self.onmessage = (

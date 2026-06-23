@@ -6,13 +6,13 @@ Accepted
 
 ## Context
 
-`@seqlok/core` historically had a `src/primitives` layer (planes, atomics, seqlock) with a larger export surface than the runtime actually needed:
+`@seqlok-internal/prototype-core` historically had a `src/primitives` layer (planes, atomics, seqlock) with a larger export surface than the runtime actually needed:
 
 - Some helpers were unused (`isPow2`, `isAligned`, `getSeq`, `isWriterActive`).
 - Some were design stubs for future features (`acquire`, `AcquireOptions`).
 - A couple of functions (`createSeqPair`, `tryRead`) existed primarily to support primitives tests.
 
-At the same time, the public value proposition of `@seqlok/core` is the **high-level binding pipeline**:
+At the same time, the public value proposition of `@seqlok-internal/prototype-core` is the **high-level binding pipeline**:
 
 - `defineSpec` → `planLayout` → `allocateShared` / `allocateWasmShared`
 - `buildHandoff` / `receiveHandoff`

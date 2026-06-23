@@ -9,14 +9,14 @@
 - ADR-001 – Seqlok Core Golden Flow
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
-- ADR-00Z – Observer Binding Role in `@seqlok/core` (`bindObserver`)
-- ADR-010 – Ring Primitive in `@seqlok/core` (SWSR intent queue)
+- ADR-00Z – Observer Binding Role in `@seqlok-internal/prototype-core` (`bindObserver`)
+- ADR-010 – Ring Primitive in `@seqlok-internal/prototype-core` (SWSR intent queue)
 
 ---
 
 ## 1. Context
 
-`@seqlok/core` is intentionally narrow:
+`@seqlok-internal/prototype-core` is intentionally narrow:
 
 ```txt
 defineSpec
@@ -67,7 +67,7 @@ We need a way to describe and realize **complex systems** that:
 
 5. Do all of this **declaratively**, with strong TS inference and minimal boilerplate.
 
-Stuffing this into `@seqlok/core` would:
+Stuffing this into `@seqlok-internal/prototype-core` would:
 
 - bloat core with topology/orchestration concerns,
 - tangle basic bindings with system-specific policies,
@@ -86,7 +86,7 @@ without contaminating either with product-specific orchestration.
 
 `@seqlok/compose` assumes:
 
-1. **Observer binding in `@seqlok/core` (ADR-00Z)**
+1. **Observer binding in `@seqlok-internal/prototype-core` (ADR-00Z)**
    A third binding role `bindObserver` exists alongside `bindController` and `bindProcessor`, providing:
 
 - read-only snapshots for params and meters,
@@ -230,7 +230,7 @@ It is intentionally small:
 
 Intended stacking:
 
-- **`@seqlok/core`**
+- **`@seqlok-internal/prototype-core`**
 
   - Enforces SWMR semantics per domain.
   - Provides seqlock-based param/meter primitives and snapshot/publish APIs.
@@ -298,7 +298,7 @@ Drivers:
   - clear separation of concerns,
   - strong TS inference across domains and runtimes.
 
-- `@seqlok/core` can stay small and stable.
+- `@seqlok-internal/prototype-core` can stay small and stable.
 
 - The ring primitive (ADR-010) stays focused on intent buses and can be reused outside `@seqlok/compose`.
 

@@ -7,8 +7,8 @@
 **Related**:
 
 - ADR-00Y — MWMR System Architecture via Domains + Observers + Rings
-- ADR-00Z — Observer Binding Role in `@seqlok/core`
-- ADR-010 — Ring Primitive in `@seqlok/core`
+- ADR-00Z — Observer Binding Role in `@seqlok-internal/prototype-core`
+- ADR-010 — Ring Primitive in `@seqlok-internal/prototype-core`
 - ADR-00C — Meter Writes & Snapshot `into` (Controller side)
 - ADR-00F — ControllerParams.hydrate() for Cold-Path Bulk Updates
 - ADR-00X — `@seqlok/compose` for System-Level Composition
@@ -48,7 +48,7 @@ This ADR **formalizes the invariants** those decisions imply and establishes nor
 
 ### 2.1 Primitive-Level Semantics (Immutable)
 
-`@seqlok/core` primitives are **strictly** single-writer:
+`@seqlok-internal/prototype-core` primitives are **strictly** single-writer:
 
 - **Seqlock planes** (params/meters): **SWMR**
 
@@ -443,7 +443,7 @@ function renderParticles() {
 
 This ADR formalizes the MWMR model established by ADR-00Y, ADR-00Z, and ADR-010:
 
-- **Primitives** (`@seqlok/core`): SWMR planes + SWSR rings
+- **Primitives** (`@seqlok-internal/prototype-core`): SWMR planes + SWSR rings
 - **System** (`@seqlok/compose` + drivers): MWMR via composition
 - **Hard rule**: "MWMR exists only at the system topology level, never at the primitive/memory level"
 

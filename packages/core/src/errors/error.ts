@@ -11,7 +11,7 @@
 import type { ErrorCode, ErrorPayload } from "./registry";
 
 /**
- * Custom error class for @seqlok/core library errors.
+ * Custom error class for @seqlok-internal/prototype-core library errors.
  *
  * @template C - The error code type (must be a valid ErrorCode)
  */

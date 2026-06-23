@@ -36,7 +36,7 @@ import type { ControllerBinding, ControllerOptions } from "../common/types";
  * @returns A typed controller binding for the given spec/plan/backing triple.
  *
  * @remarks
- * - This is the canonical controller API in `@seqlok/core`.
+ * - This is the canonical controller API in `@seqlok-internal/prototype-core`.
  * - The caller is responsible for:
  *   - Computing the plan once via `planLayout(spec)`.
  *   - Allocating a compatible backing via `allocateShared(plan)` (or a

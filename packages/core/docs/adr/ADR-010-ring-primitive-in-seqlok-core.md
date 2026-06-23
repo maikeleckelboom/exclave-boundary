@@ -1,4 +1,4 @@
-# ADR-010: Ring Primitive in `@seqlok/core`
+# ADR-010: Ring Primitive in `@seqlok-internal/prototype-core`
 
 **Status**: Accepted
 **Date**: 2025-11-19
@@ -10,13 +10,13 @@
 - ADR-002 – Memory Growth & Swap via Handoff Sequences
 - ADR-00Y – MWMR System Architecture via Domains + Observers + Rings
 - ADR-00X – `@seqlok/compose` for System-Level Composition
-- ADR-00Z – Observer Binding Role in `@seqlok/core`
+- ADR-00Z – Observer Binding Role in `@seqlok-internal/prototype-core`
 
 ---
 
 ## 1. Context
 
-`@seqlok/core` currently exposes:
+`@seqlok-internal/prototype-core` currently exposes:
 
 - seqlock-based **params/meters** primitives (snapshot/publish),
 - a deterministic layout pipeline: `spec → plan → backing → handoff → bindings`,
@@ -38,14 +38,14 @@ Real-time systems like Dekzer also need a way to express **control flow**:
 ADR-00Y and ADR-00X assume a **command ring / intent bus** but originally treated it as a separate package (
 `@seqlok/command-ring`).
 
-This ADR decides that the underlying **ring primitive** is fundamental enough to live directly in `@seqlok/core`
+This ADR decides that the underlying **ring primitive** is fundamental enough to live directly in `@seqlok-internal/prototype-core`
 alongside `seqlock`.
 
 ---
 
 ## 2. Decision
 
-We introduce a **generic, single-writer / single-reader (SWSR) ring primitive** in `@seqlok/core/src/primitives` with
+We introduce a **generic, single-writer / single-reader (SWSR) ring primitive** in `@seqlok-internal/prototype-core/src/primitives` with
 these properties:
 
 - lives next to `seqlock` and other low-level primitives,
@@ -61,7 +61,7 @@ these properties:
 Higher-level MPSC / MPMC patterns (MWMR intent buses) are built on top of this primitive by `@seqlok/compose` and
 product drivers.
 
-The primitive is part of `@seqlok/core` **only as a mechanism**. All command semantics remain outside core.
+The primitive is part of `@seqlok-internal/prototype-core` **only as a mechanism**. All command semantics remain outside core.
 
 ---
 
@@ -258,7 +258,7 @@ This allows:
 
 ## 7. Consequences
 
-- `@seqlok/core` now exposes **two fundamental concurrency primitives**:
+- `@seqlok-internal/prototype-core` now exposes **two fundamental concurrency primitives**:
 
   1. **Seqlock** – for bidirectional state sync (params/meters).
   2. **Ring primitive** – for unidirectional command queues (intent buses).
@@ -277,6 +277,6 @@ This allows:
 
 This ADR is the normative source for:
 
-- the presence and layout of the ring primitive in `@seqlok/core`,
+- the presence and layout of the ring primitive in `@seqlok-internal/prototype-core`,
 - its relationship to MWMR system design (ADR-00Y),
 - its role relative to `bindObserver` and drivers described in ADR-00X / ADR-00Z.

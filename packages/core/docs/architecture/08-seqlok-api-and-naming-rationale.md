@@ -64,14 +64,14 @@ the handoff:
 
 ```ts
 // worker / AudioWorklet
-import { receiveHandoff, bindProcessor, bindObserver } from "@seqlok/core";
+import { receiveHandoff, bindProcessor, bindObserver } from "@seqlok-internal/prototype-core";
 import type { MySpec } from "./spec";
-import type { Handoff } from "@seqlok/core";
+import type { Handoff } from "@seqlok-internal/prototype-core";
 
 type InitMessage = { type: "INIT"; handoff: Handoff<MySpec> };
 
-let proc: import("@seqlok/core").ProcessorBinding<MySpec> | undefined;
-let hud: import("@seqlok/core").ObserverBinding<MySpec> | undefined;
+let proc: import("@seqlok-internal/prototype-core").ProcessorBinding<MySpec> | undefined;
+let hud: import("@seqlok-internal/prototype-core").ObserverBinding<MySpec> | undefined;
 
 self.onmessage = (ev: MessageEvent<InitMessage>) => {
   if (ev.data.type !== "INIT") return;
@@ -855,7 +855,7 @@ A property-style API like `controller.params.volume.set(0.8)`:
 
 If you prefer "handles" like `volume.set(value)` and `volume.get()`, build them in your own control layer on top of the
 controller binding (for example, small helpers that delegate to `params.set` / `params.snapshot`).
-`@seqlok/core` stays the boring, explicit wire.
+`@seqlok-internal/prototype-core` stays the boring, explicit wire.
 
 ---
 

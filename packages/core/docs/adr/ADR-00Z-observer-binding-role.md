@@ -1,4 +1,4 @@
-# ADR-00Z: Observer Binding Role in `@seqlok/core`
+# ADR-00Z: Observer Binding Role in `@seqlok-internal/prototype-core`
 
 **Status**: Proposed
 **Date**: 2025-11-18
@@ -46,7 +46,7 @@ We want a first-class **observer** role with:
 
 ## 2. Decision
 
-We add `bindObserver` to `@seqlok/core` as the standard read-only binding.
+We add `bindObserver` to `@seqlok-internal/prototype-core` as the standard read-only binding.
 
 ### 2.1 API surface (conceptual)
 

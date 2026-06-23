@@ -2,7 +2,7 @@
 
 **Context**: High-performance visualization
 **Target**: 10k+ entities, waveforms, analyzers
-**Tech**: `@seqlok/core`, WebGPU, WGSL
+**Tech**: `@seqlok-internal/prototype-core`, WebGPU, WGSL
 
 ---
 

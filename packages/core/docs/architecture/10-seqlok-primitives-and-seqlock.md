@@ -11,7 +11,7 @@ Lock-free building blocks used by the planner, backing layer, and bindings.
 - SWMR-friendly (Single-Writer / Multiple-Reader)
 - Thin, policy-light surfaces – all higher-level policy lives in bindings and composition layers
 
-Primitives live as a **small internal layer** in `@seqlok/core`:
+Primitives live as a **small internal layer** in `@seqlok-internal/prototype-core`:
 
 - Seqlock (dual-counter, SWMR)
 - Atomics helpers

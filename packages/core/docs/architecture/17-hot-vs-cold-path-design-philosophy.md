@@ -6,7 +6,7 @@
 
 - ADR-00C — Meter Writes & Snapshot `into` (Controller side)
 - ADR-00F — ControllerParams.hydrate() for Cold-Path Bulk Updates
-- ADR-00Z — Observer Binding Role in `@seqlok/core`
+- ADR-00Z — Observer Binding Role in `@seqlok-internal/prototype-core`
 - 07 — Seqlok API Shape Rationale
 - 09 — Seqlok API Reference
 

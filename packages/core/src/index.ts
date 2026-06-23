@@ -3,7 +3,7 @@
  * Core module for Seqlok - Shared memory synchronization for real-time applications.
  *
  * @remarks
- * - Re-exports all public APIs for the @seqlok/core package.
+ * - Re-exports all public APIs for the @seqlok-internal/prototype-core package.
  * - Organized into logical sections: SPEC, PLAN, BACKING, BINDING, HANDOFF, and ERRORS.
  * - This is the main entry point for consumers of the library.
  */

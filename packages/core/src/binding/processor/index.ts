@@ -31,7 +31,7 @@ import type { ProcessorBinding, ProcessorOptions } from "../common/types";
  * @example
  * ```ts
  * // Worker side:
- * import { receiveHandoff, bindProcessor } from '@seqlok/core';
+ * import { receiveHandoff, bindProcessor } from '@seqlok-internal/prototype-core';
  * import type { MySpec } from './spec';  // type-only import
  *
  * type InitMessage = { handoff: Handoff<MySpec> };

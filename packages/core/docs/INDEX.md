@@ -1,4 +1,4 @@
-# `@seqlok/core` – Documentation Index
+# `@seqlok-internal/prototype-core` – Documentation Index
 
 This folder is the **design brain** of Seqlok core.
 
