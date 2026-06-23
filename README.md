@@ -70,8 +70,8 @@ const accepted = acceptHandoff(handoff);
 const processor = bindProcessor(accepted);
 
 processor.params.within((params) => {
-  const rate = params["playback.rate"];
-  const gain = params["mixer.volume"];
+  const rate = params.playback.rate;
+  const gain = params.mixer.volume;
   processAudioBlock(rate, gain);
 });
 

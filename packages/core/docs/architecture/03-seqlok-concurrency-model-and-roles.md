@@ -245,7 +245,7 @@ function processBlock(): void {
   if (!processor) return;
 
   processor.params.within((params) => {
-    const timeRatio = params["transport.timeRatio"];
+    const timeRatio = params.transport.timeRatio;
 
     processor.meters.publish((writer) => {
       writer.set("output.rms", 0.42 * timeRatio);

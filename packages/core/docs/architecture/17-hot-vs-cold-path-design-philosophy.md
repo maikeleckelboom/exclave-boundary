@@ -146,8 +146,8 @@ Example:
 
 ```ts
 processor.params.within((params) => {
-  const timeRatio = params["transport.timeRatio"];
-  const mode = params["transport.mode"];
+  const timeRatio = params.transport.timeRatio;
+  const mode = params.transport.mode;
 
   processor.meters.publish((writer) => {
     writer.set("output.rms", 0.42 * timeRatio);
