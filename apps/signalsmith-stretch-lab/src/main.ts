@@ -39,6 +39,12 @@ import {
   readSourceStatus,
   writeDesiredControls,
 } from "./boundary/session";
+import { enqueueApplyLoop, enqueuePlayLoop } from "./loop/loop-commands";
+import {
+  validateLoopRange,
+  type LoopRange,
+  type LoopValidationResult,
+} from "./loop/loop-validation";
 import { FakeStretchEngine } from "./runtime/fake-stretch-engine";
 import {
   SIGNALSMITH_LINEAR_REF,
@@ -63,7 +69,6 @@ import {
   matchingListeningPreset,
   type DesiredStretchControls,
   type ListeningPreset,
-  type LoopPreview,
   type ProcessedLevelsSnapshot,
   type RuntimeStatusSnapshot,
   type SimulatedSource,
@@ -82,6 +87,20 @@ type WavLoadMode =
   | "probing"
   | "synthetic"
   | "unsupported";
+
+interface LoopDraft {
+  readonly endFrame: number;
+  readonly hasEnd: boolean;
+  readonly hasStart: boolean;
+  readonly revision: number;
+  readonly startFrame: number;
+}
+
+interface LoopDraftStatus {
+  readonly complete: boolean;
+  readonly draft: LoopDraft;
+  readonly validation: LoopValidationResult;
+}
 
 if (!(root instanceof HTMLElement)) {
   throw new Error("Missing app root");
@@ -123,12 +142,7 @@ function startLab(appRoot: HTMLElement): void {
     let waveformAbort: AbortController | null = null;
     let requestedSeekFrame: number | null = null;
     let loopRevision = 1;
-    let loopPreview: LoopPreview = {
-      enabled: false,
-      endFrame: source.frames,
-      revision: loopRevision,
-      startFrame: 0,
-    };
+    let loopDraft = createLoopDraft(source.frames, loopRevision);
     let clipBaselineLeft = 0;
     let clipBaselineRight = 0;
 
@@ -278,33 +292,27 @@ function startLab(appRoot: HTMLElement): void {
       commitSeek(Number(elements.seekFrame.value));
     });
     elements.loopStart.addEventListener("input", () => {
-      updateLoopPreview();
+      updateLoopDraftFromInputs("start");
     });
     elements.loopEnd.addEventListener("input", () => {
-      updateLoopPreview();
+      updateLoopDraftFromInputs("end");
+    });
+    elements.markLoopStartButton.addEventListener("click", () => {
+      markLoopBoundary("start");
+    });
+    elements.markLoopEndButton.addEventListener("click", () => {
+      markLoopBoundary("end");
     });
     elements.setLoopButton.addEventListener("click", () => {
-      updateLoopPreview();
-      loopRevision += 1;
-      loopPreview = { ...loopPreview, enabled: true, revision: loopRevision };
-      commands.enqueue("setLoop", {
-        loopEndFrame: loopPreview.endFrame,
-        loopStartFrame: loopPreview.startFrame,
+      applyDraftLoop();
+    });
+    elements.playLoopButton.addEventListener("click", () => {
+      void resumeForGesture().then(() => {
+        playDraftLoop();
       });
-      prefetchForFrame(loopPreview.startFrame, { latest: false });
-      prefetchForFrame(loopPreview.endFrame, { latest: false });
-      render();
     });
     elements.clearLoopButton.addEventListener("click", () => {
-      loopRevision += 1;
-      loopPreview = {
-        enabled: false,
-        endFrame: source.frames,
-        revision: loopRevision,
-        startFrame: 0,
-      };
-      commands.enqueue("clearLoop");
-      render();
+      clearDraftAndAppliedLoop();
     });
 
     elements.fileInput.addEventListener("change", () => {
@@ -376,20 +384,30 @@ function startLab(appRoot: HTMLElement): void {
             ? false
             : desired.active;
 
-      if (nextActive !== desired.active) {
-        desired = {
-          ...desired,
-          active: nextActive,
-          desiredSequence: nextSequence(desired.desiredSequence),
-        };
-        writeDesiredControls(session, desired);
-      }
+      setDesiredActive(nextActive);
 
       commands.enqueue(name);
+      pumpSimulatorCommandRing();
+      render();
+    }
+
+    function setDesiredActive(active: boolean): void {
+      if (active === desired.active) {
+        return;
+      }
+
+      desired = {
+        ...desired,
+        active,
+        desiredSequence: nextSequence(desired.desiredSequence),
+      };
+      writeDesiredControls(session, desired);
+    }
+
+    function pumpSimulatorCommandRing(): void {
       if (!realRuntimeOwnsCommandRing()) {
         engine.tick({ renderQuantum: 128 });
       }
-      render();
     }
 
     function commitSeek(value: number): void {
@@ -399,27 +417,87 @@ function startLab(appRoot: HTMLElement): void {
       elements.seekFrame.value = String(frame);
       prefetchForFrame(frame);
       commands.enqueue("seek", { targetSourceFrame: frame });
-      if (!realRuntimeOwnsCommandRing()) {
-        engine.tick({ renderQuantum: 128 });
-      }
+      pumpSimulatorCommandRing();
       render();
     }
 
-    function updateLoopPreview(): void {
+    function updateLoopDraftFromInputs(boundary: "end" | "start"): void {
       const startFrame = clamp(
         Number(elements.loopStart.value),
         0,
         source.frames,
       );
       const endFrame = clamp(Number(elements.loopEnd.value), 0, source.frames);
-      loopPreview = {
-        enabled: endFrame > startFrame,
+      loopDraft = {
+        ...loopDraft,
         endFrame,
-        revision: loopRevision,
+        hasEnd: boundary === "end" ? true : loopDraft.hasEnd,
+        hasStart: boundary === "start" ? true : loopDraft.hasStart,
+        revision: nextLoopRevision(),
         startFrame,
       };
-      elements.loopStartValue.textContent = formatFrame(startFrame);
-      elements.loopEndValue.textContent = formatFrame(endFrame);
+      syncLoopDraftInputs();
+      render();
+    }
+
+    function markLoopBoundary(boundary: "end" | "start"): void {
+      const runtime = readRuntimeStatus(session);
+      const frame = clamp(runtime.sourceFrame, 0, source.frames);
+
+      loopDraft =
+        boundary === "start"
+          ? {
+              ...loopDraft,
+              hasStart: true,
+              revision: nextLoopRevision(),
+              startFrame: frame,
+            }
+          : {
+              ...loopDraft,
+              endFrame: frame,
+              hasEnd: true,
+              revision: nextLoopRevision(),
+            };
+      syncLoopDraftInputs();
+      render();
+    }
+
+    function applyDraftLoop(): void {
+      const runtime = readRuntimeStatus(session);
+      const status = validateLoopDraft(runtime);
+
+      if (!status.complete || !status.validation.valid) {
+        render();
+        return;
+      }
+
+      prefetchForLoop(status.validation.range, runtime);
+      enqueueApplyLoop(commands, status.validation.range, loopFacts(runtime));
+      pumpSimulatorCommandRing();
+      render();
+    }
+
+    function playDraftLoop(): void {
+      const runtime = readRuntimeStatus(session);
+      const status = validateLoopDraft(runtime);
+
+      if (!status.complete || !status.validation.valid) {
+        render();
+        return;
+      }
+
+      setDesiredActive(true);
+      prefetchForLoop(status.validation.range, runtime);
+      enqueuePlayLoop(commands, status.validation.range, loopFacts(runtime));
+      pumpSimulatorCommandRing();
+      render();
+    }
+
+    function clearDraftAndAppliedLoop(): void {
+      loopDraft = createLoopDraft(source.frames, nextLoopRevision());
+      syncLoopDraftInputs();
+      commands.enqueue("clearLoop");
+      pumpSimulatorCommandRing();
       render();
     }
 
@@ -466,13 +544,7 @@ function startLab(appRoot: HTMLElement): void {
         sourceStatusText = loaded.formatSummary;
         wavMode = loaded.kind === "chunked-wav" ? "chunked" : "browser decoded";
         resetWaveformToSynthetic();
-        loopRevision += 1;
-        loopPreview = {
-          enabled: false,
-          endFrame: source.frames,
-          revision: loopRevision,
-          startFrame: 0,
-        };
+        loopDraft = createLoopDraft(source.frames, nextLoopRevision());
         requestedSeekFrame = null;
         engine.loadSource(source);
         updateSourceLimits();
@@ -605,6 +677,27 @@ function startLab(appRoot: HTMLElement): void {
       frame: number,
       options: { readonly latest?: boolean } = {},
     ): void {
+      prefetchWithGate(
+        (prefetcher) => prefetcher.prefetchAround(frame),
+        options,
+      );
+    }
+
+    function prefetchForWindow(
+      startFrame: number,
+      frameCount: number,
+      options: { readonly latest?: boolean } = {},
+    ): void {
+      prefetchWithGate(
+        (prefetcher) => prefetcher.prefetchWindow(startFrame, frameCount),
+        options,
+      );
+    }
+
+    function prefetchWithGate(
+      load: (prefetcher: SourcePrefetch) => Promise<PlanarFrameChunk>,
+      options: { readonly latest?: boolean },
+    ): void {
       if (!prefetch || acceptedSource?.kind !== "chunked-wav") {
         return;
       }
@@ -620,11 +713,81 @@ function startLab(appRoot: HTMLElement): void {
       };
 
       if (options.latest === false) {
-        void prefetcher.prefetchAround(frame).then(postChunk);
+        void load(prefetcher).then(postChunk);
         return;
       }
 
-      prefetchGate.request(() => prefetcher.prefetchAround(frame), postChunk);
+      prefetchGate.request(() => load(prefetcher), postChunk);
+    }
+
+    function prefetchForLoop(
+      range: LoopRange,
+      runtime: RuntimeStatusSnapshot,
+    ): void {
+      const prefetchFrames = loopPrefetchFrames(runtime);
+      const halfWindow = Math.floor(prefetchFrames / 2);
+
+      prefetchForFrame(range.startFrame, { latest: false });
+      prefetchForWindow(
+        Math.max(0, range.startFrame - halfWindow),
+        prefetchFrames,
+        { latest: false },
+      );
+      prefetchForWindow(
+        Math.max(0, range.endFrame - prefetchFrames),
+        prefetchFrames,
+        { latest: false },
+      );
+      prefetchForFrame(range.endFrame, { latest: false });
+      prefetchForWindow(
+        Math.max(0, range.endFrame - halfWindow),
+        prefetchFrames,
+        { latest: false },
+      );
+    }
+
+    function loopPrefetchFrames(runtime: RuntimeStatusSnapshot): number {
+      return Math.max(
+        4_096,
+        runtime.bufferLengthFrames,
+        runtime.blockSamples + runtime.intervalSamples,
+      );
+    }
+
+    function validateLoopDraft(
+      runtime: RuntimeStatusSnapshot,
+    ): LoopDraftStatus {
+      return {
+        complete: loopDraft.hasStart && loopDraft.hasEnd,
+        draft: loopDraft,
+        validation: validateLoopRange(loopDraft, loopFacts(runtime)),
+      };
+    }
+
+    function loopFacts(runtime: RuntimeStatusSnapshot): {
+      readonly blockSamples: number;
+      readonly intervalSamples: number;
+    } {
+      return {
+        blockSamples: runtime.blockSamples,
+        intervalSamples: runtime.intervalSamples,
+      };
+    }
+
+    function syncLoopDraftInputs(): void {
+      elements.loopStart.value = String(loopDraft.startFrame);
+      elements.loopEnd.value = String(loopDraft.endFrame);
+      elements.loopStartValue.textContent = loopDraft.hasStart
+        ? formatFrame(loopDraft.startFrame)
+        : "not set";
+      elements.loopEndValue.textContent = loopDraft.hasEnd
+        ? formatFrame(loopDraft.endFrame)
+        : "not set";
+    }
+
+    function nextLoopRevision(): number {
+      loopRevision += 1;
+      return loopRevision;
     }
 
     function maybePrefetchFromRuntime(): void {
@@ -653,10 +816,7 @@ function startLab(appRoot: HTMLElement): void {
       }
       elements.seekRange.value = "0";
       elements.seekFrame.value = "0";
-      elements.loopStart.value = "0";
-      elements.loopEnd.value = String(source.frames);
-      elements.loopStartValue.textContent = "0";
-      elements.loopEndValue.textContent = formatFrame(source.frames);
+      syncLoopDraftInputs();
     }
 
     function updateControlOutputs(): void {
@@ -811,6 +971,11 @@ function startLab(appRoot: HTMLElement): void {
         desiredSnapshot.configSequence !== runtime.lastAppliedConfigSequence;
       const clipLeft = levels.fullScaleLeftTotal - clipBaselineLeft;
       const clipRight = levels.fullScaleRightTotal - clipBaselineRight;
+      const loopStatus = validateLoopDraft(runtime);
+      const loopReady = loopStatus.complete && loopStatus.validation.valid;
+      const appliedLoopText = runtime.loopEnabled
+        ? `${formatFrame(runtime.loopStartFrame)} to ${formatFrame(runtime.loopEndFrame)} rev ${runtime.loopRevision.toString()}`
+        : "inactive";
 
       renderAdapterHeader(elements, signalsmithAssets, runtimeSelection.mode);
       syncMonitorGains();
@@ -821,9 +986,17 @@ function startLab(appRoot: HTMLElement): void {
         : "none";
       elements.commandDrops.textContent =
         runtime.commandDroppedTotal.toString();
-      elements.loopApplied.textContent = runtime.loopEnabled
-        ? `${formatFrame(runtime.loopStartFrame)} to ${formatFrame(runtime.loopEndFrame)} rev ${runtime.loopRevision.toString()}`
-        : "inactive";
+      elements.loopApplied.textContent = appliedLoopText;
+      elements.loopAppliedSummary.textContent = appliedLoopText;
+      elements.loopDraft.textContent = formatLoopDraft(loopStatus);
+      elements.loopValidation.textContent = formatLoopValidation(loopStatus);
+      elements.loopValidation.classList.toggle("is-valid", loopReady);
+      elements.loopValidation.classList.toggle(
+        "is-invalid",
+        loopStatus.complete && !loopStatus.validation.valid,
+      );
+      elements.setLoopButton.disabled = !loopReady;
+      elements.playLoopButton.disabled = !loopReady;
       elements.playhead.textContent = `${formatTime(runtime.sourceFrame, source.sampleRate)} / ${formatTime(source.frames, source.sampleRate)}`;
       elements.seekRange.value = String(Math.floor(runtime.sourceFrame));
       if (requestedSeekFrame === null) {
@@ -859,16 +1032,19 @@ function startLab(appRoot: HTMLElement): void {
 
       drawWaveform(elements.waveform, waveform.peaks, {
         appliedLoop: {
-          enabled: runtime.loopEnabled || loopPreview.enabled,
-          endFrame: runtime.loopEnabled
-            ? runtime.loopEndFrame
-            : loopPreview.endFrame,
-          revision: runtime.loopEnabled
-            ? runtime.loopRevision
-            : loopPreview.revision,
-          startFrame: runtime.loopEnabled
-            ? runtime.loopStartFrame
-            : loopPreview.startFrame,
+          enabled: runtime.loopEnabled,
+          endFrame: runtime.loopEndFrame,
+          revision: runtime.loopRevision,
+          startFrame: runtime.loopStartFrame,
+        },
+        draftLoop: {
+          enabled:
+            loopDraft.hasStart &&
+            loopDraft.hasEnd &&
+            loopDraft.endFrame > loopDraft.startFrame,
+          endFrame: loopDraft.endFrame,
+          revision: loopDraft.revision,
+          startFrame: loopDraft.startFrame,
         },
         levels: levels.historyPeak,
         requestedSeekFrame,
@@ -1059,6 +1235,51 @@ function renderAdapterHeader(
   elements.runtimeModeBadge.textContent =
     runtimeMode === "real-worklet" ? "Real Worklet" : "Simulator fallback";
   elements.adapterAvailability.textContent = assets.realAdapterStatus;
+}
+
+function createLoopDraft(durationFrames: number, revision: number): LoopDraft {
+  return {
+    endFrame: clamp(durationFrames, 0, durationFrames),
+    hasEnd: false,
+    hasStart: false,
+    revision,
+    startFrame: 0,
+  };
+}
+
+function formatLoopDraft(status: LoopDraftStatus): string {
+  const range = status.validation.range;
+
+  if (!status.complete) {
+    if (!status.draft.hasStart && !status.draft.hasEnd) {
+      return "none";
+    }
+
+    return [
+      status.draft.hasStart
+        ? `start ${formatFrame(status.draft.startFrame)}`
+        : "start not set",
+      status.draft.hasEnd
+        ? `end ${formatFrame(status.draft.endFrame)}`
+        : "end not set",
+    ].join("; ");
+  }
+
+  return `${formatFrame(range.startFrame)} to ${formatFrame(range.endFrame)} (${formatFrame(status.validation.lengthFrames)} frames)`;
+}
+
+function formatLoopValidation(status: LoopDraftStatus): string {
+  if (!status.complete) {
+    return "Mark start and end";
+  }
+
+  if (!status.validation.valid) {
+    return status.validation.reason === "too-short"
+      ? `${status.validation.message}; minimum ${formatFrame(status.validation.minimumLoopFrames)} frames`
+      : status.validation.message;
+  }
+
+  return `Ready; minimum ${formatFrame(status.validation.minimumLoopFrames)} frames`;
 }
 
 function collectDesiredFromInputs(

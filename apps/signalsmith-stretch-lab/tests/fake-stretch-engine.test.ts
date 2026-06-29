@@ -153,6 +153,55 @@ describe("FakeStretchEngine", () => {
     }
   });
 
+  it("restarts playback from zero after reaching ended without a loop", () => {
+    const { engine, session, transport } = setup();
+
+    try {
+      transport.enqueue("seek", {
+        targetSourceFrame: engine.currentSource.frames - 64,
+      });
+      engine.tick({ renderQuantum: 128 });
+
+      transport.enqueue("play");
+      const ended = engine.tick({ renderQuantum: 128 }).runtime;
+      expect(ended.state).toBe("ended");
+      expect(ended.sourceFrame).toBe(engine.currentSource.frames);
+
+      transport.enqueue("play");
+      const recovered = engine.tick({ renderQuantum: 128 }).runtime;
+      expect(recovered.state).toBe("playing");
+      expect(recovered.sourceFrame).toBeGreaterThan(0);
+      expect(recovered.sourceFrame).toBeLessThan(1_024);
+    } finally {
+      disposeStretchBoundarySession(session);
+    }
+  });
+
+  it("restarts playback from loop start after reaching ended with a loop", () => {
+    const { engine, session, transport } = setup();
+
+    try {
+      transport.enqueue("setLoop", {
+        loopEndFrame: 36_000,
+        loopStartFrame: 12_000,
+      });
+      engine.tick({ renderQuantum: 128 });
+      transport.enqueue("seek", {
+        targetSourceFrame: engine.currentSource.frames,
+      });
+      engine.tick({ renderQuantum: 128 });
+
+      transport.enqueue("play");
+      const recovered = engine.tick({ renderQuantum: 128 }).runtime;
+      expect(recovered.state).toBe("playing");
+      expect(recovered.sourceFrame).toBeGreaterThanOrEqual(12_000);
+      expect(recovered.sourceFrame).toBeLessThan(13_000);
+      expect(recovered.state).not.toBe("ended");
+    } finally {
+      disposeStretchBoundarySession(session);
+    }
+  });
+
   it("publishes output-level history arrays and deterministic full-scale events", () => {
     const { engine, session, transport } = setup();
 

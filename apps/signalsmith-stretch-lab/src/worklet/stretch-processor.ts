@@ -1,5 +1,6 @@
 import { SWSR_HEADER_DROPPED, type SwsrRingBacking } from "@exclave/boundary";
 
+import { validateLoopRange } from "../loop/loop-validation";
 import {
   enumIndex,
   enumLabel,
@@ -373,8 +374,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
         this.runtimeState = "ready-paused";
         break;
       case "play":
-        this.active = true;
-        this.runtimeState = "playing";
+        this.play();
         break;
       case "presetCheaper":
         this.preset = "cheaper";
@@ -394,24 +394,15 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
         this.runtimeState = "ready-paused";
         break;
       case "seek":
-        this.sourceFrame = clamp(
-          command.targetSourceFrame,
-          0,
-          this.durationFrames(),
-        );
-        this.outputFrame =
-          this.sourceFrame / Math.max(0.05, this.effectiveRate);
+        this.repositionToSourceFrame(command.targetSourceFrame);
         this.runtimeState = "seeking";
         break;
       case "setLoop":
-        if (command.loopEndFrame <= command.loopStartFrame) {
+        if (!this.applyLoop(command.loopStartFrame, command.loopEndFrame)) {
           this.invalidTransitionTotal += 1;
-          break;
+        } else {
+          this.loopRevision = command.sequence;
         }
-        this.loopEnabled = true;
-        this.loopStartFrame = command.loopStartFrame;
-        this.loopEndFrame = command.loopEndFrame;
-        this.loopRevision = command.sequence;
         break;
       case "stop":
         this.active = false;
@@ -472,6 +463,51 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   private applyConfigControls(): void {
     this.configureModule(this.preset);
     this.module?._reset();
+  }
+
+  private play(): void {
+    const durationFrames = this.durationFrames();
+
+    if (this.loopEnabled && this.loopEndFrame > this.loopStartFrame) {
+      if (
+        this.sourceFrame >= this.loopEndFrame ||
+        this.sourceFrame >= durationFrames
+      ) {
+        this.repositionToSourceFrame(this.loopStartFrame);
+      }
+    } else if (this.sourceFrame >= durationFrames) {
+      this.repositionToSourceFrame(0);
+    }
+
+    this.active = true;
+    this.runtimeState = "playing";
+  }
+
+  private repositionToSourceFrame(sourceFrame: number): void {
+    this.sourceFrame = clamp(sourceFrame, 0, this.durationFrames());
+    this.outputFrame = this.sourceFrame / Math.max(0.05, this.effectiveRate);
+  }
+
+  private applyLoop(startFrame: number, endFrame: number): boolean {
+    const durationFrames = this.durationFrames();
+    const start = clamp(startFrame, 0, durationFrames);
+    const end = clamp(endFrame, 0, durationFrames);
+    const validation = validateLoopRange(
+      { endFrame: end, startFrame: start },
+      {
+        blockSamples: this.module?._blockSamples() ?? 0,
+        intervalSamples: this.intervalSamples,
+      },
+    );
+
+    if (!validation.valid) {
+      return false;
+    }
+
+    this.loopEnabled = true;
+    this.loopStartFrame = validation.range.startFrame;
+    this.loopEndFrame = validation.range.endFrame;
+    return true;
   }
 
   private configureModule(preset: StretchPreset): void {

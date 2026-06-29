@@ -155,6 +155,23 @@ describe("Signalsmith Worklet runtime semantics", () => {
     expect(Array.from(target)).toEqual([7, 8, 9, 2, 3]);
   });
 
+  it("wraps source-window fills when only loop boundary chunks are cached", () => {
+    const window = new SourceWindow();
+    const target = new Float32Array(4);
+    window.setInfo(sourceInfo(12, 1));
+    window.addChunk(chunk(2, [2, 3]));
+    window.addChunk(chunk(8, [8, 9]));
+
+    const fill = window.fillInputWindow([target], 8, 4, {
+      enabled: true,
+      endFrame: 10,
+      startFrame: 2,
+    });
+
+    expect(fill).toEqual({ copiedFrames: 4, missingFrames: 0 });
+    expect(Array.from(target)).toEqual([8, 9, 2, 3]);
+  });
+
   it("evicts Worklet source chunks below the byte limit", () => {
     const window = new SourceWindow({ maxCachedBytes: 4 * 4 });
     window.setInfo(sourceInfo(12, 1));
@@ -201,14 +218,27 @@ describe("Signalsmith Worklet runtime semantics", () => {
     const source = readFileSync(MAIN, "utf8");
 
     expect(source).toContain(
-      "prefetchForFrame(loopPreview.startFrame, { latest: false })",
+      "prefetchForLoop(status.validation.range, runtime)",
     );
+    expect(source).toContain("range.endFrame - prefetchFrames");
+    expect(source).toContain("prefetchForFrame(range.startFrame");
+    expect(source).toContain("prefetchForFrame(range.endFrame");
     expect(source).toContain(
-      "prefetchForFrame(loopPreview.endFrame, { latest: false })",
+      "prefetchGate.request(() => load(prefetcher), postChunk)",
     );
-    expect(source).toContain(
-      "prefetchGate.request(() => prefetcher.prefetchAround(frame), postChunk)",
+  });
+
+  it("recovers Worklet play commands from ended source positions", () => {
+    const source = readFileSync(WORKLET_PROCESSOR, "utf8");
+    const playBody = methodBody(source, "play");
+
+    expect(playBody).toContain("this.sourceFrame >= durationFrames");
+    expect(playBody).toContain(
+      "this.repositionToSourceFrame(this.loopStartFrame)",
     );
+    expect(playBody).toContain("this.repositionToSourceFrame(0)");
+    expect(playBody).toContain('this.runtimeState = "playing"');
+    expect(playBody).toContain("this.active = true");
   });
 
   it("checks heap view identity before using Worklet input and output buffers", () => {

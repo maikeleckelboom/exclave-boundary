@@ -6,6 +6,7 @@ import type {
 
 export interface WaveformState {
   readonly appliedLoop: LoopPreview;
+  readonly draftLoop: LoopPreview;
   readonly levels: Readonly<Float32Array>;
   readonly requestedSeekFrame: number | null;
   readonly runtime: RuntimeStatusSnapshot;
@@ -36,7 +37,16 @@ export function drawWaveform(
   context.fillRect(0, 0, width, height);
 
   drawGrid(context, width, height);
-  drawLoop(context, width, height, state.appliedLoop, state.source.frames);
+  drawLoop(context, width, height, state.draftLoop, state.source.frames, {
+    fill: "rgba(123, 223, 242, 0.1)",
+    stroke: "#7bdff2",
+    style: "draft",
+  });
+  drawLoop(context, width, height, state.appliedLoop, state.source.frames, {
+    fill: "rgba(93, 211, 158, 0.16)",
+    stroke: "#5dd39e",
+    style: "applied",
+  });
   drawPeaks(context, width, height, peaks);
   drawHistory(context, width, height, state.levels);
   drawMarker(
@@ -144,6 +154,11 @@ function drawLoop(
   height: number,
   loop: LoopPreview,
   frames: number,
+  options: {
+    readonly fill: string;
+    readonly stroke: string;
+    readonly style: "applied" | "draft";
+  },
 ): void {
   if (!loop.enabled || frames <= 0) {
     return;
@@ -151,11 +166,13 @@ function drawLoop(
 
   const start = frameToX(loop.startFrame, frames, width);
   const end = frameToX(loop.endFrame, frames, width);
-  context.fillStyle = "rgba(93, 211, 158, 0.16)";
+  context.fillStyle = options.fill;
   context.fillRect(start, 0, Math.max(2, end - start), height);
-  context.strokeStyle = "#5dd39e";
-  context.lineWidth = 2;
+  context.strokeStyle = options.stroke;
+  context.lineWidth = options.style === "draft" ? 1.5 : 2;
+  context.setLineDash(options.style === "draft" ? [6, 5] : []);
   context.strokeRect(start, 1, Math.max(2, end - start), height - 2);
+  context.setLineDash([]);
 }
 
 function drawMarker(

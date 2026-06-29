@@ -328,24 +328,54 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
     .poll(() => runtimeFact(page, "Monitor"))
     .toContain("split compare preview");
   await page.locator("#processedMode").check();
+  await page.locator("#pauseButton").click();
+  await expect.poll(() => runtimeFact(page, "State")).toBe("ready-paused");
 
-  await setRange(page, "#seekRange", "24000");
-  await expect
-    .poll(() => page.locator("#seekFrame").inputValue())
-    .toBe("24000");
+  await setRange(page, "#seekRange", "12000");
+  await expect.poll(() => sourceFrameNear(page, 12_000, 2_048)).toBe(true);
+  await page.locator("#markLoopStartButton").click();
+  await expect(page.locator("#loopDraft")).toContainText("not set");
 
-  await setRange(page, "#loopStart", "12000");
-  await setRange(page, "#loopEnd", "36000");
-  await page.locator("#setLoopButton").click();
+  await setRange(page, "#seekRange", "36000");
+  await expect.poll(() => sourceFrameNear(page, 36_000, 2_048)).toBe(true);
+  await page.locator("#markLoopEndButton").click();
+  await expect(page.locator("#loopDraft")).toContainText("12,");
+  await expect(page.locator("#loopValidation")).toContainText("Ready");
+
+  await page.locator("#playLoopButton").click();
   await expect
     .poll(() => runtimeFact(page, "Loop"))
     .toContain("12,000 to 36,000");
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+  await expect
+    .poll(() => numericRuntimeFact(page, "Audible source frame"), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(30_000);
+  await expect
+    .poll(() => numericRuntimeFact(page, "Audible source frame"), {
+      timeout: 10_000,
+    })
+    .toBeLessThan(18_000);
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
   await expect
     .poll(() => runtimeFact(page, "Source prefetch"))
     .toContain("ready");
   await expect
     .poll(() => runtimeFact(page, "Worklet source cache"))
     .toContain("MiB");
+
+  await page.locator("#clearLoopButton").click();
+  await expect.poll(() => runtimeFact(page, "Loop")).toBe("inactive");
+  await expect(page.locator("#loopDraft")).toHaveText("none");
+
+  await setRange(page, "#seekRange", "96000");
+  await expect.poll(() => sourceFrameNear(page, 96_000, 2_048)).toBe(true);
+  await page.locator("#playButton").click();
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+  await expect
+    .poll(() => numericRuntimeFact(page, "Audible source frame"))
+    .toBeLessThan(8_000);
 
   await page.locator("#pauseButton").click();
   await expect.poll(() => runtimeFact(page, "State")).toBe("ready-paused");
@@ -376,6 +406,20 @@ async function smokeFact(
 
     return smoke[factName];
   }, name);
+}
+
+async function numericRuntimeFact(page: Page, name: string): Promise<number> {
+  return parseFrameFact(await runtimeFact(page, name));
+}
+
+async function sourceFrameNear(
+  page: Page,
+  expected: number,
+  tolerance: number,
+): Promise<boolean> {
+  const frame = await numericRuntimeFact(page, "Audible source frame");
+
+  return Math.abs(frame - expected) <= tolerance;
 }
 
 async function setRange(
@@ -433,6 +477,10 @@ function createSmokeWav(
 }
 
 function outputFrameFact(value: string): number {
+  return parseFrameFact(value);
+}
+
+function parseFrameFact(value: string): number {
   const [outputFrame = "0"] = value.split(" ");
 
   return Number(outputFrame.replaceAll(",", ""));

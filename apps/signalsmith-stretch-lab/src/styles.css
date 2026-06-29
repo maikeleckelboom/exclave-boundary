@@ -52,10 +52,20 @@ button {
   padding: 0 16px;
 }
 
+button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
 button:hover,
 .file-picker:hover {
   border-color: #5dd39e;
   background: #26373d;
+}
+
+button:disabled:hover {
+  border-color: rgba(232, 237, 240, 0.2);
+  background: #1d2a2f;
 }
 
 button:focus-visible,
@@ -249,6 +259,41 @@ input[type="number"] {
     minmax(180px, 1fr);
   gap: 14px;
   margin-top: 16px;
+}
+
+.loop-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.loop-status-grid div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.loop-status-grid span {
+  color: #9fb1b7;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.loop-status-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #eef4f6;
+  font-variant-numeric: tabular-nums;
+}
+
+.loop-status-grid strong.is-invalid {
+  color: #ffbf9f;
+}
+
+.loop-status-grid strong.is-valid {
+  color: #5dd39e;
 }
 
 label {
@@ -456,6 +501,7 @@ dd {
   .source-panel,
   .control-grid,
   .inspector-grid,
+  .loop-status-grid,
   .seek-grid {
     grid-template-columns: 1fr;
   }

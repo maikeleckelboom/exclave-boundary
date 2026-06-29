@@ -20,10 +20,15 @@ export interface AppElements {
   readonly listeningPreset: HTMLSelectElement;
   readonly levelsSummary: HTMLElement;
   readonly loopApplied: HTMLElement;
+  readonly loopAppliedSummary: HTMLElement;
+  readonly loopDraft: HTMLElement;
   readonly loopEnd: HTMLInputElement;
   readonly loopEndValue: HTMLElement;
   readonly loopStart: HTMLInputElement;
   readonly loopStartValue: HTMLElement;
+  readonly loopValidation: HTMLElement;
+  readonly markLoopEndButton: HTMLButtonElement;
+  readonly markLoopStartButton: HTMLButtonElement;
   readonly metadata: HTMLElement;
   readonly intervalMs: HTMLInputElement;
   readonly overlap: HTMLInputElement;
@@ -33,6 +38,7 @@ export interface AppElements {
   readonly pitch: HTMLInputElement;
   readonly pitchValue: HTMLElement;
   readonly playButton: HTMLButtonElement;
+  readonly playLoopButton: HTMLButtonElement;
   readonly playhead: HTMLElement;
   readonly processedMode: HTMLInputElement;
   readonly rate: HTMLInputElement;
@@ -123,6 +129,20 @@ export function renderAppShell(root: HTMLElement): AppElements {
             <output id="loopEndValue">1</output>
           </label>
         </div>
+        <div class="loop-status-grid" aria-live="polite">
+          <div>
+            <span>Draft loop</span>
+            <strong id="loopDraft">none</strong>
+          </div>
+          <div>
+            <span>Applied loop</span>
+            <strong id="loopAppliedSummary">inactive</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="loopValidation">Mark start and end</strong>
+          </div>
+        </div>
       </section>
 
       <section class="transport-panel" aria-label="Transport">
@@ -130,7 +150,10 @@ export function renderAppShell(root: HTMLElement): AppElements {
           <button id="playButton" type="button">Play</button>
           <button id="pauseButton" type="button">Pause</button>
           <button id="stopButton" type="button">Stop</button>
-          <button id="setLoopButton" type="button">Set loop</button>
+          <button id="markLoopStartButton" type="button">Mark start</button>
+          <button id="markLoopEndButton" type="button">Mark end</button>
+          <button id="setLoopButton" type="button">Apply loop</button>
+          <button id="playLoopButton" type="button">Play loop</button>
           <button id="clearLoopButton" type="button">Clear loop</button>
         </div>
         <fieldset class="source-mode">
@@ -311,10 +334,15 @@ export function renderAppShell(root: HTMLElement): AppElements {
     listeningPreset: must(root, "#listeningPreset", HTMLSelectElement),
     levelsSummary: must(root, "#levelsSummary", HTMLElement),
     loopApplied: must(root, "#loopApplied", HTMLElement),
+    loopAppliedSummary: must(root, "#loopAppliedSummary", HTMLElement),
+    loopDraft: must(root, "#loopDraft", HTMLElement),
     loopEnd: must(root, "#loopEnd", HTMLInputElement),
     loopEndValue: must(root, "#loopEndValue", HTMLElement),
     loopStart: must(root, "#loopStart", HTMLInputElement),
     loopStartValue: must(root, "#loopStartValue", HTMLElement),
+    loopValidation: must(root, "#loopValidation", HTMLElement),
+    markLoopEndButton: must(root, "#markLoopEndButton", HTMLButtonElement),
+    markLoopStartButton: must(root, "#markLoopStartButton", HTMLButtonElement),
     metadata: must(root, "#metadata", HTMLElement),
     intervalMs: must(root, "#intervalMs", HTMLInputElement),
     overlap: must(root, "#overlap", HTMLInputElement),
@@ -324,6 +352,7 @@ export function renderAppShell(root: HTMLElement): AppElements {
     pitch: must(root, "#pitch", HTMLInputElement),
     pitchValue: must(root, "#pitchValue", HTMLElement),
     playButton: must(root, "#playButton", HTMLButtonElement),
+    playLoopButton: must(root, "#playLoopButton", HTMLButtonElement),
     playhead: must(root, "#playhead", HTMLElement),
     processedMode: must(root, "#processedMode", HTMLInputElement),
     rate: must(root, "#rate", HTMLInputElement),

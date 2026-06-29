@@ -4,6 +4,7 @@ import {
   readSourceStatus,
   type StretchBoundarySession,
 } from "../boundary/session";
+import { validateLoopRange } from "../loop/loop-validation";
 import {
   ADAPTER_MODES,
   defaultDesiredControls,
@@ -284,7 +285,7 @@ export class FakeStretchEngine {
         this.runtimeState = "ready-paused";
         break;
       case "play":
-        this.runtimeState = "playing";
+        this.play();
         break;
       case "reset":
         this.resetTransportPosition();
@@ -310,10 +311,30 @@ export class FakeStretchEngine {
     }
   }
 
-  private seekToFrame(frame: number): void {
+  private play(): void {
+    if (this.loopEnabled && this.loopEndFrame > this.loopStartFrame) {
+      if (
+        this.sourceFrame >= this.loopEndFrame ||
+        this.sourceFrame >= this.source.frames
+      ) {
+        this.repositionToFrame(this.loopStartFrame);
+      }
+    } else if (this.sourceFrame >= this.source.frames) {
+      this.repositionToFrame(0);
+    }
+
+    this.seekStateTicks = 0;
+    this.runtimeState = "playing";
+  }
+
+  private repositionToFrame(frame: number): void {
     const target = clamp(frame, 0, this.source.frames);
     this.sourceFrame = target;
     this.outputFrame = target / Math.max(0.05, this.appliedControls.rate);
+  }
+
+  private seekToFrame(frame: number): void {
+    this.repositionToFrame(frame);
     this.seekStateTicks = 2;
   }
 
@@ -324,15 +345,19 @@ export class FakeStretchEngine {
   ): void {
     const start = clamp(startFrame, 0, this.source.frames);
     const end = clamp(endFrame, 0, this.source.frames);
+    const validation = validateLoopRange(
+      { endFrame: end, startFrame: start },
+      resolveSimulatorConfig(this.appliedControls, this.source),
+    );
 
-    if (end <= start) {
+    if (!validation.valid) {
       this.invalidTransitionTotal += 1;
       return;
     }
 
     this.loopEnabled = true;
-    this.loopStartFrame = start;
-    this.loopEndFrame = end;
+    this.loopStartFrame = validation.range.startFrame;
+    this.loopEndFrame = validation.range.endFrame;
     this.loopRevision = revision >>> 0;
   }
 
