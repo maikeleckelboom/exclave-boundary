@@ -17,6 +17,7 @@ import { SourcePrefetch } from "./audio/source-prefetch";
 import { SourceReferenceMonitor } from "./audio/source-reference-monitor";
 import { StretchWorkletRuntime } from "./audio/stretch-node";
 import { selectStretchRuntimeMode } from "./audio/stretch-runtime";
+import { probeWavFile, type WavProbe } from "./audio/wav-probe";
 import {
   computeChunkedWaveformPeaks,
   createSyntheticWaveformPeaks,
@@ -66,6 +67,13 @@ import type { PlanarFrameChunk } from "./audio/chunked-wav-source";
 
 const root = document.querySelector("#app");
 
+type WavLoadMode =
+  | "browser decoded"
+  | "chunked"
+  | "probing"
+  | "synthetic"
+  | "unsupported";
+
 if (!(root instanceof HTMLElement)) {
   throw new Error("Missing app root");
 }
@@ -97,6 +105,9 @@ function startLab(appRoot: HTMLElement): void {
     let source = defaultSimulatedSource();
     let sourceFacts: PcmSourceFacts | null = null;
     let sourceRevision = 1;
+    let selectedFileName: string | null = null;
+    let lastWavProbe: WavProbe | null = null;
+    let wavMode: WavLoadMode = "synthetic";
     let sourceStatusText = "deterministic simulator source";
     let waveform = createSyntheticWaveformPeaks(source);
     let waveformMode: WaveformPeakMode = waveform.mode;
@@ -384,16 +395,33 @@ function startLab(appRoot: HTMLElement): void {
     }
 
     async function loadFileSource(file: File): Promise<void> {
-      const context = await ensureAudioContext();
       const nextLoadSequence = loadSequence + 1;
       const nextSourceRevision = sourceRevision + 1;
+      selectedFileName = file.name;
+      lastWavProbe = null;
+      wavMode = "probing";
+      let loadWasWav = isLikelyWavFile(file);
 
       try {
+        sourceStatusText = `Probing ${file.name}`;
+        render();
+
+        const wavProbe = await probeWavFile(file);
+        loadWasWav = loadWasWav || wavProbe.isWav;
+        if (!wavProbe.isWav && isLikelyWavFile(file)) {
+          wavMode = "unsupported";
+          throw new Error("Input .wav file is not a RIFF/WAVE file.");
+        }
+
+        const context = await ensureAudioContextForProbe(wavProbe);
+
         sourceStatusText = `Reading ${file.name}`;
         render();
 
         const loaded = await decodeFileSource(context, {
-          expectedSampleRate: context.sampleRate,
+          ...(wavProbe.isWav && wavProbe.sampleRate !== null
+            ? { expectedSampleRate: wavProbe.sampleRate }
+            : {}),
           file,
           loadSequence: nextLoadSequence,
           previousFacts: sourceFacts,
@@ -407,6 +435,7 @@ function startLab(appRoot: HTMLElement): void {
         sourceFacts = loaded;
         source = simulatedSourceFromPcm(loaded);
         sourceStatusText = loaded.formatSummary;
+        wavMode = loaded.kind === "chunked-wav" ? "chunked" : "browser decoded";
         resetWaveformToSynthetic();
         loopRevision += 1;
         loopPreview = {
@@ -432,6 +461,7 @@ function startLab(appRoot: HTMLElement): void {
           prefetch = null;
         }
       } catch (error) {
+        wavMode = loadWasWav ? "unsupported" : "browser decoded";
         sourceStatusText =
           error instanceof Error ? error.message : String(error);
       }
@@ -439,8 +469,63 @@ function startLab(appRoot: HTMLElement): void {
       render();
     }
 
-    async function ensureAudioContext(): Promise<AudioContext> {
-      audioContext ??= createLabAudioContext();
+    async function ensureAudioContextForProbe(
+      wavProbe: Awaited<ReturnType<typeof probeWavFile>>,
+    ): Promise<AudioContext> {
+      if (!wavProbe.isWav) {
+        lastWavProbe = null;
+        wavMode = "browser decoded";
+        return ensureAudioContext();
+      }
+
+      lastWavProbe = wavProbe;
+      if (wavProbe.sampleRate === null) {
+        wavMode = "unsupported";
+        throw new Error("Unsupported WAV header: missing fmt sample rate.");
+      }
+
+      const context = await ensureAudioContext({
+        sampleRate: wavProbe.sampleRate,
+      });
+
+      if (context.sampleRate !== wavProbe.sampleRate) {
+        wavMode = "unsupported";
+        throw new Error(
+          `WAV sample rate ${wavProbe.sampleRate.toString()} Hz requires an AudioContext at the same rate, but this browser opened ${context.sampleRate.toString()} Hz; resampling is required and is not implemented yet.`,
+        );
+      }
+
+      return context;
+    }
+
+    async function ensureAudioContext(
+      options: {
+        readonly sampleRate?: number;
+      } = {},
+    ): Promise<AudioContext> {
+      if (
+        options.sampleRate !== undefined &&
+        audioContext &&
+        audioContext.sampleRate !== options.sampleRate
+      ) {
+        realRuntime?.dispose();
+        realRuntime = null;
+        referenceMonitor?.dispose();
+        referenceMonitor = null;
+        prefetch = null;
+
+        const previous = audioContext;
+        audioContext = null;
+        if (previous.state !== "closed") {
+          await previous.close().catch(() => undefined);
+        }
+      }
+
+      audioContext ??= createLabAudioContext(
+        options.sampleRate === undefined
+          ? {}
+          : { sampleRate: options.sampleRate },
+      );
 
       await resumeAudioContext(audioContext);
       return audioContext;
@@ -715,7 +800,7 @@ function startLab(appRoot: HTMLElement): void {
         elements.seekFrame.value = String(Math.floor(runtime.sourceFrame));
       }
 
-      renderMetadata(source);
+      renderMetadata(source, runtimeSelection);
       renderLevels(levels, clipLeft, clipRight, monitor);
       renderInspector(
         plans,
@@ -762,17 +847,24 @@ function startLab(appRoot: HTMLElement): void {
       });
     }
 
-    function renderMetadata(currentSource: SimulatedSource): void {
+    function renderMetadata(
+      currentSource: SimulatedSource,
+      runtimeSelection: ReturnType<typeof selectStretchRuntimeMode>,
+    ): void {
       renderKeyValues(elements.metadata, [
-        ["Name", currentSource.name],
-        ["Mode", currentSource.status],
-        ["Format", sourceFacts?.formatSummary ?? sourceStatusText],
+        ["Name", selectedFileName ?? currentSource.name],
+        ["Load status", sourceStatusText],
         [
-          "Duration",
-          formatTime(currentSource.frames, currentSource.sampleRate),
+          "Source format",
+          sourceFormatFact(sourceFacts, lastWavProbe, sourceStatusText),
         ],
-        ["Channels", currentSource.channels.toString()],
-        ["Sample rate", `${currentSource.sampleRate.toString()} Hz`],
+        ["Duration", sourceDurationFact(currentSource, lastWavProbe)],
+        ["Channel count", sourceChannelCountFact(currentSource, lastWavProbe)],
+        ["Sample rate", sourceSampleRateFact(currentSource, lastWavProbe)],
+        ["WAV mode", wavMode],
+        ["Waveform mode", waveformModeLabel(waveformMode)],
+        ["Cache status", cacheStatusFact(prefetch)],
+        ["Worklet mode", workletModeFact(runtimeSelection.mode)],
         ["PCM memory", formatBytes(currentSource.memoryBytes)],
       ]);
     }
@@ -1076,6 +1168,86 @@ function sourceModeFact(
   }
 
   return source.status === "deterministic" ? "simulator" : "browser decoded";
+}
+
+function sourceFormatFact(
+  facts: PcmSourceFacts | null,
+  probe: WavProbe | null,
+  fallback: string,
+): string {
+  if (facts) {
+    return facts.formatSummary;
+  }
+
+  if (!probe) {
+    return fallback;
+  }
+
+  const format =
+    probe.audioFormat === null
+      ? "unknown"
+      : probe.audioFormat === 1
+        ? "PCM"
+        : probe.audioFormat === 3
+          ? "float"
+          : `format ${probe.audioFormat.toString()}`;
+  const bits =
+    probe.bitsPerSample === null
+      ? "unknown bit depth"
+      : `${probe.bitsPerSample.toString()}-bit`;
+
+  return ["WAV", format, bits].join(" ");
+}
+
+function sourceDurationFact(
+  source: SimulatedSource,
+  probe: WavProbe | null,
+): string {
+  const durationFrames = probe?.durationFrames ?? null;
+  const sampleRate = probe?.sampleRate ?? null;
+
+  if (durationFrames !== null && sampleRate !== null) {
+    return formatTime(durationFrames, sampleRate);
+  }
+
+  return formatTime(source.frames, source.sampleRate);
+}
+
+function sourceChannelCountFact(
+  source: SimulatedSource,
+  probe: WavProbe | null,
+): string {
+  return (probe?.channelCount ?? source.channels).toString();
+}
+
+function sourceSampleRateFact(
+  source: SimulatedSource,
+  probe: WavProbe | null,
+): string {
+  return `${(probe?.sampleRate ?? source.sampleRate).toString()} Hz`;
+}
+
+function cacheStatusFact(prefetch: SourcePrefetch | null): string {
+  if (!prefetch) {
+    return "inactive";
+  }
+
+  const state =
+    prefetch.facts.underrunTotal > 0
+      ? "underrun"
+      : prefetch.facts.ready
+        ? "ready"
+        : "prefetching";
+
+  return `${state}; ${formatBytes(prefetch.facts.cachedBytes)} host cache`;
+}
+
+function workletModeFact(mode: "real-worklet" | "simulator"): string {
+  return mode === "real-worklet" ? "real" : "simulator fallback";
+}
+
+function isLikelyWavFile(file: File): boolean {
+  return /\.wav$/iu.test(file.name);
 }
 
 function waveformModeLabel(mode: WaveformPeakMode): string {

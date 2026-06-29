@@ -59,7 +59,8 @@ button:hover,
 
 button:focus-visible,
 input:focus-visible,
-.drop-surface:focus-visible {
+.drop-surface:focus-visible,
+.advanced-inspector > summary:focus-visible {
   outline: 3px solid #f4d35e;
   outline-offset: 3px;
 }
@@ -98,6 +99,7 @@ input[type="number"] {
 .waveform-panel,
 .transport-panel,
 .control-panel,
+.advanced-inspector,
 .inspector-panel,
 .status-area {
   border: 1px solid rgba(232, 237, 240, 0.14);
@@ -303,6 +305,60 @@ output {
 
 .inspector-grid {
   grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.advanced-inspector {
+  overflow: hidden;
+}
+
+.advanced-inspector > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 16px 18px;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.advanced-inspector > summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-inspector > summary strong {
+  display: block;
+  color: #f8faf9;
+}
+
+.details-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid rgba(232, 237, 240, 0.18);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #d9e2e5;
+  background: #11191d;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.details-hint::before {
+  content: "Expand";
+}
+
+.advanced-inspector[open] .details-hint::before {
+  content: "Collapse";
+}
+
+.advanced-inspector .inspector-grid {
+  padding: 0 18px 18px;
+}
+
+.advanced-inspector .inspector-panel {
+  box-shadow: none;
 }
 
 .control-panel,

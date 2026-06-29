@@ -236,29 +236,38 @@ export function renderAppShell(root: HTMLElement): AppElements {
         </div>
       </section>
 
-      <section class="inspector-grid" aria-label="Boundary inspector">
-        <div class="inspector-panel">
-          <p class="section-label">Runtime</p>
-          <dl class="runtime-facts">
-            <div><dt>State</dt><dd id="transportState">idle</dd></div>
-            <div><dt>Desired</dt><dd id="appliedSequence">0</dd></div>
-            <div><dt>Pending</dt><dd id="pendingState">none</dd></div>
-            <div><dt>Command drops</dt><dd id="commandDrops">0</dd></div>
-            <div><dt>Loop</dt><dd id="loopApplied">inactive</dd></div>
-          </dl>
-          <div class="button-row">
-            <button id="staleButton" type="button">Stale read</button>
-            <button id="faultButton" type="button">Fault</button>
-            <button id="resetFaultButton" type="button">Reset fault</button>
-            <button id="resetControlsButton" type="button">Reset controls</button>
+      <details id="advancedInspector" class="advanced-inspector">
+        <summary>
+          <span>
+            <span class="section-label">Advanced proof inspector</span>
+            <strong>Boundary runtime proof</strong>
+          </span>
+          <span class="details-hint" aria-hidden="true"></span>
+        </summary>
+        <section class="inspector-grid" aria-label="Boundary inspector">
+          <div class="inspector-panel">
+            <p class="section-label">Runtime</p>
+            <dl class="runtime-facts">
+              <div><dt>State</dt><dd id="transportState">idle</dd></div>
+              <div><dt>Desired</dt><dd id="appliedSequence">0</dd></div>
+              <div><dt>Pending</dt><dd id="pendingState">none</dd></div>
+              <div><dt>Command drops</dt><dd id="commandDrops">0</dd></div>
+              <div><dt>Loop</dt><dd id="loopApplied">inactive</dd></div>
+            </dl>
+            <div class="button-row">
+              <button id="staleButton" type="button">Stale read</button>
+              <button id="faultButton" type="button">Fault</button>
+              <button id="resetFaultButton" type="button">Reset fault</button>
+              <button id="resetControlsButton" type="button">Reset controls</button>
+            </div>
           </div>
-        </div>
 
-        <div class="inspector-panel">
-          <p class="section-label">Boundary inspector</p>
-          <div id="inspector" class="inspector"></div>
-        </div>
-      </section>
+          <div class="inspector-panel">
+            <p class="section-label">Boundary inspector</p>
+            <div id="inspector" class="inspector"></div>
+          </div>
+        </section>
+      </details>
 
       <section id="status" class="status-area" role="status" aria-live="polite"></section>
     </div>

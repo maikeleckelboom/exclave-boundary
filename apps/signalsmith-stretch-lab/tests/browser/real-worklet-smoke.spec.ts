@@ -5,6 +5,110 @@ import { expect, test, type Page } from "@playwright/test";
 const SAMPLE_RATE = 48_000;
 const SMOKE_WAV_SECONDS = 2;
 
+test("primary demo keeps proof inspector collapsed until expanded", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(page.locator("#sourceDrop")).toBeVisible();
+  await expect(page.locator("#waveform")).toBeVisible();
+  await expect(page.locator("#advancedInspector")).not.toHaveAttribute("open");
+  await expect(page.getByText("Exclave spec hash")).not.toBeVisible();
+
+  await page.locator("#advancedInspector > summary").click();
+  await expect(page.getByText("Exclave spec hash")).toBeVisible();
+  await expect(page.getByText("Nested spec plan")).toBeVisible();
+});
+
+test("reports refused WAV sample-rate contexts without resampling", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() => {
+    const optionsSeen: AudioContextOptions[] = [];
+    Object.defineProperty(window, "__audioContextOptions", {
+      configurable: true,
+      value: optionsSeen,
+    });
+
+    class RefusingAudioContext {
+      readonly sampleRate = 48_000;
+      readonly state: AudioContextState = "running";
+
+      constructor(options: AudioContextOptions = {}) {
+        optionsSeen.push(options);
+      }
+
+      close(): Promise<void> {
+        return Promise.resolve();
+      }
+
+      resume(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+
+    Object.defineProperty(window, "AudioContext", {
+      configurable: true,
+      value: RefusingAudioContext,
+    });
+  });
+
+  await page.goto("/");
+
+  const wavPath = testInfo.outputPath("sample-rate-mismatch.wav");
+  writeFileSync(wavPath, createSmokeWav(44_100));
+
+  await page.locator("#fileInput").setInputFiles(wavPath);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__audioContextOptions?.[0]?.sampleRate ?? 0),
+    )
+    .toBe(44_100);
+  await expect.poll(() => runtimeFact(page, "WAV mode")).toBe("unsupported");
+  await expect(page.locator("#status")).toContainText("resampling is required");
+  await expect(page.locator("#status")).toContainText("not implemented yet");
+});
+
+test("requests a 44.1 kHz AudioContext for a 44.1 kHz WAV", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() => {
+    const NativeAudioContext = window.AudioContext;
+    const optionsSeen: AudioContextOptions[] = [];
+    Object.defineProperty(window, "__audioContextOptions", {
+      configurable: true,
+      value: optionsSeen,
+    });
+
+    class TrackingAudioContext extends NativeAudioContext {
+      constructor(options: AudioContextOptions = {}) {
+        optionsSeen.push(options);
+        super(options);
+      }
+    }
+
+    Object.defineProperty(window, "AudioContext", {
+      configurable: true,
+      value: TrackingAudioContext,
+    });
+  });
+
+  await page.goto("/");
+
+  const wavPath = testInfo.outputPath("sample-rate-44100.wav");
+  writeFileSync(wavPath, createSmokeWav(44_100, 1));
+
+  await page.locator("#fileInput").setInputFiles(wavPath);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__audioContextOptions?.[0]?.sampleRate ?? 0),
+    )
+    .toBe(44_100);
+  await expect.poll(() => runtimeFact(page, "Sample rate")).toBe("44100 Hz");
+});
+
 test("real Worklet runtime handles chunked WAV transport controls", async ({
   page,
 }, testInfo) => {
@@ -92,10 +196,14 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
   await page.locator("#fileInput").setInputFiles(wavPath);
   await expect(page.getByText("Runtime real-worklet")).toBeVisible();
   await expect(page.getByText("signalsmith-smoke.wav")).toBeVisible();
+  await expect.poll(() => runtimeFact(page, "Source format")).toContain("WAV");
+  await expect.poll(() => runtimeFact(page, "WAV mode")).toBe("chunked");
+  await expect.poll(() => runtimeFact(page, "Worklet mode")).toBe("real");
 
   await expect
     .poll(() => runtimeFact(page, "Source prefetch"))
     .toContain("ready");
+  await expect.poll(() => runtimeFact(page, "Cache status")).toContain("ready");
   await expect
     .poll(() => runtimeFact(page, "Waveform mode"))
     .toContain("actual");
@@ -172,6 +280,10 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
   await expect
     .poll(() => runtimeFact(page, "Monitor"))
     .toContain("aligned reference preview");
+  await page.locator("#splitCompareMode").check();
+  await expect
+    .poll(() => runtimeFact(page, "Monitor"))
+    .toContain("split compare preview");
   await page.locator("#processedMode").check();
 
   await setRange(page, "#seekRange", "24000");
@@ -238,11 +350,14 @@ async function setRange(
   }, value);
 }
 
-function createSmokeWav(): Buffer {
+function createSmokeWav(
+  sampleRate = SAMPLE_RATE,
+  seconds = SMOKE_WAV_SECONDS,
+): Buffer {
   const channels = 2;
   const bitsPerSample = 16;
   const bytesPerSample = bitsPerSample / 8;
-  const frames = SAMPLE_RATE * SMOKE_WAV_SECONDS;
+  const frames = sampleRate * seconds;
   const blockAlign = channels * bytesPerSample;
   const dataBytes = frames * blockAlign;
   const bytes = Buffer.alloc(44 + dataBytes);
@@ -254,8 +369,8 @@ function createSmokeWav(): Buffer {
   bytes.writeUInt32LE(16, 16);
   bytes.writeUInt16LE(1, 20);
   bytes.writeUInt16LE(channels, 22);
-  bytes.writeUInt32LE(SAMPLE_RATE, 24);
-  bytes.writeUInt32LE(SAMPLE_RATE * blockAlign, 28);
+  bytes.writeUInt32LE(sampleRate, 24);
+  bytes.writeUInt32LE(sampleRate * blockAlign, 28);
   bytes.writeUInt16LE(blockAlign, 32);
   bytes.writeUInt16LE(bitsPerSample, 34);
   bytes.write("data", 36, "ascii");
@@ -263,7 +378,7 @@ function createSmokeWav(): Buffer {
 
   for (let frame = 0; frame < frames; frame += 1) {
     const sample = Math.round(
-      Math.sin((2 * Math.PI * 440 * frame) / SAMPLE_RATE) * 12_000,
+      Math.sin((2 * Math.PI * 440 * frame) / sampleRate) * 12_000,
     );
     const offset = 44 + frame * blockAlign;
 
@@ -286,6 +401,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 declare global {
   interface Window {
+    readonly __audioContextOptions?: readonly AudioContextOptions[];
     readonly __stretchSmoke?: {
       readonly sourceAcceptedMessages: number;
     };

@@ -14,13 +14,19 @@ export function detectAudioRuntimeSupport(): AudioRuntimeSupport {
   };
 }
 
-export function createLabAudioContext(): AudioContext {
+export interface LabAudioContextOptions {
+  readonly sampleRate?: number;
+}
+
+export function createLabAudioContext(
+  options: LabAudioContextOptions = {},
+): AudioContext {
   const AudioContextCtor = getAudioContextConstructor();
   if (!AudioContextCtor) {
     throw new Error("AudioContext is unavailable in this browser context.");
   }
 
-  return new AudioContextCtor();
+  return new AudioContextCtor(options);
 }
 
 export async function resumeAudioContext(
@@ -31,7 +37,9 @@ export async function resumeAudioContext(
   }
 }
 
-type AudioContextConstructor = new () => AudioContext;
+type AudioContextConstructor = new (
+  options?: AudioContextOptions,
+) => AudioContext;
 
 function getAudioContextConstructor(): AudioContextConstructor | null {
   if ("AudioContext" in globalThis) {
