@@ -1,0 +1,624 @@
+import { SWSR_HEADER_DROPPED, type SwsrRingBacking } from "@exclave/boundary";
+
+import {
+  enumIndex,
+  enumLabel,
+  SOURCE_STATES,
+  STRETCH_PRESETS,
+  type RuntimeState,
+  type StretchPreset,
+} from "../types";
+import {
+  bindStretchWorkletBoundaries,
+  type StretchWorkletHandoffs,
+} from "./boundary-bindings";
+import { bindWorkletCommandRing } from "./command-ring";
+import { LevelProbe } from "./level-probe";
+import { STRETCH_PROCESSOR_NAME } from "./processor-name";
+import { publishRuntimeMeters } from "./runtime-meters";
+import { loadSignalsmithStretchModule } from "./signalsmith-module";
+import { SourceWindow } from "./source-window";
+
+import type {
+  ChunkedWavSourceInfo,
+  PlanarFrameChunk,
+} from "../audio/chunked-wav-source";
+import type { StretchCommand } from "../boundary/commands";
+import type { SignalsmithStretchModule } from "../signalsmith/module-types";
+
+declare const currentFrame: number;
+declare const currentTime: number;
+declare const sampleRate: number;
+
+declare class AudioWorkletProcessor {
+  readonly port: MessagePort;
+  constructor(options?: AudioWorkletNodeOptions);
+}
+
+type AudioWorkletProcessorConstructor = new (
+  options: AudioWorkletNodeOptions,
+) => AudioWorkletProcessor;
+
+declare function registerProcessor(
+  name: string,
+  processorCtor: AudioWorkletProcessorConstructor,
+): void;
+
+interface StretchProcessorOptions {
+  readonly commandRing: SwsrRingBacking;
+  readonly handoffs: StretchWorkletHandoffs;
+  readonly initialChunk?: PlanarFrameChunk;
+  readonly loadSequence: number;
+  readonly moduleUrl: string;
+  readonly sourceInfo: ChunkedWavSourceInfo;
+  readonly sourceRevision: number;
+}
+
+type HostMessage =
+  | {
+      readonly chunk: PlanarFrameChunk;
+      readonly sourceRevision: number;
+      readonly type: "sourceChunk";
+    }
+  | {
+      readonly info: ChunkedWavSourceInfo;
+      readonly loadSequence: number;
+      readonly sourceRevision: number;
+      readonly type: "sourceInfo";
+    }
+  | {
+      readonly type: "destroy";
+    };
+
+class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
+  private readonly bindings: ReturnType<typeof bindStretchWorkletBoundaries>;
+  private readonly commandConsumer;
+  private readonly commandRingBacking: SwsrRingBacking;
+  private readonly levelProbe = new LevelProbe();
+  private readonly sourceWindow = new SourceWindow();
+
+  private active = false;
+  private blockMs = 120;
+  private bufferLengthFrames = 0;
+  private effectiveRate = 1;
+  private failed = false;
+  private formantBaseHz = 0;
+  private formantCompensation = true;
+  private formantSemitones = 0;
+  private heapGeneration = 0;
+  private inputBuffers: Float32Array[] = [];
+  private inputLatencyFrames = 0;
+  private intervalMs = 30;
+  private intervalSamples = 0;
+  private invalidSampleTotal = 0;
+  private invalidTransitionTotal = 0;
+  private lastAppliedCommandSequence = 0;
+  private lastAppliedConfigSequence = 0;
+  private lastAppliedDesiredSequence = 0;
+  private lastErrorCode = 0;
+  private loadSequence = 0;
+  private loopEnabled = false;
+  private loopEndFrame = 0;
+  private loopRevision = 0;
+  private loopStartFrame = 0;
+  private maxObservedRenderQuantum = 0;
+  private module: SignalsmithStretchModule | null = null;
+  private outputBuffers: Float32Array[] = [];
+  private outputFrame = 0;
+  private outputLatencyFrames = 0;
+  private pitchSemitones = 0;
+  private preset: StretchPreset = "default";
+  private runtimeState: RuntimeState = "idle";
+  private sessionId = 1;
+  private sourceFrame = 0;
+  private sourceRevision = 0;
+  private splitComputation = false;
+  private staleReadTotal = 0;
+  private tonalityEnabled = true;
+  private tonalityHz = 440;
+  private underrunTotal = 0;
+  private unsupportedChannelBlockTotal = 0;
+  private workletGeneration = 1;
+
+  constructor(options: AudioWorkletNodeOptions) {
+    super(options);
+
+    const processorOptions =
+      options.processorOptions as StretchProcessorOptions;
+    this.bindings = bindStretchWorkletBoundaries(processorOptions.handoffs);
+    this.commandRingBacking = processorOptions.commandRing;
+    this.commandConsumer = bindWorkletCommandRing(processorOptions.commandRing);
+    this.loadSequence = processorOptions.loadSequence;
+    this.sourceRevision = processorOptions.sourceRevision;
+    this.sourceWindow.setInfo(processorOptions.sourceInfo);
+
+    if (processorOptions.initialChunk) {
+      this.sourceWindow.addChunk(processorOptions.initialChunk);
+    }
+
+    this.port.onmessage = (event: MessageEvent<HostMessage>) => {
+      this.handleMessage(event.data);
+    };
+
+    void this.initializeModule(processorOptions.moduleUrl);
+  }
+
+  process(
+    _inputs: readonly Float32Array[][],
+    outputs: readonly Float32Array[][],
+    _parameters: Record<string, Float32Array>,
+  ): boolean {
+    const output = outputs[0] ?? [];
+    const outputFrameCount = output[0]?.length ?? 0;
+    this.maxObservedRenderQuantum = Math.max(
+      this.maxObservedRenderQuantum,
+      outputFrameCount,
+    );
+
+    try {
+      this.drainCommands();
+      this.readDesiredParams();
+
+      if (!this.module || this.failed || output.length === 0) {
+        silence(output);
+        this.publishAll(output, outputFrameCount, true);
+        return true;
+      }
+
+      this.ensureConfigured();
+
+      if (!this.active) {
+        silence(output);
+        this.runtimeState = "ready-paused";
+        this.publishAll(output, outputFrameCount, true);
+        return true;
+      }
+
+      this.runtimeState = "playing";
+      this.renderQuantum(output, outputFrameCount);
+      this.publishAll(output, outputFrameCount, false);
+    } catch (error) {
+      this.fail(5_001, error);
+      silence(output);
+      this.publishAll(output, outputFrameCount, true);
+    }
+
+    return true;
+  }
+
+  private async initializeModule(moduleUrl: string): Promise<void> {
+    try {
+      const module = await loadSignalsmithStretchModule(moduleUrl);
+      this.module = module;
+      module._presetDefault(this.channelCount(), sampleRate);
+      this.updateBuffers();
+      this.runtimeState = "ready-paused";
+      this.port.postMessage({
+        type: "ready",
+        workletGeneration: this.workletGeneration,
+      });
+      this.publishSourceAccepted();
+    } catch (error) {
+      this.fail(5_000, error);
+    }
+  }
+
+  private handleMessage(message: HostMessage): void {
+    switch (message.type) {
+      case "destroy":
+        this.runtimeState = "idle";
+        break;
+      case "sourceChunk":
+        if (message.sourceRevision === this.sourceRevision) {
+          this.sourceWindow.addChunk(message.chunk);
+        }
+        break;
+      case "sourceInfo":
+        this.loadSequence = message.loadSequence;
+        this.sourceRevision = message.sourceRevision;
+        this.sourceWindow.setInfo(message.info);
+        this.sourceFrame = 0;
+        this.outputFrame = 0;
+        this.updateBuffers();
+        this.publishSourceAccepted();
+        break;
+    }
+  }
+
+  private renderQuantum(
+    output: readonly Float32Array[],
+    outputFrameCount: number,
+  ): void {
+    const module = this.module;
+    const info = this.sourceWindow.info;
+
+    if (!module || !info || outputFrameCount <= 0) {
+      silence(output);
+      return;
+    }
+
+    this.wrapLoopIfNeeded();
+
+    const inputEndFrame =
+      Math.round(this.sourceFrame) +
+      this.inputLatencyFrames +
+      this.outputLatencyFrames;
+    const inputStartFrame = inputEndFrame - this.bufferLengthFrames;
+    const fill = this.sourceWindow.fillInputWindow(
+      this.inputBuffers,
+      inputStartFrame,
+      this.bufferLengthFrames,
+    );
+
+    if (fill.missingFrames > 0) {
+      this.underrunTotal += 1;
+    }
+
+    module._seek(this.bufferLengthFrames, this.effectiveRate);
+    module._process(0, outputFrameCount);
+
+    for (let channel = 0; channel < output.length; channel += 1) {
+      const source = this.outputBuffers[channel % this.outputBuffers.length];
+      const target = output[channel];
+
+      if (!target) {
+        continue;
+      }
+
+      if (!source) {
+        target.fill(0);
+        continue;
+      }
+
+      for (let index = 0; index < outputFrameCount; index += 1) {
+        target[index] = source[index] ?? 0;
+      }
+    }
+
+    this.outputFrame += outputFrameCount;
+    this.sourceFrame += outputFrameCount * this.effectiveRate;
+
+    if (!this.loopEnabled && this.sourceFrame >= info.frameCount) {
+      this.sourceFrame = info.frameCount;
+      this.runtimeState = "ended";
+      this.active = false;
+    }
+  }
+
+  private drainCommands(): void {
+    this.commandConsumer.drain((command: StretchCommand) => {
+      this.applyCommand(command);
+    });
+  }
+
+  private applyCommand(command: StretchCommand): void {
+    this.lastAppliedCommandSequence = command.sequence;
+
+    switch (command.name) {
+      case "clearLoop":
+        this.loopEnabled = false;
+        this.loopRevision = command.sequence;
+        break;
+      case "configure":
+        this.blockMs = command.blockMs || this.blockMs;
+        this.intervalMs = command.intervalMs || this.intervalMs;
+        this.splitComputation = command.splitComputation;
+        this.lastAppliedConfigSequence = command.configSequence;
+        this.configureModule("custom");
+        break;
+      case "destroy":
+        this.runtimeState = "idle";
+        this.active = false;
+        break;
+      case "flush":
+        this.module?._flush(Math.max(0, Math.floor(command.flushOutputFrames)));
+        this.runtimeState = "flushing";
+        break;
+      case "loadSource":
+        this.sourceRevision = command.sourceRevision;
+        this.publishSourceAccepted();
+        break;
+      case "pause":
+        this.active = false;
+        this.runtimeState = "ready-paused";
+        break;
+      case "play":
+        this.active = true;
+        this.runtimeState = "playing";
+        break;
+      case "presetCheaper":
+        this.configureModule("cheaper");
+        break;
+      case "presetDefault":
+        this.configureModule("default");
+        break;
+      case "reset":
+      case "resetFault":
+        this.failed = false;
+        this.lastErrorCode = 0;
+        this.module?._reset();
+        this.sourceFrame = 0;
+        this.outputFrame = 0;
+        this.runtimeState = "ready-paused";
+        break;
+      case "seek":
+        this.sourceFrame = clamp(
+          command.targetSourceFrame,
+          0,
+          this.durationFrames(),
+        );
+        this.outputFrame =
+          this.sourceFrame / Math.max(0.05, this.effectiveRate);
+        this.runtimeState = "seeking";
+        break;
+      case "setLoop":
+        if (command.loopEndFrame <= command.loopStartFrame) {
+          this.invalidTransitionTotal += 1;
+          break;
+        }
+        this.loopEnabled = true;
+        this.loopStartFrame = command.loopStartFrame;
+        this.loopEndFrame = command.loopEndFrame;
+        this.loopRevision = command.sequence;
+        break;
+      case "stop":
+        this.active = false;
+        this.sourceFrame = 0;
+        this.outputFrame = 0;
+        this.runtimeState = "ready-paused";
+        break;
+    }
+  }
+
+  private readDesiredParams(): void {
+    this.bindings.desired.params.within((params) => {
+      this.active = params.active;
+      this.blockMs = params.blockMs;
+      this.effectiveRate = Math.max(0.05, params.rate);
+      this.formantBaseHz = params.formantBaseHz;
+      this.formantCompensation = params.formantCompensation;
+      this.formantSemitones = params.formantSemitones;
+      this.intervalMs = params.intervalMs;
+      this.pitchSemitones = params.pitchSemitones;
+      this.preset = enumLabel(STRETCH_PRESETS, params.preset, "default");
+      this.splitComputation = params.splitComputation;
+      this.tonalityEnabled = params.tonalityEnabled;
+      this.tonalityHz = params.tonalityHz;
+
+      if (
+        params.desiredSequence !== this.lastAppliedDesiredSequence ||
+        params.configSequence !== this.lastAppliedConfigSequence
+      ) {
+        this.lastAppliedDesiredSequence = params.desiredSequence;
+        this.lastAppliedConfigSequence = params.configSequence;
+        this.applyControls();
+      }
+    });
+  }
+
+  private applyControls(): void {
+    const module = this.module;
+    if (!module) {
+      return;
+    }
+
+    module._setTransposeSemitones(
+      this.pitchSemitones,
+      this.tonalityEnabled ? this.tonalityHz / sampleRate : 0,
+    );
+    module._setFormantSemitones(
+      this.formantSemitones,
+      this.formantCompensation ? 1 : 0,
+    );
+    module._setFormantBase(this.formantBaseHz / sampleRate);
+    this.configureModule(this.preset);
+  }
+
+  private configureModule(preset: StretchPreset): void {
+    const module = this.module;
+    if (!module) {
+      return;
+    }
+
+    if (preset === "cheaper") {
+      module._presetCheaper(this.channelCount(), sampleRate);
+    } else if (preset === "default" && this.blockMs <= 0) {
+      module._presetDefault(this.channelCount(), sampleRate);
+    } else {
+      const blockSamples = Math.max(
+        0,
+        Math.round((sampleRate * this.blockMs) / 1_000),
+      );
+      const intervalSamples = Math.max(
+        0,
+        Math.round((sampleRate * this.intervalMs) / 1_000),
+      );
+      module._configure(
+        this.channelCount(),
+        blockSamples,
+        intervalSamples,
+        this.splitComputation ? 1 : 0,
+      );
+    }
+
+    this.updateBuffers();
+  }
+
+  private ensureConfigured(): void {
+    if (this.bufferLengthFrames <= 0) {
+      this.configureModule(this.preset);
+    }
+  }
+
+  private updateBuffers(): void {
+    const module = this.module;
+    if (!module) {
+      return;
+    }
+
+    this.inputLatencyFrames = Math.max(0, module._inputLatency());
+    this.outputLatencyFrames = Math.max(0, module._outputLatency());
+    this.intervalSamples = Math.max(0, module._intervalSamples());
+    this.bufferLengthFrames = Math.max(
+      128,
+      this.inputLatencyFrames + this.outputLatencyFrames,
+    );
+
+    const channelCount = this.channelCount();
+    const pointer = module._setBuffers(channelCount, this.bufferLengthFrames);
+    const base = pointer / Float32Array.BYTES_PER_ELEMENT;
+
+    this.inputBuffers = [];
+    this.outputBuffers = [];
+
+    for (let channel = 0; channel < channelCount; channel += 1) {
+      this.inputBuffers.push(
+        module.HEAPF32.subarray(
+          base + this.bufferLengthFrames * channel,
+          base + this.bufferLengthFrames * (channel + 1),
+        ),
+      );
+      this.outputBuffers.push(
+        module.HEAPF32.subarray(
+          base + this.bufferLengthFrames * (channel + channelCount),
+          base + this.bufferLengthFrames * (channel + channelCount + 1),
+        ),
+      );
+    }
+
+    this.heapGeneration += 1;
+  }
+
+  private publishAll(
+    output: readonly Float32Array[],
+    outputFrameCount: number,
+    silentOutput: boolean,
+  ): void {
+    const info = this.sourceWindow.info;
+    const durationFrames = this.durationFrames();
+    const durationSeconds = info?.durationSeconds ?? 0;
+    const blockSamples = this.module?._blockSamples() ?? 0;
+
+    publishRuntimeMeters(this.bindings.runtime, {
+      audioWorkletFrame: currentFrame,
+      audioWorkletTimeSeconds: currentTime,
+      blockSamples,
+      bufferLengthFrames: this.bufferLengthFrames,
+      bufferReadyFrames: this.sourceWindow.readyFrames,
+      commandDroppedTotal: Atomics.load(
+        this.commandRingBacking.header,
+        SWSR_HEADER_DROPPED,
+      ),
+      durationFrames,
+      durationSeconds,
+      effectiveRate: this.effectiveRate,
+      heapGeneration: this.heapGeneration,
+      inputLatencyFrames: this.inputLatencyFrames,
+      intervalSamples: this.intervalSamples,
+      invalidSampleTotal: this.invalidSampleTotal,
+      invalidTransitionTotal: this.invalidTransitionTotal,
+      lastAppliedCommandSequence: this.lastAppliedCommandSequence,
+      lastAppliedConfigSequence: this.lastAppliedConfigSequence,
+      lastAppliedDesiredSequence: this.lastAppliedDesiredSequence,
+      lastErrorCode: this.lastErrorCode,
+      loopEnabled: this.loopEnabled,
+      loopEndFrame: this.loopEndFrame,
+      loopRevision: this.loopRevision,
+      loopStartFrame: this.loopStartFrame,
+      maxObservedRenderQuantum: this.maxObservedRenderQuantum,
+      outputFrame: this.outputFrame,
+      outputLatencyFrames: this.outputLatencyFrames,
+      processingCenterFrame:
+        this.sourceFrame + (outputFrameCount * this.effectiveRate) / 2,
+      sessionId: this.sessionId,
+      sourceFrame: this.sourceFrame,
+      staleReadTotal: this.staleReadTotal,
+      state: this.failed ? "failed-recoverable" : this.runtimeState,
+      underrunTotal: this.underrunTotal,
+      workletGeneration: this.workletGeneration,
+    });
+
+    this.publishSourceAccepted();
+    this.levelProbe.publish(this.bindings.levels, output, {
+      active: this.active && !silentOutput,
+      channelCount: this.channelCount(),
+      failed: this.failed,
+      lastErrorCode: this.lastErrorCode,
+      outputFrame: this.outputFrame,
+      silent: silentOutput,
+      unsupportedChannelBlockTotal: this.unsupportedChannelBlockTotal,
+      windowFrames: outputFrameCount,
+    });
+  }
+
+  private publishSourceAccepted(): void {
+    const info = this.sourceWindow.info;
+
+    this.bindings.source.meters.publish((writer) => {
+      writer.set("appliedLoadSequence", this.loadSequence);
+      writer.set("bufferEndFrame", info?.frameCount ?? 0);
+      writer.set("bufferStartFrame", 0);
+      writer.set("channelCount", info?.channelCount ?? 0);
+      writer.set("decodeErrorCode", 0);
+      writer.set("droppedBufferTotal", 0);
+      writer.set("durationFrames", info?.frameCount ?? 0);
+      writer.set("durationSeconds", info?.durationSeconds ?? 0);
+      writer.set("loadSequence", this.loadSequence);
+      writer.set("memoryBytes", info?.memoryBytes ?? 0);
+      writer.set("sampleRate", info?.sampleRate ?? 0);
+      writer.set("sourceRevision", this.sourceRevision);
+      writer.set("state", enumIndex(SOURCE_STATES, "accepted"));
+    });
+
+    this.port.postMessage({
+      loadSequence: this.loadSequence,
+      sourceRevision: this.sourceRevision,
+      type: "sourceAccepted",
+    });
+  }
+
+  private wrapLoopIfNeeded(): void {
+    if (!this.loopEnabled || this.sourceFrame < this.loopEndFrame) {
+      return;
+    }
+
+    const loopLength = Math.max(1, this.loopEndFrame - this.loopStartFrame);
+    const offset = (this.sourceFrame - this.loopStartFrame) % loopLength;
+    this.sourceFrame = this.loopStartFrame + offset;
+  }
+
+  private channelCount(): 1 | 2 {
+    return this.sourceWindow.info?.channelCount ?? 2;
+  }
+
+  private durationFrames(): number {
+    return this.sourceWindow.info?.frameCount ?? 0;
+  }
+
+  private fail(errorCode: number, error: unknown): void {
+    this.failed = true;
+    this.lastErrorCode = errorCode;
+    this.runtimeState = "failed-recoverable";
+    this.port.postMessage({
+      errorCode,
+      message: error instanceof Error ? error.message : String(error),
+      type: "failed",
+    });
+  }
+}
+
+function silence(output: readonly Float32Array[]): void {
+  for (const channel of output) {
+    channel.fill(0);
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.min(max, Math.max(min, value));
+}
+
+registerProcessor(STRETCH_PROCESSOR_NAME, SignalsmithStretchLabProcessor);

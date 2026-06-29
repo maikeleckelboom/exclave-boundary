@@ -1,4 +1,7 @@
-import { SIGNALSMITH_WASM_EXPORTS } from "./module-types";
+import {
+  SIGNALSMITH_STRETCH_GENERATED_MODULE,
+  SIGNALSMITH_WASM_EXPORTS,
+} from "./module-types";
 import {
   desiredStretchSpec,
   processedOutputLevelsSpec,
@@ -23,17 +26,17 @@ export const SIGNALSMITH_ADAPTER_CONTRACT = {
   generatedModule: {
     exports: SIGNALSMITH_WASM_EXPORTS,
     input: "vendor/signalsmith-stretch/web/emscripten/main.cpp",
-    output: "generated/signalsmith-stretch.worklet.js",
+    output: SIGNALSMITH_STRETCH_GENERATED_MODULE,
   },
   processedOutputLevels: {
     reader: "host observer",
     specId: processedOutputLevelsSpec.id,
-    writer: "future output-level probe beside the worklet",
+    writer: "AudioWorklet processor output-level probe",
   },
   runtimeStatus: {
     reader: "host observer",
     specId: runtimeStatusSpec.id,
-    writer: "future AudioWorklet processor",
+    writer: "AudioWorklet processor",
     wrapperCalls: [
       "_blockSamples",
       "_intervalSamples",
@@ -47,6 +50,6 @@ export const SIGNALSMITH_ADAPTER_CONTRACT = {
   sourceStatus: {
     reader: "host observer",
     specId: sourceStatusSpec.id,
-    writer: "future source loader and AudioWorklet acceptance path",
+    writer: "source loader and AudioWorklet acceptance path",
   },
 } as const;

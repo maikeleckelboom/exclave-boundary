@@ -17,7 +17,7 @@ const INPUT = path.join(
 const OUTPUT = path.join(
   APP_ROOT,
   "generated",
-  "signalsmith-stretch.worklet.js",
+  "signalsmith-stretch.module.js",
 );
 
 const INCLUDE_DIRS = [

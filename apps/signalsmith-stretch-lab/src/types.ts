@@ -63,7 +63,7 @@ export interface SimulatedSource {
   readonly memoryBytes: number;
   readonly name: string;
   readonly sampleRate: number;
-  readonly status: "deterministic" | "file-metadata";
+  readonly status: "decoded-file" | "deterministic" | "file-metadata";
 }
 
 export interface RuntimeStatusSnapshot {

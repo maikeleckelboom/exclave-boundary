@@ -1,3 +1,6 @@
+export const SIGNALSMITH_STRETCH_GENERATED_MODULE =
+  "generated/signalsmith-stretch.module.js";
+
 export const SIGNALSMITH_WASM_EXPORTS = [
   "_malloc",
   "_free",

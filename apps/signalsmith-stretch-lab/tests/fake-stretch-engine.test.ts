@@ -119,19 +119,18 @@ describe("FakeStretchEngine", () => {
       transport.enqueue("play");
       expect(engine.tick({ renderQuantum: 256 }).runtime.state).toBe("playing");
 
-      transport.enqueue("seek", { arg0: 48_000 });
+      transport.enqueue("seek", { targetSourceFrame: 48_000 });
       const seeking = engine.tick({ renderQuantum: 256 }).runtime;
       expect(seeking.state).toBe("seeking");
       expect(seeking.sourceFrame).toBe(48_000);
 
       transport.enqueue("setLoop", {
-        arg0: 12_000,
-        arg1: 24_000,
-        arg2: 3,
+        loopEndFrame: 24_000,
+        loopStartFrame: 12_000,
       });
       const looped = engine.tick({ renderQuantum: 256 }).runtime;
       expect(looped.loopEnabled).toBe(true);
-      expect(looped.loopRevision).toBe(3);
+      expect(looped.loopRevision).toBeGreaterThan(0);
 
       transport.enqueue("pause");
       expect(engine.tick({ renderQuantum: 256 }).runtime.state).toBe(

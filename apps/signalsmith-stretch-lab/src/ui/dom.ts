@@ -74,7 +74,7 @@ export function renderAppShell(root: HTMLElement): AppElements {
           <div>
             <p class="section-label" id="source-title">Local source</p>
             <strong>Drop audio file</strong>
-            <p id="source-truth">Metadata drives the simulator; audio is not decoded.</p>
+            <p id="source-truth">WAV files use chunked decoding; other formats use browser decoding when available.</p>
           </div>
           <label class="file-picker">
             <span>Choose file</span>

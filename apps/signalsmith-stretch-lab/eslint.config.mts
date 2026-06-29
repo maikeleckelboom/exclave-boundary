@@ -55,6 +55,7 @@ const baseRules = {
       peerDependencies: true,
     },
   ],
+  "import/no-unresolved": ["error", { ignore: ["^virtual:"] }],
   "import/order": [
     "error",
     {
@@ -109,7 +110,12 @@ export default tseslint.config(
     },
     rules: baseRules,
     settings: {
-      "import/ignore": ["\\?url$", "^virtual:", "^vite(-client)?$"],
+      "import/ignore": [
+        "\\?url$",
+        "\\?worker&url$",
+        "^virtual:",
+        "^vite(-client)?$",
+      ],
       "import/resolver": {
         node: {
           extensions: [".ts", ".tsx", ".js", ".jsx"],

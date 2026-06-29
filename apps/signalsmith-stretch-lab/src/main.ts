@@ -1,6 +1,21 @@
 import "./styles.css";
 
 import {
+  createLabAudioContext,
+  detectAudioRuntimeSupport,
+  resumeAudioContext,
+} from "./audio/audio-context";
+import { decodeFileSource } from "./audio/decode-source";
+import {
+  simulatedSourceFromPcm,
+  type ChunkedWavPcmSource,
+  type LabPcmSource,
+  type PcmSourceFacts,
+} from "./audio/pcm-source";
+import { SourcePrefetch } from "./audio/source-prefetch";
+import { StretchWorkletRuntime } from "./audio/stretch-node";
+import { selectStretchRuntimeMode } from "./audio/stretch-runtime";
+import {
   createStretchCommandTransport,
   type StretchCommandName,
 } from "./boundary/commands";
@@ -59,10 +74,20 @@ function startLab(appRoot: HTMLElement): void {
   try {
     const elements = renderAppShell(appRoot);
     const signalsmithAssets = readSignalsmithWorkletAssets();
+    const runtimeSupport = detectAudioRuntimeSupport();
     const session = createStretchBoundarySession();
     const commands = createStretchCommandTransport();
+    let audioContext: AudioContext | null = null;
+    let acceptedSource: LabPcmSource | null = null;
     let desired = defaultDesiredControls();
+    let loadSequence = 1;
+    let prefetch: SourcePrefetch | null = null;
+    let prefetchInFlight: Promise<void> | null = null;
+    let realRuntime: StretchWorkletRuntime | null = null;
     let source = defaultSimulatedSource();
+    let sourceFacts: PcmSourceFacts | null = null;
+    let sourceRevision = 1;
+    let sourceStatusText = "deterministic simulator source";
     let peaks = createWaveformPeaks(source);
     let requestedSeekFrame: number | null = null;
     let loopRevision = 1;
@@ -77,7 +102,7 @@ function startLab(appRoot: HTMLElement): void {
 
     initializeDesiredControls(session, desired);
 
-    renderAdapterHeader(elements, signalsmithAssets);
+    renderAdapterHeader(elements, signalsmithAssets, "simulator");
 
     const engine = new FakeStretchEngine(session, commands, { source });
     engine.tick({ renderQuantum: 128 });
@@ -87,7 +112,9 @@ function startLab(appRoot: HTMLElement): void {
     render();
 
     elements.playButton.addEventListener("click", () => {
-      enqueueCommand("play");
+      void resumeForGesture().then(() => {
+        enqueueCommand("play");
+      });
     });
     elements.pauseButton.addEventListener("click", () => {
       enqueueCommand("pause");
@@ -163,10 +190,10 @@ function startLab(appRoot: HTMLElement): void {
       loopRevision += 1;
       loopPreview = { ...loopPreview, enabled: true, revision: loopRevision };
       commands.enqueue("setLoop", {
-        arg0: loopPreview.startFrame,
-        arg1: loopPreview.endFrame,
-        arg2: loopPreview.revision,
+        loopEndFrame: loopPreview.endFrame,
+        loopStartFrame: loopPreview.startFrame,
       });
+      prefetchForFrame(loopPreview.startFrame);
       render();
     });
     elements.clearLoopButton.addEventListener("click", () => {
@@ -184,7 +211,7 @@ function startLab(appRoot: HTMLElement): void {
     elements.fileInput.addEventListener("change", () => {
       const file = elements.fileInput.files?.item(0);
       if (file) {
-        loadFileSource(file);
+        void loadFileSource(file);
       }
     });
     elements.sourceDrop.addEventListener("keydown", (event) => {
@@ -205,7 +232,7 @@ function startLab(appRoot: HTMLElement): void {
       elements.sourceDrop.classList.remove("is-dragging");
       const file = event.dataTransfer?.files.item(0);
       if (file) {
-        loadFileSource(file);
+        void loadFileSource(file);
       }
     });
     elements.processedMode.addEventListener("change", render);
@@ -215,7 +242,11 @@ function startLab(appRoot: HTMLElement): void {
     const animate = (time: number): void => {
       if (time - lastTickAt >= 80) {
         lastTickAt = time;
-        engine.tick({ renderQuantum: 256 });
+        if (realRuntimeOwnsCommandRing()) {
+          maybePrefetchFromRuntime();
+        } else {
+          engine.tick({ renderQuantum: 256 });
+        }
         clearAppliedSeekGhost();
         render();
       }
@@ -223,6 +254,7 @@ function startLab(appRoot: HTMLElement): void {
     };
     window.requestAnimationFrame(animate);
     window.addEventListener("beforeunload", () => {
+      realRuntime?.dispose();
       disposeStretchBoundarySession(session);
     });
 
@@ -244,7 +276,9 @@ function startLab(appRoot: HTMLElement): void {
       }
 
       commands.enqueue(name);
-      engine.tick({ renderQuantum: 128 });
+      if (!realRuntimeOwnsCommandRing()) {
+        engine.tick({ renderQuantum: 128 });
+      }
       render();
     }
 
@@ -253,7 +287,11 @@ function startLab(appRoot: HTMLElement): void {
       requestedSeekFrame = frame;
       elements.seekRange.value = String(frame);
       elements.seekFrame.value = String(frame);
-      commands.enqueue("seek", { arg0: frame });
+      prefetchForFrame(frame);
+      commands.enqueue("seek", { targetSourceFrame: frame });
+      if (!realRuntimeOwnsCommandRing()) {
+        engine.tick({ renderQuantum: 128 });
+      }
       render();
     }
 
@@ -275,20 +313,135 @@ function startLab(appRoot: HTMLElement): void {
       render();
     }
 
-    function loadFileSource(file: File): void {
-      source = sourceFromFile(file);
-      peaks = createWaveformPeaks(source);
-      loopRevision += 1;
-      loopPreview = {
-        enabled: false,
-        endFrame: source.frames,
-        revision: loopRevision,
-        startFrame: 0,
-      };
-      requestedSeekFrame = null;
-      engine.loadSource(source);
-      updateSourceLimits();
+    async function loadFileSource(file: File): Promise<void> {
+      const context = await ensureAudioContext();
+      const nextLoadSequence = loadSequence + 1;
+      const nextSourceRevision = sourceRevision + 1;
+
+      try {
+        sourceStatusText = `Reading ${file.name}`;
+        render();
+
+        const loaded = await decodeFileSource(context, {
+          expectedSampleRate: context.sampleRate,
+          file,
+          loadSequence: nextLoadSequence,
+          previousFacts: sourceFacts,
+          session,
+          sourceRevision: nextSourceRevision,
+        });
+
+        acceptedSource = loaded;
+        loadSequence = nextLoadSequence;
+        sourceRevision = nextSourceRevision;
+        sourceFacts = loaded;
+        source = simulatedSourceFromPcm(loaded);
+        sourceStatusText = loaded.formatSummary;
+        peaks = createWaveformPeaks(source);
+        loopRevision += 1;
+        loopPreview = {
+          enabled: false,
+          endFrame: source.frames,
+          revision: loopRevision,
+          startFrame: 0,
+        };
+        requestedSeekFrame = null;
+        engine.loadSource(source);
+        updateSourceLimits();
+
+        if (loaded.kind === "chunked-wav") {
+          await prepareRealRuntime(loaded);
+          commands.enqueue("loadSource", {
+            sourceRevision: loaded.sourceRevision,
+          });
+        } else {
+          realRuntime?.dispose();
+          realRuntime = null;
+          prefetch = null;
+        }
+      } catch (error) {
+        sourceStatusText =
+          error instanceof Error ? error.message : String(error);
+      }
+
       render();
+    }
+
+    async function ensureAudioContext(): Promise<AudioContext> {
+      audioContext ??= createLabAudioContext();
+
+      await resumeAudioContext(audioContext);
+      return audioContext;
+    }
+
+    async function resumeForGesture(): Promise<void> {
+      const context = await ensureAudioContext();
+      await resumeAudioContext(context);
+      if (realRuntime) {
+        await realRuntime.resume();
+      }
+    }
+
+    async function prepareRealRuntime(
+      loaded: ChunkedWavPcmSource,
+    ): Promise<void> {
+      const context = await ensureAudioContext();
+      prefetch = new SourcePrefetch(loaded.source, {
+        windowFrames: Math.max(4_096, Math.floor(loaded.sampleRate * 2)),
+      });
+      const initialChunk = await prefetch.prefetchWindow(
+        0,
+        Math.max(4_096, Math.floor(loaded.sampleRate * 2)),
+      );
+
+      if (!signalsmithAssets.generatedModuleUrl) {
+        return;
+      }
+
+      if (!realRuntime || realRuntime.status.failed) {
+        realRuntime?.dispose();
+        realRuntime = await StretchWorkletRuntime.create({
+          audioContext: context,
+          commands,
+          generatedModuleUrl: signalsmithAssets.generatedModuleUrl,
+          initialChunk,
+          session,
+          source: loaded,
+        });
+      } else {
+        realRuntime.postSource(loaded, initialChunk);
+      }
+    }
+
+    function prefetchForFrame(frame: number): void {
+      if (!prefetch || acceptedSource?.kind !== "chunked-wav") {
+        return;
+      }
+
+      const sourceForPost = acceptedSource;
+      prefetchInFlight ??= prefetch
+        .prefetchAround(frame)
+        .then((chunk) => {
+          realRuntime?.postChunk(sourceForPost.sourceRevision, chunk);
+        })
+        .finally(() => {
+          prefetchInFlight = null;
+        });
+    }
+
+    function maybePrefetchFromRuntime(): void {
+      if (!prefetch || prefetchInFlight) {
+        return;
+      }
+
+      const runtime = readRuntimeStatus(session);
+      prefetchForFrame(
+        runtime.sourceFrame + Math.max(0, runtime.inputLatencyFrames),
+      );
+    }
+
+    function realRuntimeOwnsCommandRing(): boolean {
+      return realRuntime !== null && !realRuntime.status.failed;
     }
 
     function updateSourceLimits(): void {
@@ -326,9 +479,23 @@ function startLab(appRoot: HTMLElement): void {
       const levels = readProcessedLevels(session);
       const sourceStatus = readSourceStatus(session);
       const plans = readPlanSummaries(session);
+      const realStatus = realRuntime?.status ?? null;
+      const runtimeSelection = selectStretchRuntimeMode({
+        audioWorkletAvailable:
+          runtimeSupport.audioWorklet &&
+          audioContext?.audioWorklet !== undefined,
+        crossOriginIsolated: runtimeSupport.crossOriginIsolated,
+        generatedModuleUrl: signalsmithAssets.generatedModuleUrl,
+        sharedArrayBufferAvailable: runtimeSupport.sharedArrayBuffer,
+        sourceAccepted: realStatus?.sourceAccepted ?? false,
+        sourceDecoded: acceptedSource?.kind === "chunked-wav",
+        workletReady: realStatus?.workletReady ?? false,
+      });
       const monitor = elements.alignedSourceMode.checked
         ? "Aligned source mock"
-        : "Processed simulation";
+        : runtimeSelection.mode === "real-worklet"
+          ? "Processed real Worklet"
+          : "Processed simulation";
       const pending =
         desiredSnapshot.desiredSequence !==
           runtime.lastAppliedDesiredSequence ||
@@ -336,8 +503,9 @@ function startLab(appRoot: HTMLElement): void {
       const clipLeft = levels.fullScaleLeftTotal - clipBaselineLeft;
       const clipRight = levels.fullScaleRightTotal - clipBaselineRight;
 
+      renderAdapterHeader(elements, signalsmithAssets, runtimeSelection.mode);
       elements.transportState.textContent = runtime.state;
-      elements.appliedSequence.textContent = `${runtime.lastAppliedDesiredSequence.toString()} control, ${runtime.lastAppliedConfigSequence.toString()} config`;
+      elements.appliedSequence.textContent = `${runtime.lastAppliedDesiredSequence.toString()} desired, ${runtime.lastAppliedConfigSequence.toString()} config, ${runtime.lastAppliedCommandSequence.toString()} command`;
       elements.pendingState.textContent = pending
         ? `waiting for control ${desiredSnapshot.desiredSequence.toString()} / config ${desiredSnapshot.configSequence.toString()}`
         : "none";
@@ -354,19 +522,29 @@ function startLab(appRoot: HTMLElement): void {
 
       renderMetadata(source);
       renderLevels(levels, clipLeft, clipRight);
-      renderInspector(plans, desiredSnapshot, runtime, sourceStatus, levels);
+      renderInspector(
+        plans,
+        desiredSnapshot,
+        runtime,
+        sourceStatus,
+        levels,
+        runtimeSelection,
+      );
 
       elements.status.classList.toggle("is-error", runtime.lastErrorCode !== 0);
       elements.status.textContent = [
         runtime.lastErrorCode === 0
-          ? "Simulator runtime active."
-          : `Recoverable simulator fault ${runtime.lastErrorCode.toString()}.`,
-        signalsmithAssets.realAdapterStatus,
+          ? `Runtime ${runtimeSelection.mode}; ${runtimeSelection.reason}.`
+          : `Recoverable runtime fault ${runtime.lastErrorCode.toString()}.`,
+        sourceStatusText,
+        realStatus?.lastError ? `Worklet error ${realStatus.lastError}.` : "",
         pending
           ? "Desired controls are pending runtime acknowledgement."
           : "Desired controls match applied acknowledgement.",
-        `${monitor}; processed-output levels still come from the simulated processed branch.`,
-      ].join(" ");
+        monitor,
+      ]
+        .filter(Boolean)
+        .join(" ");
 
       drawWaveform(elements.waveform, peaks, {
         appliedLoop: {
@@ -392,6 +570,7 @@ function startLab(appRoot: HTMLElement): void {
       renderKeyValues(elements.metadata, [
         ["Name", currentSource.name],
         ["Mode", currentSource.status],
+        ["Format", sourceFacts?.formatSummary ?? sourceStatusText],
         [
           "Duration",
           formatTime(currentSource.frames, currentSource.sampleRate),
@@ -427,6 +606,7 @@ function startLab(appRoot: HTMLElement): void {
       runtime: RuntimeStatusSnapshot,
       sourceStatus: SourceStatusSnapshot,
       levels: ProcessedLevelsSnapshot,
+      runtimeSelection: ReturnType<typeof selectStretchRuntimeMode>,
     ): void {
       renderKeyValues(elements.inspector, [
         ["Signalsmith Stretch branch", SIGNALSMITH_STRETCH_SOURCE_BRANCH],
@@ -437,12 +617,18 @@ function startLab(appRoot: HTMLElement): void {
         ],
         ["Vendored source", vendorFact(signalsmithAssets)],
         [
-          "Generated worklet",
-          signalsmithAssets.generatedWorkletExists ? "present" : "missing",
+          "Generated module",
+          signalsmithAssets.generatedModuleExists ? "present" : "missing",
         ],
-        ["Runtime adapter", runtimeModeFact(signalsmithAssets)],
+        ["Runtime", runtimeSelection.mode],
+        ["Runtime selection", runtimeSelection.reason],
         ["Adapter mode", runtime.adapterMode],
+        ["Source format", sourceFacts?.formatSummary ?? sourceStatusText],
         ["Desired active", desiredSnapshot.active ? "true" : "false"],
+        [
+          "Applied sequence",
+          `${runtime.lastAppliedDesiredSequence.toString()} desired / ${runtime.lastAppliedConfigSequence.toString()} config / ${runtime.lastAppliedCommandSequence.toString()} command`,
+        ],
         ["Effective rate", `${runtime.effectiveRate.toFixed(3)}x`],
         [
           "Block / interval",
@@ -455,6 +641,16 @@ function startLab(appRoot: HTMLElement): void {
         ["Duration", formatTime(runtime.durationFrames, source.sampleRate)],
         ["Source state", sourceStatus.state],
         ["Source revision", sourceStatus.sourceRevision.toString()],
+        [
+          "AudioWorklet frame/time",
+          `${runtime.audioWorkletFrameHi.toString()}:${runtime.audioWorkletFrameLo.toString()} / ${runtime.audioWorkletTimeSeconds.toFixed(3)}s`,
+        ],
+        [
+          "Source prefetch",
+          prefetch
+            ? `${prefetch.facts.ready ? "ready" : "pending"}; ${formatFrame(prefetch.facts.cachedFrameCount)} frames cached; underruns ${prefetch.facts.underrunTotal.toString()}`
+            : "inactive",
+        ],
         ["Desired plan", planFact(plans.desired)],
         ["Runtime plan", planFact(plans.runtime)],
         ["Source plan", planFact(plans.source)],
@@ -467,8 +663,8 @@ function startLab(appRoot: HTMLElement): void {
         ["Stale reads", runtime.staleReadTotal.toString()],
         ["Invalid transitions", runtime.invalidTransitionTotal.toString()],
         [
-          "Level history",
-          `${levels.historyRms.length.toString()} f32 slots via meter.stage`,
+          "Level probe",
+          `${levels.probeState}; RMS ${dbfs(levels.rmsLeft)} / ${dbfs(levels.rmsRight)}; peak ${dbfs(levels.peakLeft)} / ${dbfs(levels.peakRight)}`,
         ],
       ]);
     }
@@ -491,11 +687,10 @@ function startLab(appRoot: HTMLElement): void {
 function renderAdapterHeader(
   elements: ReturnType<typeof renderAppShell>,
   assets: SignalsmithWorkletAssetFacts,
+  runtimeMode: "real-worklet" | "simulator",
 ): void {
   elements.runtimeModeBadge.textContent =
-    assets.runtimeMode === "real-adapter"
-      ? "Real adapter"
-      : "Simulator fallback";
+    runtimeMode === "real-worklet" ? "Real Worklet" : "Simulator fallback";
   elements.adapterAvailability.textContent = assets.realAdapterStatus;
 }
 
@@ -530,26 +725,6 @@ function applyControlsToInputs(
   elements.formantShift.value = String(controls.formantSemitones);
   elements.formantCompensation.checked = controls.formantCompensation;
   elements.formantBase.value = String(controls.formantBaseHz);
-}
-
-function sourceFromFile(file: File): SimulatedSource {
-  const sampleRate = 48_000;
-  const channels = 2;
-  const frames = clamp(
-    Math.round(file.size / (channels * Float32Array.BYTES_PER_ELEMENT)),
-    sampleRate * 8,
-    sampleRate * 480,
-  );
-
-  return {
-    channels,
-    durationSeconds: frames / sampleRate,
-    frames,
-    memoryBytes: frames * channels * Float32Array.BYTES_PER_ELEMENT,
-    name: file.name,
-    sampleRate,
-    status: "file-metadata",
-  };
 }
 
 function renderKeyValues(
@@ -605,12 +780,6 @@ function vendorFact(assets: SignalsmithWorkletAssetFacts): string {
   const linear = assets.linearVendorMeta ? "Linear present" : "Linear missing";
 
   return `${stretch}; ${linear}`;
-}
-
-function runtimeModeFact(assets: SignalsmithWorkletAssetFacts): string {
-  return assets.runtimeMode === "real-adapter"
-    ? "real adapter"
-    : "simulator fallback";
 }
 
 function nextSequence(current: number): number {

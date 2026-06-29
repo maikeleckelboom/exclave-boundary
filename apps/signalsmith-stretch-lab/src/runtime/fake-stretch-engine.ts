@@ -19,6 +19,7 @@ import {
   type RuntimeState,
   type RuntimeStatusSnapshot,
   type SimulatedSource,
+  type SourceState,
   type SourceStatusSnapshot,
 } from "../types";
 
@@ -77,6 +78,7 @@ export class FakeStretchEngine {
   private source: SimulatedSource;
   private sourceFrame = 0;
   private sourceRevision = 1;
+  private sourceState: SourceState = "accepted";
   private staleReadBursts = 0;
   private staleReadTotal = 0;
   private underrunTotal = 0;
@@ -122,6 +124,17 @@ export class FakeStretchEngine {
     this.lastErrorCode = 0;
     this.historyPeak.fill(0);
     this.historyRms.fill(0);
+    this.sourceState = "accepted";
+  }
+
+  publishSourceAttempt(
+    state: Exclude<SourceState, "accepted">,
+    loadSequence: number,
+    errorCode = 0,
+  ): void {
+    this.loadSequence = loadSequence >>> 0;
+    this.decodeErrorCode = errorCode >>> 0;
+    this.sourceState = state;
   }
 
   resetTransportPosition(): void {
@@ -247,21 +260,49 @@ export class FakeStretchEngine {
         this.loopEnabled = false;
         this.loopRevision += 1;
         break;
+      case "configure":
+      case "presetCheaper":
+      case "presetDefault":
+        this.lastAppliedCommandSequence = command.sequence;
+        break;
+      case "destroy":
+        this.runtimeState = "idle";
+        break;
+      case "flush":
+        this.runtimeState = "flushing";
+        this.outputFrame += Math.max(0, Math.floor(command.flushOutputFrames));
+        break;
+      case "loadSource":
+        this.sourceRevision = Math.max(
+          this.sourceRevision,
+          command.sourceRevision >>> 0,
+        );
+        this.appliedLoadSequence = this.loadSequence;
+        this.sourceState = "accepted";
+        break;
       case "pause":
         this.runtimeState = "ready-paused";
         break;
       case "play":
         this.runtimeState = "playing";
         break;
+      case "reset":
+        this.resetTransportPosition();
+        this.lastErrorCode = 0;
+        break;
       case "resetFault":
         this.lastErrorCode = 0;
         this.runtimeState = "ready-paused";
         break;
       case "seek":
-        this.seekToFrame(command.arg0);
+        this.seekToFrame(command.targetSourceFrame);
         break;
       case "setLoop":
-        this.setLoop(command.arg0, command.arg1, command.arg2);
+        this.setLoop(
+          command.loopStartFrame,
+          command.loopEndFrame,
+          command.sequence,
+        );
         break;
       case "stop":
         this.resetTransportPosition();
@@ -398,7 +439,7 @@ export class FakeStretchEngine {
       writer.set("memoryBytes", this.source.memoryBytes);
       writer.set("sampleRate", this.source.sampleRate);
       writer.set("sourceRevision", this.sourceRevision);
-      writer.set("state", enumIndex(SOURCE_STATES, "accepted"));
+      writer.set("state", enumIndex(SOURCE_STATES, this.sourceState));
     });
   }
 
