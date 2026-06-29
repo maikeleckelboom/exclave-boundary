@@ -10,6 +10,14 @@ const twoslashCacheDir = fileURLToPath(
   new URL("./cache/twoslash", import.meta.url),
 );
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 export default defineConfig({
   title: "Exclave Boundary",
   description:
@@ -17,7 +25,12 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   markdown: {
-    languages: ["js", "jsx", "ts", "tsx", "json", "vue"],
+    theme: {
+      light: "light-plus",
+      dark: "dark-plus",
+    },
+    languages: ["js", "jsx", "ts", "tsx", "json", "vue", "sh", "mermaid"],
+    defaultHighlightLang: "txt",
     codeTransformers: [
       transformerTwoslash({
         typesCache: createFileSystemTypesCache({
@@ -25,23 +38,52 @@ export default defineConfig({
         }),
         twoslashOptions: {
           compilerOptions: {
+            allowSyntheticDefaultImports: true,
             baseUrl: repoRoot,
-            lib: ["ES2022", "DOM", "DOM.Iterable"],
+            exactOptionalPropertyTypes: true,
+            lib: ["lib.es2022.d.ts", "lib.dom.d.ts", "lib.dom.iterable.d.ts"],
             module: ts.ModuleKind.ESNext,
+            moduleDetection: ts.ModuleDetectionKind.Force,
             moduleResolution: ts.ModuleResolutionKind.Bundler,
+            noUncheckedIndexedAccess: true,
             paths: {
               "@exclave/boundary": ["packages/core/src/index.ts"],
               "@exclave/boundary/diagnostics": [
                 "packages/core/src/diagnostics.ts",
               ],
             },
+            skipLibCheck: true,
             strict: true,
             target: ts.ScriptTarget.ES2022,
             types: [],
+            verbatimModuleSyntax: true,
           },
         },
       }),
     ],
+    config(md) {
+      const defaultFence = md.renderer.rules.fence;
+
+      md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+        const token = tokens[idx];
+        const language = token.info.trim().split(/\s+/u)[0];
+
+        if (language === "mermaid") {
+          return [
+            '<div class="mermaid-card" data-mermaid>',
+            `<pre class="mermaid-source">${escapeHtml(token.content)}</pre>`,
+            '<div class="mermaid-render" aria-hidden="true"></div>',
+            "</div>",
+          ].join("");
+        }
+
+        if (defaultFence) {
+          return defaultFence(tokens, idx, options, env, self);
+        }
+
+        return self.renderToken(tokens, idx, options);
+      };
+    },
   },
   themeConfig: {
     nav: [

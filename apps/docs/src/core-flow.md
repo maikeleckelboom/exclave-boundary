@@ -2,14 +2,29 @@
 
 Exclave Boundary has one explicit flow. The steps are intentionally separate so layout ownership, backing allocation, and runtime capability transfer remain visible.
 
-```text
-defineSpec
-  -> planLayout
-  -> allocateShared / allocateSharedPartitioned / allocateWasmShared
-  -> buildHandoff
-  -> acceptHandoff
-  -> bindController / bindProcessor / bindObserver
+## Shared Backing Model
+
+The spec and plan make the shared-memory layout explicit. The backing is shared memory, not an event bus: each role has directional ownership over reads and writes.
+
+```mermaid
+flowchart LR
+  spec["Spec DSL<br/>params + meters"] --> plan["Memory plan<br/>stable layout"]
+  plan --> backing["SharedArrayBuffer backing<br/>params plane + meters plane"]
+
+  controller["Controller<br/>UI / main thread"]
+  processor["Processor<br/>worker / audio thread"]
+  observer["Observer<br/>diagnostics / monitoring"]
+
+  controller -->|writes params| backing
+  backing -->|reads meter snapshots| controller
+
+  backing -->|coherent param reads| processor
+  processor -->|publishes meters| backing
+
+  backing -.->|read-only snapshots| observer
 ```
+
+Controller code writes params and reads meters. Processor code reads params and publishes meters. Observer code reads without owning writes. The backing stays the single shared state surface underneath those roles.
 
 ## Stages
 

@@ -26,10 +26,8 @@ const spec = defineSpec(({ param, meter }) => ({
 }));
 
 spec.params["transport.mode"];
-// ^?
 
 spec.meters["transport.spectrum"];
-// ^?
 ```
 
 The authored shape is nested, but the canonical spec uses dot keys. Those keys are accepted by controller and observer APIs.
@@ -67,7 +65,6 @@ controller.params.set("transport.mode", "active");
 controller.params.stage("transport.payload", (payload) => {
   payload.set([1, 2, 3, 4]);
   payload;
-  // ^?
 });
 ```
 
@@ -107,13 +104,10 @@ const processor = bindProcessor(accepted);
 
 processor.params.within((params) => {
   params.transport.enabled;
-  // ^?
 
   params.transport.mode;
-  // ^?
 
   params.transport.payload;
-  // ^?
 });
 
 processor.meters.publish((meters) => {
@@ -121,7 +115,6 @@ processor.meters.publish((meters) => {
   meters.stage("spectrum", (spectrum) => {
     spectrum[0] = 0.25;
     spectrum;
-    // ^?
   });
 });
 ```
@@ -170,10 +163,8 @@ const params = observer.params.snapshot([
 const meters = observer.meters.snapshot("transport.state", "transport.drift");
 
 params["transport.mode"];
-// ^?
 
 meters["transport.state"];
-// ^?
 ```
 
 ## BoundaryError Narrowing
@@ -184,7 +175,6 @@ import { isBoundaryError } from "@exclave/boundary";
 export function summarizeError(error: unknown) {
   if (isBoundaryError(error)) {
     error.code;
-    // ^?
 
     return error.toJSON();
   }

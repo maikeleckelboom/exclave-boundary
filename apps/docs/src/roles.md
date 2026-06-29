@@ -26,6 +26,37 @@ Processor responsibilities:
 - Publish array meters with `writer.stage(...)`.
 - Keep planning, allocation, validation, logging, and orchestration outside the tight loop.
 
+## Realtime Quantum Flow
+
+`within(...)` gives the processor a coherent callback-scoped param view. Array views from that callback are ephemeral: read or copy what you need, but do not retain them after the callback returns.
+
+```mermaid
+flowchart LR
+  tick["Audio quantum start<br/>for example 128 samples"]
+  within["processor.params.within(...)"]
+  read["coherent param read"]
+  process["process audio"]
+  publish["processor.meters.publish(...)"]
+  write["write meters"]
+  done["quantum complete"]
+
+  tick --> within
+  within --> read
+  read --> process
+  process --> publish
+  publish --> write
+  write --> done
+
+  subgraph bounded["Bounded realtime section"]
+    within
+    read
+    process
+    publish
+  end
+```
+
+`publish(...)` writes meters back for the controller or an observer. The realtime section should stay bounded, synchronous, and allocation-conscious.
+
 ## Observer
 
 The observer is a read-only binding for telemetry, inspection, visualizers, and secondary consumers.

@@ -2,6 +2,38 @@
 
 This is the smallest complete Exclave Boundary flow: define a spec, plan memory, allocate backing, build a handoff, accept it on the runtime side, and bind the roles that read or write shared state.
 
+## Boundary Flow
+
+`defineSpec`, `planLayout`, `allocateShared`, and `buildHandoff` happen before the runtime side binds. The controller can already exist on the main side while a handoff is accepted in a worker, an AudioWorklet, or another timing-sensitive runtime.
+
+```mermaid
+flowchart TD
+  subgraph main["Main thread / controller side"]
+    spec["defineSpec<br/>author the boundary shape"]
+    plan["planLayout<br/>compute memory layout"]
+    backing["allocateShared<br/>create shared backing"]
+    controller["bindController<br/>write params, read meters"]
+    handoff["buildHandoff<br/>portable boundary artifact"]
+    transport["postMessage<br/>send handoff"]
+  end
+
+  subgraph runtime["Worker / AudioWorklet / realtime side"]
+    accept["acceptHandoff<br/>validate protocol, plan, backing"]
+    processor["bindProcessor<br/>read params, publish meters"]
+  end
+
+  spec --> plan
+  plan --> backing
+  backing --> controller
+  backing --> handoff
+  handoff --> transport
+  transport --> accept
+  accept --> processor
+  controller -. "same SharedArrayBuffer backing" .- processor
+```
+
+The handoff is the portable artifact. It carries the plan and backing descriptor so the receiving side can validate before interpreting shared memory.
+
 ```ts twoslash
 import {
   acceptHandoff,
@@ -29,7 +61,6 @@ const spec = defineSpec(({ param, meter }) => ({
 }));
 
 spec.params["runtime.enabled"];
-// ^?
 
 const plan = planLayout(spec);
 const backing = allocateShared(plan);
@@ -48,7 +79,6 @@ controller.params.stage("runtime.window", (view) => {
 processor.params.within((params) => {
   if (params.runtime.enabled) {
     params.runtime.count;
-    // ^?
 
     processor.meters.publish((meters) => {
       meters.status(1);
@@ -59,7 +89,6 @@ processor.params.within((params) => {
 
 const meterSnapshot = controller.meters.snapshot();
 meterSnapshot;
-// ^?
 ```
 
 Write APIs use explicit canonical string keys such as `"runtime.enabled"`. Processor read views expose nested aliases such as `params.runtime.enabled` inside `within(...)`; array views are callback-scoped and should not be retained.

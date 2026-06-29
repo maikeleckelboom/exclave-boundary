@@ -33,6 +33,7 @@ catalog:
   vite: ^7.2.4
   vitest: 4.0.13
   vitepress: ^1.6.4
+  mermaid: ^11.16.0
 
 catalogMode: prefer
 

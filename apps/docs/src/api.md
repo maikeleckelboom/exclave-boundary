@@ -27,10 +27,8 @@ const authored = {
 
 const spec = defineSpec(authored);
 type Canonical = CanonicalSpecFromAst<typeof authored>;
-//   ^?
 
 spec.params["filter.cutoff"];
-// ^?
 ```
 
 ## Plan and Backing

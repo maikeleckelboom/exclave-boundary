@@ -22,6 +22,27 @@ spec.params["filter.enabled"];
 
 The dot-key contract is what controllers use for dynamic writes, snapshots, and deterministic layout. Processor read views also expose nested aliases for ergonomic coherent reads.
 
+## Canonical Keys and Read Views
+
+Authored nested paths are flattened into canonical boundary keys. Controller write APIs intentionally use those string keys because they are the stable external contract.
+
+```mermaid
+flowchart TB
+  authored["Authored spec shape<br/>params.time.ratio"]
+  canonical["Canonical boundary key<br/>time.ratio"]
+  controller["Controller write API<br/>controller.params.set(&quot;time.ratio&quot;, value)"]
+  processor["Processor read view<br/>params.time.ratio"]
+  backing["Shared backing<br/>stable memory slots"]
+
+  authored -->|flattened by defineSpec| canonical
+  canonical -->|stable external key| controller
+  canonical -->|re-expanded for ergonomic reads| processor
+  controller -->|writes| backing
+  backing -->|"coherent read inside within(...)"| processor
+```
+
+Use canonical dot keys for controller writes, snapshot key lists, diagnostics, generated artifacts, and spec maps such as `spec.params["time.ratio"]`. Use nested property access in processor read examples when the read view supports it, for example `params.time.ratio` inside `within(...)`.
+
 ```ts twoslash
 import { defineSpec, type ParamValues } from "@exclave/boundary";
 
@@ -42,10 +63,8 @@ const spec = defineSpec(({ param, meter }) => ({
 }));
 
 spec.params["filter.mode"];
-// ^?
 
 type ControllerParamValues = ParamValues<typeof spec>;
-//   ^?
 ```
 
 ## Why Canonical Keys Matter

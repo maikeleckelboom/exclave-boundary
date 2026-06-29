@@ -11,7 +11,6 @@ export function classify(error: unknown) {
   }
 
   error.code;
-  // ^?
 
   const meta = getErrorMeta(error.code);
   const health = interpretHealth(meta);
