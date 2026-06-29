@@ -1,10 +1,8 @@
 # Exclave Boundary
 
-Status: public package rename complete.
-
 This repository contains `@exclave/boundary`, a typed shared-memory boundary substrate for coherent state, deterministic layout, explicit handoff, and timing-sensitive runtimes. It demonstrates authored contracts, deterministic layout planning, shared backing allocation, explicit handoff artifacts, role-specific bindings, diagnostics, tests, benchmarks, and release smoke checks.
 
-Exclave is the ecosystem. Boundary is this package. It was formerly developed under the Seqlok prototype name; new integrations should use `@exclave/boundary`.
+Exclave Boundary is the public package. Integration code should import `@exclave/boundary`.
 
 ## What This Is
 
@@ -83,7 +81,7 @@ console.log(controller.meters.snapshot());
 
 Authored specs may use nested namespaces. Write APIs use explicit canonical string keys, and processor read views expose nested aliases such as `params.runtime.enabled`.
 
-## Current Package
+## Package Boundary
 
 - `packages/core` publishes `@exclave/boundary`.
 - The package is MIT licensed, ESM, typed, and marked `sideEffects: false`.
