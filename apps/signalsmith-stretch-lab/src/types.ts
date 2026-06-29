@@ -32,11 +32,28 @@ export const SOURCE_STATES = [
 
 export const STRETCH_PRESETS = ["custom", "default", "cheaper"] as const;
 
+export const LISTENING_PRESETS = [
+  "music-default",
+  "voice-formant-experiment",
+] as const;
+
+export const TONALITY_LIMIT_DEFAULT_HZ = 8_000;
+export const TONALITY_LIMIT_MIN_HZ = 2_000;
+export const TONALITY_LIMIT_MAX_HZ = 20_000;
+export const FORMANT_SHIFT_DEFAULT_SEMITONES = 0;
+export const FORMANT_SHIFT_MIN_SEMITONES = -12;
+export const FORMANT_SHIFT_MAX_SEMITONES = 12;
+export const FORMANT_BASE_AUTO_HZ = 0;
+export const FORMANT_BASE_MANUAL_DEFAULT_HZ = 120;
+export const FORMANT_BASE_MIN_HZ = 50;
+export const FORMANT_BASE_MAX_HZ = 500;
+
 export type RuntimeState = (typeof RUNTIME_STATES)[number];
 export type AdapterMode = (typeof ADAPTER_MODES)[number];
 export type ProbeState = (typeof PROBE_STATES)[number];
 export type SourceState = (typeof SOURCE_STATES)[number];
 export type StretchPreset = (typeof STRETCH_PRESETS)[number];
+export type ListeningPreset = (typeof LISTENING_PRESETS)[number];
 
 export interface DesiredStretchControls {
   readonly active: boolean;
@@ -54,6 +71,14 @@ export interface DesiredStretchControls {
   readonly tonalityEnabled: boolean;
   readonly tonalityHz: number;
   readonly transitionFrames: number;
+}
+
+export interface ListeningPresetControls {
+  readonly formantBaseHz: number;
+  readonly formantCompensation: boolean;
+  readonly formantSemitones: number;
+  readonly tonalityEnabled: boolean;
+  readonly tonalityHz: number;
 }
 
 export interface SimulatedSource {
@@ -163,18 +188,93 @@ export function defaultDesiredControls(): DesiredStretchControls {
     blockMs: 120,
     configSequence: 1,
     desiredSequence: 1,
-    formantBaseHz: 0,
-    formantCompensation: true,
-    formantSemitones: 0,
+    formantBaseHz: FORMANT_BASE_AUTO_HZ,
+    formantCompensation: false,
+    formantSemitones: FORMANT_SHIFT_DEFAULT_SEMITONES,
     intervalMs: 30,
     pitchSemitones: 0,
     preset: "default",
     rate: 1,
     splitComputation: false,
     tonalityEnabled: true,
-    tonalityHz: 440,
+    tonalityHz: TONALITY_LIMIT_DEFAULT_HZ,
     transitionFrames: 2_048,
   };
+}
+
+export const LISTENING_PRESET_CONTROLS: Record<
+  ListeningPreset,
+  ListeningPresetControls
+> = {
+  "music-default": {
+    formantBaseHz: FORMANT_BASE_AUTO_HZ,
+    formantCompensation: false,
+    formantSemitones: FORMANT_SHIFT_DEFAULT_SEMITONES,
+    tonalityEnabled: true,
+    tonalityHz: TONALITY_LIMIT_DEFAULT_HZ,
+  },
+  "voice-formant-experiment": {
+    formantBaseHz: FORMANT_BASE_MANUAL_DEFAULT_HZ,
+    formantCompensation: false,
+    formantSemitones: FORMANT_SHIFT_DEFAULT_SEMITONES,
+    tonalityEnabled: true,
+    tonalityHz: TONALITY_LIMIT_DEFAULT_HZ,
+  },
+};
+
+export function clampTonalityLimitHz(value: number): number {
+  return clampFinite(value, TONALITY_LIMIT_MIN_HZ, TONALITY_LIMIT_MAX_HZ);
+}
+
+export function clampFormantShiftSemitones(value: number): number {
+  return clampFinite(
+    value,
+    FORMANT_SHIFT_MIN_SEMITONES,
+    FORMANT_SHIFT_MAX_SEMITONES,
+  );
+}
+
+export function clampManualFormantBaseHz(value: number): number {
+  return clampFinite(value, FORMANT_BASE_MIN_HZ, FORMANT_BASE_MAX_HZ);
+}
+
+export function resolveFormantBaseHz(
+  mode: "auto" | "manual",
+  manualValue: number,
+): number {
+  return mode === "auto"
+    ? FORMANT_BASE_AUTO_HZ
+    : clampManualFormantBaseHz(manualValue);
+}
+
+export function applyListeningPreset(
+  controls: DesiredStretchControls,
+  preset: ListeningPreset,
+): DesiredStretchControls {
+  return {
+    ...controls,
+    ...LISTENING_PRESET_CONTROLS[preset],
+  };
+}
+
+export function matchingListeningPreset(
+  controls: ListeningPresetControls,
+): ListeningPreset | "custom" {
+  for (const preset of LISTENING_PRESETS) {
+    const candidate = LISTENING_PRESET_CONTROLS[preset];
+
+    if (
+      controls.formantBaseHz === candidate.formantBaseHz &&
+      controls.formantCompensation === candidate.formantCompensation &&
+      controls.formantSemitones === candidate.formantSemitones &&
+      controls.tonalityEnabled === candidate.tonalityEnabled &&
+      controls.tonalityHz === candidate.tonalityHz
+    ) {
+      return preset;
+    }
+  }
+
+  return "custom";
 }
 
 export function defaultSimulatedSource(): SimulatedSource {
@@ -207,4 +307,12 @@ export function enumLabel<const T extends readonly string[]>(
   fallback: T[number],
 ): T[number] {
   return values[index] ?? fallback;
+}
+
+function clampFinite(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.min(max, Math.max(min, value));
 }

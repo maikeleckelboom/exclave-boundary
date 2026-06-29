@@ -44,11 +44,22 @@ describe("Signalsmith Worklet runtime semantics", () => {
 
     expect(desiredBody).toContain("_setTransposeSemitones");
     expect(desiredBody).toContain("_setFormantSemitones");
+    expect(desiredBody).toContain("_setFormantBase");
     expect(desiredBody).not.toContain("configureModule");
     expect(desiredBody).not.toContain("_configure");
     expect(desiredBody).not.toContain("_setBuffers");
     expect(configBody).toContain("configureModule");
     expect(configBody).toContain("_reset");
+  });
+
+  it("keeps the Worklet fallback defaults aligned with musical pitch defaults", () => {
+    const source = readFileSync(WORKLET_PROCESSOR, "utf8");
+
+    expect(source).toContain("private tonalityHz = TONALITY_LIMIT_DEFAULT_HZ");
+    expect(source).toContain("private formantCompensation = false");
+    expect(source).toContain("private formantBaseHz = FORMANT_BASE_AUTO_HZ");
+    expect(source).not.toContain("private tonalityHz = 440");
+    expect(source).not.toContain("private formantCompensation = true");
   });
 
   it("queues scheduled commands until outputFrame reaches the target", () => {

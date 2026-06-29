@@ -2,10 +2,15 @@ import { defineSpec } from "@exclave/boundary";
 
 import {
   ADAPTER_MODES,
+  FORMANT_BASE_MAX_HZ,
+  FORMANT_SHIFT_MAX_SEMITONES,
+  FORMANT_SHIFT_MIN_SEMITONES,
   PROBE_STATES,
   RUNTIME_STATES,
   SOURCE_STATES,
   STRETCH_PRESETS,
+  TONALITY_LIMIT_MAX_HZ,
+  TONALITY_LIMIT_MIN_HZ,
 } from "../types";
 
 export const signalsmithStretchLabSpec = defineSpec(({ param, meter }) => ({
@@ -17,10 +22,16 @@ export const signalsmithStretchLabSpec = defineSpec(({ param, meter }) => ({
       rate: param.f32({ min: 0.05, max: 8 }),
       pitchSemitones: param.f32({ min: -48, max: 48 }),
       tonalityEnabled: param.bool(),
-      tonalityHz: param.f32({ min: 0, max: 24_000 }),
-      formantSemitones: param.f32({ min: -48, max: 48 }),
+      tonalityHz: param.f32({
+        min: TONALITY_LIMIT_MIN_HZ,
+        max: TONALITY_LIMIT_MAX_HZ,
+      }),
+      formantSemitones: param.f32({
+        min: FORMANT_SHIFT_MIN_SEMITONES,
+        max: FORMANT_SHIFT_MAX_SEMITONES,
+      }),
       formantCompensation: param.bool(),
-      formantBaseHz: param.f32({ min: 0, max: 24_000 }),
+      formantBaseHz: param.f32({ min: 0, max: FORMANT_BASE_MAX_HZ }),
       transitionFrames: param.u32({ min: 0, max: 48_000 }),
     },
     config: {

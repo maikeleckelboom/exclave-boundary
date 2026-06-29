@@ -14,7 +14,19 @@ import {
   writeDesiredControls,
 } from "../src/boundary/session";
 import { signalsmithStretchLabSpec } from "../src/boundary/specs";
-import { defaultDesiredControls } from "../src/types";
+import {
+  FORMANT_BASE_AUTO_HZ,
+  FORMANT_BASE_MAX_HZ,
+  FORMANT_BASE_MIN_HZ,
+  FORMANT_SHIFT_MAX_SEMITONES,
+  FORMANT_SHIFT_MIN_SEMITONES,
+  TONALITY_LIMIT_DEFAULT_HZ,
+  TONALITY_LIMIT_MAX_HZ,
+  TONALITY_LIMIT_MIN_HZ,
+  clampManualFormantBaseHz,
+  defaultDesiredControls,
+  resolveFormantBaseHz,
+} from "../src/types";
 
 const PARAM_KEYS = [
   "config.blockMs",
@@ -159,14 +171,21 @@ describe("Signalsmith Stretch Lab boundary spec", () => {
       signalsmithStretchLabSpec.params["control.tonalityHz"],
     ).toMatchObject({
       kind: "f32",
-      max: 24_000,
-      min: 0,
+      max: TONALITY_LIMIT_MAX_HZ,
+      min: TONALITY_LIMIT_MIN_HZ,
+    });
+    expect(
+      signalsmithStretchLabSpec.params["control.formantSemitones"],
+    ).toMatchObject({
+      kind: "f32",
+      max: FORMANT_SHIFT_MAX_SEMITONES,
+      min: FORMANT_SHIFT_MIN_SEMITONES,
     });
     expect(
       signalsmithStretchLabSpec.params["control.formantBaseHz"],
     ).toMatchObject({
       kind: "f32",
-      max: 24_000,
+      max: FORMANT_BASE_MAX_HZ,
       min: 0,
     });
     expect(signalsmithStretchLabSpec.params["config.preset"]).toMatchObject({
@@ -181,6 +200,23 @@ describe("Signalsmith Stretch Lab boundary spec", () => {
     for (const def of Object.values(signalsmithStretchLabSpec.params)) {
       expect(def.kind).not.toBe("f64");
     }
+  });
+
+  it("uses music-safe desired control defaults", () => {
+    expect(defaultDesiredControls()).toMatchObject({
+      formantBaseHz: FORMANT_BASE_AUTO_HZ,
+      formantCompensation: false,
+      formantSemitones: 0,
+      tonalityHz: TONALITY_LIMIT_DEFAULT_HZ,
+    });
+  });
+
+  it("keeps formant base Auto at 0 and clamps manual voice base values", () => {
+    expect(resolveFormantBaseHz("auto", 125)).toBe(FORMANT_BASE_AUTO_HZ);
+    expect(resolveFormantBaseHz("manual", 10)).toBe(FORMANT_BASE_MIN_HZ);
+    expect(resolveFormantBaseHz("manual", 250)).toBe(250);
+    expect(resolveFormantBaseHz("manual", 1_000)).toBe(FORMANT_BASE_MAX_HZ);
+    expect(clampManualFormantBaseHz(Number.NaN)).toBe(FORMANT_BASE_MIN_HZ);
   });
 
   it("plans one non-zero backing and plane metadata block", () => {

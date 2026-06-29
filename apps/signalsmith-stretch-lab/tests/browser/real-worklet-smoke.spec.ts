@@ -12,12 +12,38 @@ test("primary demo keeps proof inspector collapsed until expanded", async ({
 
   await expect(page.locator("#sourceDrop")).toBeVisible();
   await expect(page.locator("#waveform")).toBeVisible();
+  await expect(
+    page.locator("label").filter({ hasText: "Tonality limit" }),
+  ).toBeVisible();
+  await expect(page.locator("#listeningPreset")).toHaveValue("music-default");
+  await expect(page.locator("#tonalityHz")).toHaveValue("8000");
+  await expect(page.locator("#tonalityHzValue")).toHaveText("8000 Hz");
+  await expect(page.locator("#formantCompensation")).not.toBeChecked();
+  await expect(page.locator("#formantBaseAuto")).toBeChecked();
+  await expect(page.locator("#formantBaseValue")).toHaveText("Auto (0)");
+  await expect
+    .poll(() => runtimeFact(page, "Voice/formant base"))
+    .toBe("Auto (0)");
   await expect(page.locator("#advancedInspector")).not.toHaveAttribute("open");
   await expect(page.getByText("Exclave spec hash")).not.toBeVisible();
 
   await page.locator("#advancedInspector > summary").click();
   await expect(page.getByText("Exclave spec hash")).toBeVisible();
   await expect(page.getByText("Nested spec plan")).toBeVisible();
+
+  await page.locator("#formantBaseAuto").uncheck();
+  await setRange(page, "#formantBase", "10");
+  await expect
+    .poll(() => runtimeFact(page, "Voice/formant base"))
+    .toBe("50 Hz");
+  await setRange(page, "#formantBase", "1000");
+  await expect
+    .poll(() => runtimeFact(page, "Voice/formant base"))
+    .toBe("500 Hz");
+  await page.locator("#formantBaseAuto").check();
+  await expect
+    .poll(() => runtimeFact(page, "Voice/formant base"))
+    .toBe("Auto (0)");
 });
 
 test("reports refused WAV sample-rate contexts without resampling", async ({
@@ -226,6 +252,14 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
     page,
     "Block / interval / split",
   );
+  await page.locator("#listeningPreset").selectOption("music-default");
+  await expect(page.locator("#tonalityHz")).toHaveValue("8000");
+  await expect(page.locator("#formantShift")).toHaveValue("0");
+  await expect(page.locator("#formantCompensation")).not.toBeChecked();
+  await expect(page.locator("#formantBaseAuto")).toBeChecked();
+  await expect
+    .poll(() => runtimeFact(page, "Voice/formant base"))
+    .toBe("Auto (0)");
   await setRange(page, "#rate", "1.25");
   await setRange(page, "#pitch", "3");
   await expect
@@ -237,6 +271,15 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
   await expect
     .poll(() => smokeFact(page, "sourceAcceptedMessages"))
     .toBeLessThanOrEqual(1);
+
+  await setRange(page, "#tonalityHz", "9000");
+  await setRange(page, "#formantShift", "2");
+  await page.locator("#formantCompensation").check();
+  await page.locator("#formantBaseAuto").uncheck();
+  await setRange(page, "#formantBase", "80");
+  await expect
+    .poll(() => runtimeFact(page, "Block / interval / split"))
+    .toBe(blockIntervalBefore);
 
   await setRange(page, "#blockMs", "150");
   await expect

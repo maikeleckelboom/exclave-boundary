@@ -198,10 +198,10 @@ Fields:
 | `rate` | `f32` or `f64` according to package support | Source frames per output frame |
 | `pitchSemitones` | `f32` | Independent transpose |
 | `tonalityEnabled` | `u32` or `bool` | Tonality processing flag |
-| `tonalityHz` | `f32` | Product-space frequency value |
-| `formantSemitones` | `f32` | Independent formant shift |
+| `tonalityHz` | `f32` | Tonality limit, 2000-20000 Hz |
+| `formantSemitones` | `f32` | Independent voice/formant shift, -12 to 12 st |
 | `formantCompensation` | `u32` or `bool` | Engine compensation flag |
-| `formantBaseHz` | `f32` | Zero for Auto |
+| `formantBaseHz` | `f32` | Zero for Auto; manual voice base clamps to 50-500 Hz |
 | `transitionFrames` | `u32` | Hot-control transition length |
 
 The first demo slice may use current numeric kinds only. If the current package does not support true `u64` fields, do not redesign the package. Use a documented pair or `u32` sequence for the demo.
@@ -695,10 +695,10 @@ export const desiredStretchSpec = defineSpec(({ param }) => ({
     rate: param.f32({ min: 0.05, max: 8 }),
     pitchSemitones: param.f32({ min: -48, max: 48 }),
     tonalityEnabled: param.bool(),
-    tonalityHz: param.f32({ min: 0, max: 24_000 }),
-    formantSemitones: param.f32({ min: -48, max: 48 }),
+    tonalityHz: param.f32({ min: 2_000, max: 20_000 }),
+    formantSemitones: param.f32({ min: -12, max: 12 }),
     formantCompensation: param.bool(),
-    formantBaseHz: param.f32({ min: 0, max: 24_000 }),
+    formantBaseHz: param.f32({ min: 0, max: 500 }),
     transitionFrames: param.u32({ min: 0, max: 48_000 }),
     configSequence: param.u32(),
     preset: param.enum(STRETCH_PRESETS),

@@ -51,9 +51,18 @@ import {
   type SignalsmithWorkletAssetFacts,
 } from "./signalsmith/worklet-assets";
 import {
+  applyListeningPreset,
+  clampFormantShiftSemitones,
+  clampManualFormantBaseHz,
+  clampTonalityLimitHz,
   defaultDesiredControls,
   defaultSimulatedSource,
+  FORMANT_BASE_AUTO_HZ,
+  FORMANT_BASE_MANUAL_DEFAULT_HZ,
+  LISTENING_PRESETS,
+  matchingListeningPreset,
   type DesiredStretchControls,
+  type ListeningPreset,
   type LoopPreview,
   type ProcessedLevelsSnapshot,
   type RuntimeStatusSnapshot,
@@ -124,6 +133,7 @@ function startLab(appRoot: HTMLElement): void {
     let clipBaselineRight = 0;
 
     initializeDesiredControls(session, desired);
+    applyControlsToInputs(desired, elements);
 
     renderAdapterHeader(elements, signalsmithAssets, "simulator");
 
@@ -183,6 +193,7 @@ function startLab(appRoot: HTMLElement): void {
       elements.tonalityHz,
       elements.formantShift,
       elements.formantCompensation,
+      elements.formantBaseAuto,
       elements.formantBase,
     ]) {
       input.addEventListener("input", () => {
@@ -196,6 +207,24 @@ function startLab(appRoot: HTMLElement): void {
         render();
       });
     }
+
+    elements.listeningPreset.addEventListener("change", () => {
+      const preset = coerceListeningPreset(elements.listeningPreset.value);
+
+      if (!preset) {
+        updateControlOutputs();
+        return;
+      }
+
+      desired = {
+        ...applyListeningPreset(desired, preset),
+        desiredSequence: nextSequence(desired.desiredSequence),
+      };
+      applyControlsToInputs(desired, elements);
+      writeDesiredControls(session, desired);
+      updateControlOutputs();
+      render();
+    });
 
     elements.configPreset.addEventListener("change", () => {
       desired = collectConfigFromInputs(
@@ -636,10 +665,11 @@ function startLab(appRoot: HTMLElement): void {
       elements.transitionFramesValue.textContent = `${Math.round(Number(elements.transitionFrames.value)).toString()} frames`;
       elements.tonalityHzValue.textContent = `${Math.round(Number(elements.tonalityHz.value)).toString()} Hz`;
       elements.formantShiftValue.textContent = `${Number(elements.formantShift.value).toFixed(1)} st`;
-      elements.formantBaseValue.textContent =
-        Number(elements.formantBase.value) === 0
-          ? "Auto"
-          : `${Math.round(Number(elements.formantBase.value)).toString()} Hz`;
+      elements.formantBase.disabled = elements.formantBaseAuto.checked;
+      elements.formantBaseValue.textContent = elements.formantBaseAuto.checked
+        ? "Auto (0)"
+        : `${Math.round(Number(elements.formantBase.value)).toString()} Hz`;
+      elements.listeningPreset.value = matchingListeningPreset(desired);
       elements.configPreset.value = desired.preset;
       elements.blockMs.value = desired.blockMs.toFixed(0);
       elements.blockMsNumber.value = desired.blockMs.toFixed(0);
@@ -923,6 +953,27 @@ function startLab(appRoot: HTMLElement): void {
         ["Waveform mode", waveformModeLabel(waveformMode)],
         ["Exclave spec hash", plans.lab.hash],
         ["Nested spec plan", planFact(plans.lab)],
+        ["Pitch shift", `${desiredSnapshot.pitchSemitones.toFixed(1)} st`],
+        [
+          "Tonality limit",
+          desiredSnapshot.tonalityEnabled
+            ? `${Math.round(desiredSnapshot.tonalityHz).toString()} Hz`
+            : "disabled",
+        ],
+        [
+          "Voice/formant shift",
+          `${desiredSnapshot.formantSemitones.toFixed(1)} st`,
+        ],
+        [
+          "Voice/formant compensation",
+          desiredSnapshot.formantCompensation ? "on" : "off",
+        ],
+        [
+          "Voice/formant base",
+          desiredSnapshot.formantBaseHz === FORMANT_BASE_AUTO_HZ
+            ? "Auto (0)"
+            : `${Math.round(desiredSnapshot.formantBaseHz).toString()} Hz`,
+        ],
         ["Desired active", desiredSnapshot.active ? "true" : "false"],
         [
           "Applied sequence",
@@ -1015,16 +1066,25 @@ function collectDesiredFromInputs(
   desiredSequence: number,
   previousControls: DesiredStretchControls,
 ): DesiredStretchControls {
+  const formantBaseHz = readFormantBaseHz(elements);
+  const formantSemitones = clampFormantShiftSemitones(
+    Number(elements.formantShift.value),
+  );
+  const tonalityHz = clampTonalityLimitHz(Number(elements.tonalityHz.value));
+
+  elements.formantShift.value = String(formantSemitones);
+  elements.tonalityHz.value = String(tonalityHz);
+
   return {
     ...previousControls,
     desiredSequence,
-    formantBaseHz: Number(elements.formantBase.value),
+    formantBaseHz,
     formantCompensation: elements.formantCompensation.checked,
-    formantSemitones: Number(elements.formantShift.value),
+    formantSemitones,
     pitchSemitones: Number(elements.pitch.value),
     rate: Number(elements.rate.value),
     tonalityEnabled: elements.tonalityEnabled.checked,
-    tonalityHz: Number(elements.tonalityHz.value),
+    tonalityHz,
     transitionFrames: Math.round(Number(elements.transitionFrames.value)),
   };
 }
@@ -1090,10 +1150,19 @@ function applyControlsToInputs(
   elements.pitch.value = String(controls.pitchSemitones);
   elements.transitionFrames.value = String(controls.transitionFrames);
   elements.tonalityEnabled.checked = controls.tonalityEnabled;
-  elements.tonalityHz.value = String(controls.tonalityHz);
-  elements.formantShift.value = String(controls.formantSemitones);
+  elements.tonalityHz.value = String(clampTonalityLimitHz(controls.tonalityHz));
+  elements.formantShift.value = String(
+    clampFormantShiftSemitones(controls.formantSemitones),
+  );
   elements.formantCompensation.checked = controls.formantCompensation;
-  elements.formantBase.value = String(controls.formantBaseHz);
+  elements.formantBaseAuto.checked =
+    controls.formantBaseHz === FORMANT_BASE_AUTO_HZ;
+  elements.formantBase.value = String(
+    controls.formantBaseHz === FORMANT_BASE_AUTO_HZ
+      ? FORMANT_BASE_MANUAL_DEFAULT_HZ
+      : clampManualFormantBaseHz(controls.formantBaseHz),
+  );
+  elements.listeningPreset.value = matchingListeningPreset(controls);
   elements.configPreset.value = controls.preset;
   elements.blockMs.value = String(controls.blockMs);
   elements.blockMsNumber.value = String(controls.blockMs);
@@ -1103,6 +1172,23 @@ function applyControlsToInputs(
   elements.overlap.value = overlapFromConfig(controls).toFixed(1);
   elements.overlapNumber.value = overlapFromConfig(controls).toFixed(1);
   elements.splitComputation.checked = controls.splitComputation;
+}
+
+function readFormantBaseHz(
+  elements: ReturnType<typeof renderAppShell>,
+): number {
+  const manualBaseHz = clampManualFormantBaseHz(
+    Number(elements.formantBase.value),
+  );
+  elements.formantBase.value = String(manualBaseHz);
+
+  return elements.formantBaseAuto.checked ? FORMANT_BASE_AUTO_HZ : manualBaseHz;
+}
+
+function coerceListeningPreset(value: string): ListeningPreset | null {
+  return LISTENING_PRESETS.includes(value as ListeningPreset)
+    ? (value as ListeningPreset)
+    : null;
 }
 
 function renderKeyValues(

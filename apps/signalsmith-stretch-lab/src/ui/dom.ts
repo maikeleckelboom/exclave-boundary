@@ -11,11 +11,13 @@ export interface AppElements {
   readonly faultButton: HTMLButtonElement;
   readonly fileInput: HTMLInputElement;
   readonly formantBase: HTMLInputElement;
+  readonly formantBaseAuto: HTMLInputElement;
   readonly formantBaseValue: HTMLElement;
   readonly formantCompensation: HTMLInputElement;
   readonly formantShift: HTMLInputElement;
   readonly formantShiftValue: HTMLElement;
   readonly inspector: HTMLElement;
+  readonly listeningPreset: HTMLSelectElement;
   readonly levelsSummary: HTMLElement;
   readonly loopApplied: HTMLElement;
   readonly loopEnd: HTMLInputElement;
@@ -169,30 +171,44 @@ export function renderAppShell(root: HTMLElement): AppElements {
         </div>
 
         <div class="control-panel">
-          <p class="section-label">Tone and formants</p>
+          <p class="section-label">Voice/formant controls</p>
+          <label>
+            <span>Listening preset</span>
+            <select id="listeningPreset">
+              <option value="music-default">Music default</option>
+              <option value="voice-formant-experiment">Voice/formant experiment</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <p class="control-note">Music default keeps formant changes off and leaves formant base on Auto.</p>
           <label class="toggle-row">
             <input id="tonalityEnabled" type="checkbox" checked />
             <span>Tonality enabled</span>
           </label>
           <label>
-            <span>Tonality Hz</span>
-            <input id="tonalityHz" type="range" min="0" max="24000" step="1" value="440" />
-            <output id="tonalityHzValue">440 Hz</output>
+            <span>Tonality limit</span>
+            <input id="tonalityHz" type="range" min="2000" max="20000" step="1" value="8000" />
+            <output id="tonalityHzValue">8000 Hz</output>
           </label>
           <label>
-            <span>Formant shift</span>
-            <input id="formantShift" type="range" min="-48" max="48" step="0.1" value="0" />
+            <span>Voice/formant shift</span>
+            <input id="formantShift" type="range" min="-12" max="12" step="0.1" value="0" />
             <output id="formantShiftValue">0.0 st</output>
           </label>
           <label class="toggle-row">
-            <input id="formantCompensation" type="checkbox" checked />
-            <span>Compensation</span>
+            <input id="formantCompensation" type="checkbox" />
+            <span>Voice compensation</span>
+          </label>
+          <label class="toggle-row">
+            <input id="formantBaseAuto" type="checkbox" checked />
+            <span>Auto formant base</span>
           </label>
           <label>
-            <span>Formant base</span>
-            <input id="formantBase" type="range" min="0" max="24000" step="1" value="0" />
-            <output id="formantBaseValue">Auto</output>
+            <span>Manual voice base (advanced)</span>
+            <input id="formantBase" type="range" min="50" max="500" step="1" value="120" disabled />
+            <output id="formantBaseValue">Auto (0)</output>
           </label>
+          <p class="control-note">Manual base is for voice/formant experiments; Auto writes 0 for Signalsmith detection.</p>
         </div>
 
         <div class="control-panel config-panel">
@@ -286,11 +302,13 @@ export function renderAppShell(root: HTMLElement): AppElements {
     faultButton: must(root, "#faultButton", HTMLButtonElement),
     fileInput: must(root, "#fileInput", HTMLInputElement),
     formantBase: must(root, "#formantBase", HTMLInputElement),
+    formantBaseAuto: must(root, "#formantBaseAuto", HTMLInputElement),
     formantBaseValue: must(root, "#formantBaseValue", HTMLElement),
     formantCompensation: must(root, "#formantCompensation", HTMLInputElement),
     formantShift: must(root, "#formantShift", HTMLInputElement),
     formantShiftValue: must(root, "#formantShiftValue", HTMLElement),
     inspector: must(root, "#inspector", HTMLElement),
+    listeningPreset: must(root, "#listeningPreset", HTMLSelectElement),
     levelsSummary: must(root, "#levelsSummary", HTMLElement),
     loopApplied: must(root, "#loopApplied", HTMLElement),
     loopEnd: must(root, "#loopEnd", HTMLInputElement),

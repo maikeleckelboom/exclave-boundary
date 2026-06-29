@@ -3,8 +3,11 @@ import { SWSR_HEADER_DROPPED, type SwsrRingBacking } from "@exclave/boundary";
 import {
   enumIndex,
   enumLabel,
+  FORMANT_BASE_AUTO_HZ,
+  FORMANT_SHIFT_DEFAULT_SEMITONES,
   SOURCE_STATES,
   STRETCH_PRESETS,
+  TONALITY_LIMIT_DEFAULT_HZ,
   type RuntimeState,
   type StretchPreset,
 } from "../types";
@@ -90,9 +93,9 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   private bufferLengthFrames = 0;
   private effectiveRate = 1;
   private failed = false;
-  private formantBaseHz = 0;
-  private formantCompensation = true;
-  private formantSemitones = 0;
+  private formantBaseHz = FORMANT_BASE_AUTO_HZ;
+  private formantCompensation = false;
+  private formantSemitones = FORMANT_SHIFT_DEFAULT_SEMITONES;
   private heapGeneration = 0;
   private inputBuffers: Float32Array[] = [];
   private inputLatencyFrames = 0;
@@ -125,7 +128,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   private splitComputation = false;
   private staleReadTotal = 0;
   private tonalityEnabled = true;
-  private tonalityHz = 440;
+  private tonalityHz = TONALITY_LIMIT_DEFAULT_HZ;
   private underrunTotal = 0;
   private unsupportedChannelBlockTotal = 0;
   private workletGeneration = 1;
