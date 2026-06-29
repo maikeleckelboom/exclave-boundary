@@ -137,11 +137,12 @@ describe("Signalsmith real Worklet contract", () => {
     expect(source).not.toMatch(/"(runtime|source|levels)\./u);
   });
 
-  it("centers buffered source reads on the Signalsmith input and output latency window", () => {
+  it("names buffered source reads against the Signalsmith latency window", () => {
     const source = readFileSync(WORKLET_PROCESSOR, "utf8");
 
-    expect(source).toContain("this.inputLatencyFrames +");
-    expect(source).toContain("this.outputLatencyFrames");
+    expect(source).toContain("sourceWindowForAudibleFrame");
+    expect(source).toContain("inputWindowStartFrame");
+    expect(source).toContain("processingCenterFrame");
     expect(source).toContain("module._seek(this.bufferLengthFrames");
     expect(source).toContain("module._process(0, outputFrameCount)");
   });

@@ -18,6 +18,7 @@ out/
 # ── coverage and reports
 coverage/
 packages/**/.coverage/
+test-results/
 *.lcov
 .nyc_output/
 

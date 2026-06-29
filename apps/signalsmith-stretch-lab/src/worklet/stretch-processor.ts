@@ -16,8 +16,13 @@ import { bindWorkletCommandRing } from "./command-ring";
 import { LevelProbe } from "./level-probe";
 import { STRETCH_PROCESSOR_NAME } from "./processor-name";
 import { publishRuntimeMeters } from "./runtime-meters";
+import { ScheduledCommandQueue } from "./scheduled-commands";
 import { loadSignalsmithStretchModule } from "./signalsmith-module";
 import { SourceWindow } from "./source-window";
+import {
+  calculateSignalsmithSourceWindow,
+  type SignalsmithSourceWindow,
+} from "./source-window-position";
 
 import type {
   ChunkedWavSourceInfo,
@@ -75,10 +80,13 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   private readonly commandConsumer;
   private readonly commandRingBacking: SwsrRingBacking;
   private readonly levelProbe = new LevelProbe();
+  private readonly scheduledCommands =
+    new ScheduledCommandQueue<StretchCommand>();
   private readonly sourceWindow = new SourceWindow();
 
   private active = false;
   private blockMs = 120;
+  private bufferBaseIndex = 0;
   private bufferLengthFrames = 0;
   private effectiveRate = 1;
   private failed = false;
@@ -92,6 +100,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   private intervalSamples = 0;
   private invalidSampleTotal = 0;
   private invalidTransitionTotal = 0;
+  private lastHeapBuffer: ArrayBufferLike | null = null;
   private lastAppliedCommandSequence = 0;
   private lastAppliedConfigSequence = 0;
   private lastAppliedDesiredSequence = 0;
@@ -106,6 +115,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   private outputBuffers: Float32Array[] = [];
   private outputFrame = 0;
   private outputLatencyFrames = 0;
+  private pendingCommandDroppedTotal = 0;
   private pitchSemitones = 0;
   private preset: StretchPreset = "default";
   private runtimeState: RuntimeState = "idle";
@@ -192,12 +202,18 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       this.module = module;
       module._presetDefault(this.channelCount(), sampleRate);
       this.updateBuffers();
+      if (this.lastAppliedDesiredSequence !== 0) {
+        this.applyDesiredControls();
+      }
+      if (this.lastAppliedConfigSequence !== 0) {
+        this.applyConfigControls();
+      }
       this.runtimeState = "ready-paused";
       this.port.postMessage({
         type: "ready",
         workletGeneration: this.workletGeneration,
       });
-      this.publishSourceAccepted();
+      this.acceptSource();
     } catch (error) {
       this.fail(5_000, error);
     }
@@ -211,6 +227,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       case "sourceChunk":
         if (message.sourceRevision === this.sourceRevision) {
           this.sourceWindow.addChunk(message.chunk);
+          this.publishSourceStatus();
         }
         break;
       case "sourceInfo":
@@ -220,7 +237,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
         this.sourceFrame = 0;
         this.outputFrame = 0;
         this.updateBuffers();
-        this.publishSourceAccepted();
+        this.acceptSource();
         break;
     }
   }
@@ -238,16 +255,18 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
     }
 
     this.wrapLoopIfNeeded();
+    this.checkHeapViews();
 
-    const inputEndFrame =
-      Math.round(this.sourceFrame) +
-      this.inputLatencyFrames +
-      this.outputLatencyFrames;
-    const inputStartFrame = inputEndFrame - this.bufferLengthFrames;
+    const sourceWindow = this.sourceWindowForAudibleFrame(this.sourceFrame);
     const fill = this.sourceWindow.fillInputWindow(
       this.inputBuffers,
-      inputStartFrame,
+      sourceWindow.inputWindowStartFrame,
       this.bufferLengthFrames,
+      {
+        enabled: this.loopEnabled,
+        endFrame: this.loopEndFrame,
+        startFrame: this.loopStartFrame,
+      },
     );
 
     if (fill.missingFrames > 0) {
@@ -256,6 +275,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
 
     module._seek(this.bufferLengthFrames, this.effectiveRate);
     module._process(0, outputFrameCount);
+    this.checkHeapViews();
 
     for (let channel = 0; channel < output.length; channel += 1) {
       const source = this.outputBuffers[channel % this.outputBuffers.length];
@@ -286,7 +306,31 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
   }
 
   private drainCommands(): void {
+    this.applyReadyScheduledCommands();
+
     this.commandConsumer.drain((command: StretchCommand) => {
+      this.scheduleOrApplyCommand(command);
+    });
+
+    this.applyReadyScheduledCommands();
+  }
+
+  private scheduleOrApplyCommand(command: StretchCommand): void {
+    const result = this.scheduledCommands.schedule(command, this.outputFrame);
+
+    if (result === "ready") {
+      this.applyCommand(command);
+      return;
+    }
+
+    if (result === "dropped") {
+      this.pendingCommandDroppedTotal += 1;
+      this.invalidTransitionTotal += 1;
+    }
+  }
+
+  private applyReadyScheduledCommands(): void {
+    this.scheduledCommands.drainReady(this.outputFrame, (command) => {
       this.applyCommand(command);
     });
   }
@@ -304,7 +348,8 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
         this.intervalMs = command.intervalMs || this.intervalMs;
         this.splitComputation = command.splitComputation;
         this.lastAppliedConfigSequence = command.configSequence;
-        this.configureModule("custom");
+        this.preset = "custom";
+        this.applyConfigControls();
         break;
       case "destroy":
         this.runtimeState = "idle";
@@ -315,8 +360,10 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
         this.runtimeState = "flushing";
         break;
       case "loadSource":
-        this.sourceRevision = command.sourceRevision;
-        this.publishSourceAccepted();
+        if (command.sourceRevision !== this.sourceRevision) {
+          this.sourceRevision = command.sourceRevision;
+          this.acceptSource();
+        }
         break;
       case "pause":
         this.active = false;
@@ -327,10 +374,12 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
         this.runtimeState = "playing";
         break;
       case "presetCheaper":
-        this.configureModule("cheaper");
+        this.preset = "cheaper";
+        this.applyConfigControls();
         break;
       case "presetDefault":
-        this.configureModule("default");
+        this.preset = "default";
+        this.applyConfigControls();
         break;
       case "reset":
       case "resetFault":
@@ -372,31 +421,31 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
 
   private readDesiredParams(): void {
     this.bindings.desired.params.within((params) => {
-      this.active = params.active;
-      this.blockMs = params.blockMs;
-      this.effectiveRate = Math.max(0.05, params.rate);
-      this.formantBaseHz = params.formantBaseHz;
-      this.formantCompensation = params.formantCompensation;
-      this.formantSemitones = params.formantSemitones;
-      this.intervalMs = params.intervalMs;
-      this.pitchSemitones = params.pitchSemitones;
-      this.preset = enumLabel(STRETCH_PRESETS, params.preset, "default");
-      this.splitComputation = params.splitComputation;
-      this.tonalityEnabled = params.tonalityEnabled;
-      this.tonalityHz = params.tonalityHz;
-
-      if (
-        params.desiredSequence !== this.lastAppliedDesiredSequence ||
-        params.configSequence !== this.lastAppliedConfigSequence
-      ) {
+      if (params.desiredSequence !== this.lastAppliedDesiredSequence) {
+        this.active = params.active;
+        this.effectiveRate = Math.max(0.05, params.rate);
+        this.formantBaseHz = params.formantBaseHz;
+        this.formantCompensation = params.formantCompensation;
+        this.formantSemitones = params.formantSemitones;
+        this.pitchSemitones = params.pitchSemitones;
+        this.tonalityEnabled = params.tonalityEnabled;
+        this.tonalityHz = params.tonalityHz;
         this.lastAppliedDesiredSequence = params.desiredSequence;
+        this.applyDesiredControls();
+      }
+
+      if (params.configSequence !== this.lastAppliedConfigSequence) {
+        this.blockMs = params.blockMs;
+        this.intervalMs = params.intervalMs;
+        this.preset = enumLabel(STRETCH_PRESETS, params.preset, "default");
+        this.splitComputation = params.splitComputation;
         this.lastAppliedConfigSequence = params.configSequence;
-        this.applyControls();
+        this.applyConfigControls();
       }
     });
   }
 
-  private applyControls(): void {
+  private applyDesiredControls(): void {
     const module = this.module;
     if (!module) {
       return;
@@ -411,7 +460,11 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       this.formantCompensation ? 1 : 0,
     );
     module._setFormantBase(this.formantBaseHz / sampleRate);
+  }
+
+  private applyConfigControls(): void {
     this.configureModule(this.preset);
+    this.module?._reset();
   }
 
   private configureModule(preset: StretchPreset): void {
@@ -466,8 +519,29 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
 
     const channelCount = this.channelCount();
     const pointer = module._setBuffers(channelCount, this.bufferLengthFrames);
-    const base = pointer / Float32Array.BYTES_PER_ELEMENT;
+    this.bufferBaseIndex = pointer / Float32Array.BYTES_PER_ELEMENT;
+    this.bindHeapViews(module);
+    this.heapGeneration += 1;
+  }
 
+  private checkHeapViews(): void {
+    const module = this.module;
+
+    if (
+      !module ||
+      this.bufferLengthFrames <= 0 ||
+      this.lastHeapBuffer === module.HEAPF32.buffer
+    ) {
+      return;
+    }
+
+    this.bindHeapViews(module);
+    this.heapGeneration += 1;
+  }
+
+  private bindHeapViews(module: SignalsmithStretchModule): void {
+    const base = this.bufferBaseIndex;
+    const channelCount = this.channelCount();
     this.inputBuffers = [];
     this.outputBuffers = [];
 
@@ -486,7 +560,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       );
     }
 
-    this.heapGeneration += 1;
+    this.lastHeapBuffer = module.HEAPF32.buffer;
   }
 
   private publishAll(
@@ -505,10 +579,9 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       blockSamples,
       bufferLengthFrames: this.bufferLengthFrames,
       bufferReadyFrames: this.sourceWindow.readyFrames,
-      commandDroppedTotal: Atomics.load(
-        this.commandRingBacking.header,
-        SWSR_HEADER_DROPPED,
-      ),
+      commandDroppedTotal:
+        Atomics.load(this.commandRingBacking.header, SWSR_HEADER_DROPPED) +
+        this.pendingCommandDroppedTotal,
       durationFrames,
       durationSeconds,
       effectiveRate: this.effectiveRate,
@@ -528,8 +601,7 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       maxObservedRenderQuantum: this.maxObservedRenderQuantum,
       outputFrame: this.outputFrame,
       outputLatencyFrames: this.outputLatencyFrames,
-      processingCenterFrame:
-        this.sourceFrame + (outputFrameCount * this.effectiveRate) / 2,
+      processingCenterFrame: this.processingCenterFrameForPublish(),
       sessionId: this.sessionId,
       sourceFrame: this.sourceFrame,
       staleReadTotal: this.staleReadTotal,
@@ -538,7 +610,6 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
       workletGeneration: this.workletGeneration,
     });
 
-    this.publishSourceAccepted();
     this.levelProbe.publish(this.bindings.levels, output, {
       active: this.active && !silentOutput,
       channelCount: this.channelCount(),
@@ -551,30 +622,50 @@ class SignalsmithStretchLabProcessor extends AudioWorkletProcessor {
     });
   }
 
-  private publishSourceAccepted(): void {
-    const info = this.sourceWindow.info;
-
-    this.bindings.source.meters.publish((writer) => {
-      writer.set("appliedLoadSequence", this.loadSequence);
-      writer.set("bufferEndFrame", info?.frameCount ?? 0);
-      writer.set("bufferStartFrame", 0);
-      writer.set("channelCount", info?.channelCount ?? 0);
-      writer.set("decodeErrorCode", 0);
-      writer.set("droppedBufferTotal", 0);
-      writer.set("durationFrames", info?.frameCount ?? 0);
-      writer.set("durationSeconds", info?.durationSeconds ?? 0);
-      writer.set("loadSequence", this.loadSequence);
-      writer.set("memoryBytes", info?.memoryBytes ?? 0);
-      writer.set("sampleRate", info?.sampleRate ?? 0);
-      writer.set("sourceRevision", this.sourceRevision);
-      writer.set("state", enumIndex(SOURCE_STATES, "accepted"));
-    });
-
+  private acceptSource(): void {
+    this.publishSourceStatus();
     this.port.postMessage({
       loadSequence: this.loadSequence,
       sourceRevision: this.sourceRevision,
       type: "sourceAccepted",
     });
+  }
+
+  private publishSourceStatus(): void {
+    const info = this.sourceWindow.info;
+
+    this.bindings.source.meters.publish((writer) => {
+      writer.set("appliedLoadSequence", this.loadSequence);
+      writer.set("bufferEndFrame", this.sourceWindow.bufferEndFrame);
+      writer.set("bufferStartFrame", this.sourceWindow.bufferStartFrame);
+      writer.set("channelCount", info?.channelCount ?? 0);
+      writer.set("decodeErrorCode", 0);
+      writer.set("droppedBufferTotal", this.sourceWindow.droppedBufferTotal);
+      writer.set("durationFrames", info?.frameCount ?? 0);
+      writer.set("durationSeconds", info?.durationSeconds ?? 0);
+      writer.set("loadSequence", this.loadSequence);
+      writer.set("memoryBytes", this.sourceWindow.cachedBytes);
+      writer.set("sampleRate", info?.sampleRate ?? 0);
+      writer.set("sourceRevision", this.sourceRevision);
+      writer.set("state", enumIndex(SOURCE_STATES, "accepted"));
+    });
+  }
+
+  private sourceWindowForAudibleFrame(
+    audibleSourceFrame: number,
+  ): SignalsmithSourceWindow {
+    return calculateSignalsmithSourceWindow({
+      audibleSourceFrame,
+      bufferLengthFrames: this.bufferLengthFrames,
+      effectiveRate: this.effectiveRate,
+      inputLatencyFrames: this.inputLatencyFrames,
+      outputLatencyFrames: this.outputLatencyFrames,
+    });
+  }
+
+  private processingCenterFrameForPublish(): number {
+    return this.sourceWindowForAudibleFrame(this.sourceFrame)
+      .processingCenterFrame;
   }
 
   private wrapLoopIfNeeded(): void {

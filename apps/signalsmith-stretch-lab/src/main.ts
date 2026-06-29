@@ -6,6 +6,7 @@ import {
   resumeAudioContext,
 } from "./audio/audio-context";
 import { decodeFileSource } from "./audio/decode-source";
+import { LatestPrefetchGate } from "./audio/latest-prefetch-gate";
 import {
   simulatedSourceFromPcm,
   type ChunkedWavPcmSource,
@@ -55,6 +56,8 @@ import {
 import { renderAppShell, renderUnsupported } from "./ui/dom";
 import { createWaveformPeaks, drawWaveform } from "./ui/waveform";
 
+import type { PlanarFrameChunk } from "./audio/chunked-wav-source";
+
 const root = document.querySelector("#app");
 
 if (!(root instanceof HTMLElement)) {
@@ -82,7 +85,7 @@ function startLab(appRoot: HTMLElement): void {
     let desired = defaultDesiredControls();
     let loadSequence = 1;
     let prefetch: SourcePrefetch | null = null;
-    let prefetchInFlight: Promise<void> | null = null;
+    const prefetchGate = new LatestPrefetchGate<PlanarFrameChunk>();
     let realRuntime: StretchWorkletRuntime | null = null;
     let source = defaultSimulatedSource();
     let sourceFacts: PcmSourceFacts | null = null;
@@ -193,7 +196,8 @@ function startLab(appRoot: HTMLElement): void {
         loopEndFrame: loopPreview.endFrame,
         loopStartFrame: loopPreview.startFrame,
       });
-      prefetchForFrame(loopPreview.startFrame);
+      prefetchForFrame(loopPreview.startFrame, { latest: false });
+      prefetchForFrame(loopPreview.endFrame, { latest: false });
       render();
     });
     elements.clearLoopButton.addEventListener("click", () => {
@@ -413,24 +417,34 @@ function startLab(appRoot: HTMLElement): void {
       }
     }
 
-    function prefetchForFrame(frame: number): void {
+    function prefetchForFrame(
+      frame: number,
+      options: { readonly latest?: boolean } = {},
+    ): void {
       if (!prefetch || acceptedSource?.kind !== "chunked-wav") {
         return;
       }
 
       const sourceForPost = acceptedSource;
-      prefetchInFlight ??= prefetch
-        .prefetchAround(frame)
-        .then((chunk) => {
-          realRuntime?.postChunk(sourceForPost.sourceRevision, chunk);
-        })
-        .finally(() => {
-          prefetchInFlight = null;
-        });
+      const prefetcher = prefetch;
+      const postChunk = (chunk: PlanarFrameChunk): void => {
+        if (acceptedSource !== sourceForPost) {
+          return;
+        }
+
+        realRuntime?.postChunk(sourceForPost.sourceRevision, chunk);
+      };
+
+      if (options.latest === false) {
+        void prefetcher.prefetchAround(frame).then(postChunk);
+        return;
+      }
+
+      prefetchGate.request(() => prefetcher.prefetchAround(frame), postChunk);
     }
 
     function maybePrefetchFromRuntime(): void {
-      if (!prefetch || prefetchInFlight) {
+      if (!prefetch || prefetchGate.busy) {
         return;
       }
 
@@ -487,9 +501,15 @@ function startLab(appRoot: HTMLElement): void {
         crossOriginIsolated: runtimeSupport.crossOriginIsolated,
         generatedModuleUrl: signalsmithAssets.generatedModuleUrl,
         sharedArrayBufferAvailable: runtimeSupport.sharedArrayBuffer,
-        sourceAccepted: realStatus?.sourceAccepted ?? false,
+        sourceAccepted:
+          (realStatus?.sourceAccepted ?? false) ||
+          (acceptedSource?.kind === "chunked-wav" &&
+            sourceStatus.state === "accepted" &&
+            sourceStatus.sourceRevision === acceptedSource.sourceRevision),
         sourceDecoded: acceptedSource?.kind === "chunked-wav",
-        workletReady: realStatus?.workletReady ?? false,
+        workletReady:
+          (realStatus?.workletReady ?? false) ||
+          runtime.adapterMode === "real-worklet",
       });
       const monitor = elements.alignedSourceMode.checked
         ? "Aligned source mock"
