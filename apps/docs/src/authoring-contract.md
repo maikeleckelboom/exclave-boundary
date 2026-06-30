@@ -3,11 +3,11 @@
 Authors can write nested specs because nested objects are easier to read and review:
 
 ```ts
-const spec = defineSpec(({ param }) => ({
+const spec = defineSpec((api) => ({
   params: {
     filter: {
-      cutoff: param.f32({ min: 20, max: 20_000 }),
-      enabled: param.bool(),
+      cutoff: api.param.f32({ min: 20, max: 20_000 }),
+      enabled: api.param.bool(),
     },
   },
 }));
@@ -46,18 +46,18 @@ Use canonical dot keys for controller writes, snapshot key lists, diagnostics, g
 ```ts twoslash
 import { defineSpec, type ParamValues } from "@exclave/boundary";
 
-const spec = defineSpec(({ param, meter }) => ({
+const spec = defineSpec((api) => ({
   id: "authoring/filter" as const,
   params: {
     filter: {
-      cutoff: param.f32({ min: 20, max: 20_000 }),
-      enabled: param.bool(),
-      mode: param.enum(["lowpass", "highpass"]),
+      cutoff: api.param.f32({ min: 20, max: 20_000 }),
+      enabled: api.param.bool(),
+      mode: api.param.enum(["lowpass", "highpass"]),
     },
   },
   meters: {
     filter: {
-      peak: meter.f32(),
+      peak: api.meter.f32(),
     },
   },
 }));
@@ -67,17 +67,19 @@ spec.params["filter.mode"];
 type ControllerParamValues = ParamValues<typeof spec>;
 ```
 
-## Why Canonical Keys Matter
+## Canonical Keys
 
-Canonical dot keys are stable across controller writes, snapshot selection, plan generation, diagnostics, and generated examples. They also keep dynamic UI or automation code honest: a controller can update `"filter.cutoff"` without needing the authored nested object at runtime.
+One spec defines the boundary contract. Authored namespaces flatten to canonical dotted keys before layout, handoff, writes, snapshots, and diagnostics. A controller updates `"filter.cutoff"`; it does not need the authored nested object at runtime.
+
+Processor reads expose nested views derived from the same spec:
+
+```ts
+processor.params.within((params) => {
+  params.filter.enabled;
+  params.filter.cutoff;
+});
+```
 
 ## Conflict Rules
 
 A leaf and namespace cannot claim the same canonical dot key. For example, `params.engine` as a leaf conflicts with `params.engine.frame` as a descendant. This prevents ambiguous runtime memory layout.
-
-## Why This Matters
-
-- Generated layouts are deterministic.
-- Handoff artifacts carry the planned contract, not an implicit local reconstruction.
-- Type inference follows the contract from spec to binding.
-- Runtime examples can prove the key names through Twoslash rather than relying on prose.

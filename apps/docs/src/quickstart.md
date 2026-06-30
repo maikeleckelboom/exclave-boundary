@@ -1,6 +1,6 @@
 # Quickstart
 
-This is the smallest complete Exclave Boundary flow: define a spec, plan memory, allocate backing, build a handoff, accept it on the runtime side, and bind the roles that read or write shared state.
+This is the smallest complete Exclave Boundary flow: one spec defines the boundary contract, layout is planned once, backing is allocated once, and the runtime side accepts a handoff before binding.
 
 ## Boundary Flow
 
@@ -45,22 +45,20 @@ import {
   planLayout,
 } from "@exclave/boundary";
 
-const spec = defineSpec(({ param, meter }) => ({
+const spec = defineSpec((api) => ({
   id: "quickstart/control" as const,
   params: {
     runtime: {
-      enabled: param.bool(),
-      count: param.u32({ min: 0, max: 1_000_000 }),
-      window: param.f32.array(8),
+      enabled: api.param.bool(),
+      count: api.param.u32({ min: 0, max: 1_000_000 }),
+      window: api.param.f32.array(8),
     },
   },
   meters: {
-    status: meter.enum(["idle", "busy", "fault"]),
-    signedDelta: meter.i32(),
+    frames: api.meter.u32(),
+    levels: api.meter.f32.array(8),
   },
 }));
-
-spec.params["runtime.enabled"];
 
 const plan = planLayout(spec);
 const backing = allocateShared(plan);
@@ -70,28 +68,42 @@ const handoff = buildHandoff(plan, backing);
 const accepted = acceptHandoff(handoff);
 const processor = bindProcessor(accepted);
 
-controller.params.set("runtime.enabled", true);
-controller.params.set("runtime.count", 42);
-controller.params.stage("runtime.window", (view) => {
-  view.fill(1);
+controller.params.update({
+  "runtime.enabled": true,
+  "runtime.count": 42,
 });
+
+controller.params.stage("runtime.window", (view) => {
+  view.set([0, 1, 2, 3, 4, 5, 6, 7]);
+});
+
+const savedPreset = controller.params.snapshot({
+  keys: ["runtime.enabled", "runtime.count", "runtime.window"] as const,
+});
+controller.params.update({ "runtime.count": 0 });
+controller.params.hydrate(savedPreset);
 
 processor.params.within((params) => {
   if (params.runtime.enabled) {
-    params.runtime.count;
-
     processor.meters.publish((meters) => {
-      meters.status(1);
-      meters.signedDelta(-1);
+      meters.frames(params.runtime.count);
+      meters.stage("levels", (levels) => {
+        levels.set(params.runtime.window);
+      });
     });
   }
 });
 
-const meterSnapshot = controller.meters.snapshot();
-meterSnapshot;
+const reusableLevels = controller.meters.snapshot({
+  keys: ["levels"] as const,
+}).levels;
+const meterSnapshot = controller.meters.snapshot({
+  keys: ["levels"] as const,
+  into: { levels: reusableLevels },
+});
 ```
 
-Write APIs use explicit canonical string keys such as `"runtime.enabled"`. Processor read views expose nested aliases such as `params.runtime.enabled` inside `within(...)`; array views are callback-scoped and should not be retained.
+Authored namespaces flatten to canonical dotted keys for writes. `update(...)` is scalar-only and cheap. `stage(...)` is the explicit hot-path array write window. `hydrate(...)` is for cold-path preset or restore loading and may copy arrays. Processor reads expose nested views derived from the same spec, such as `params.runtime.enabled` inside `within(...)`. `snapshot({ into })` reuses caller-provided typed array buffers for array values.
 
 ## What Crosses the Boundary
 

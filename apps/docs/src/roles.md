@@ -8,10 +8,11 @@ The controller is the host-side writer for params and reader for meters. It usua
 
 Controller responsibilities:
 
-- Write scalar params with `params.set(...)` or `params.update(...)`.
-- Write array params with `params.stage(...)`.
-- Hydrate cold-path param state with `params.hydrate(...)`.
-- Read meter snapshots for UI or host-side reporting.
+- Write one scalar param with `params.set(...)`.
+- Write scalar micro-batches with `params.update(...)`.
+- Write array params through the explicit `params.stage(...)` window.
+- Hydrate cold-path scalar and array state with `params.hydrate(...)`.
+- Read meter snapshots, using `snapshot({ into })` when array buffers should be reused.
 - Own range policy and meter degradation options.
 
 ## Processor
@@ -21,6 +22,7 @@ The processor is the timing-sensitive runtime binding. It reads params and publi
 Processor responsibilities:
 
 - Read params inside `params.within(...)`.
+- Use nested read aliases derived from the same spec.
 - Treat array param views as callback-scoped.
 - Publish scalar meters with direct writer functions or `writer.set(...)`.
 - Publish array meters with `writer.stage(...)`.

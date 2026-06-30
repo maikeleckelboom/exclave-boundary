@@ -52,6 +52,7 @@ export type {
   ObserverMeters,
   ParamValueFor,
   ScalarParamPatch,
+  HydratePatch,
   MeterValueFor,
   ParamsSnapshot,
   MetersSnapshot,

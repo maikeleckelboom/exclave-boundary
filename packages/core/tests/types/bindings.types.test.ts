@@ -10,6 +10,7 @@ import {
   type WasmSharedBacking,
 } from "../../src/backing/types";
 
+import type { HydratePatch as RootHydratePatch } from "../../src";
 import type {
   ControllerMeters,
   ControllerParams,
@@ -139,6 +140,19 @@ describe("binding (compile-time contracts)", () => {
 
     expectTypeOf<UpdateArg["mode"]>().toExtend<("a" | "b" | "c") | undefined>();
     expectTypeOf<("a" | "b" | "c") | undefined>().toExtend<UpdateArg["mode"]>();
+  });
+
+  it("root HydratePatch export accepts scalar and array params", () => {
+    type Patch = RootHydratePatch<S>;
+    type HydrateKeys = keyof Patch;
+    type AllParamKeys = "rate" | "coeffs" | "enabled" | "mode";
+
+    expectTypeOf<HydrateKeys>().toExtend<AllParamKeys>();
+    expectTypeOf<AllParamKeys>().toExtend<HydrateKeys>();
+    expectTypeOf<Patch["rate"]>().toExtend<number | undefined>();
+    expectTypeOf<Patch["coeffs"]>().toExtend<Float32Array | undefined>();
+    expectTypeOf<Patch["enabled"]>().toExtend<boolean | undefined>();
+    expectTypeOf<Patch["mode"]>().toExtend<("a" | "b" | "c") | undefined>();
   });
 
   it("MeterWriter has scalar writers and typed stage() for array meters", () => {

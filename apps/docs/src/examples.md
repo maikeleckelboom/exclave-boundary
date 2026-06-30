@@ -1,26 +1,26 @@
 # Examples
 
-Use Twoslash examples where the type system proves part of the boundary contract. Plain code blocks are used for transport sketches or operational commands.
+These examples show the public contract in code. The prose names the boundary guarantees; snippets keep transport sketches separate from the core API.
 
 ## Spec Inference and Canonical Keys
 
 ```ts twoslash
 import { defineSpec } from "@exclave/boundary";
 
-const spec = defineSpec(({ param, meter }) => ({
+const spec = defineSpec((api) => ({
   id: "examples/transport" as const,
   params: {
     transport: {
-      enabled: param.bool(),
-      mode: param.enum(["idle", "active", "fault"]),
-      payload: param.u8.array(16),
+      enabled: api.param.bool(),
+      mode: api.param.enum(["idle", "active", "fault"]),
+      payload: api.param.u8.array(16),
     },
   },
   meters: {
     transport: {
-      state: meter.enum(["idle", "active", "fault"]),
-      drift: meter.i32(),
-      spectrum: meter.f32.array(8),
+      state: api.meter.enum(["idle", "active", "fault"]),
+      drift: api.meter.i32(),
+      spectrum: api.meter.f32.array(8),
     },
   },
 }));
@@ -42,17 +42,17 @@ import {
   planLayout,
 } from "@exclave/boundary";
 
-const spec = defineSpec(({ param, meter }) => ({
+const spec = defineSpec((api) => ({
   id: "examples/controller" as const,
   params: {
     transport: {
-      enabled: param.bool(),
-      mode: param.enum(["idle", "active", "fault"]),
-      payload: param.u8.array(16),
+      enabled: api.param.bool(),
+      mode: api.param.enum(["idle", "active", "fault"]),
+      payload: api.param.u8.array(16),
     },
   },
   meters: {
-    frames: meter.u32(),
+    frames: api.meter.u32(),
   },
 }));
 
@@ -82,18 +82,18 @@ import {
   planLayout,
 } from "@exclave/boundary";
 
-const spec = defineSpec(({ param, meter }) => ({
+const spec = defineSpec((api) => ({
   id: "examples/processor" as const,
   params: {
     transport: {
-      enabled: param.bool(),
-      mode: param.enum(["idle", "active", "fault"]),
-      payload: param.u8.array(16),
+      enabled: api.param.bool(),
+      mode: api.param.enum(["idle", "active", "fault"]),
+      payload: api.param.u8.array(16),
     },
   },
   meters: {
-    frames: meter.u32(),
-    spectrum: meter.f32.array(8),
+    frames: api.meter.u32(),
+    spectrum: api.meter.f32.array(8),
   },
 }));
 
@@ -135,18 +135,18 @@ import {
   planLayout,
 } from "@exclave/boundary";
 
-const spec = defineSpec(({ param, meter }) => ({
+const spec = defineSpec((api) => ({
   id: "examples/observer" as const,
   params: {
     transport: {
-      enabled: param.bool(),
-      mode: param.enum(["idle", "active", "fault"]),
+      enabled: api.param.bool(),
+      mode: api.param.enum(["idle", "active", "fault"]),
     },
   },
   meters: {
     transport: {
-      state: meter.enum(["idle", "active", "fault"]),
-      drift: meter.i32(),
+      state: api.meter.enum(["idle", "active", "fault"]),
+      drift: api.meter.i32(),
     },
   },
 }));

@@ -48,7 +48,31 @@ spec.params["filter.cutoff"];
 
 `source` can be a handoff, accepted handoff, or shared context where supported.
 
-Role-specific public types include `ControllerBinding`, `ProcessorBinding`, `ObserverBinding`, `ControllerParams`, `ProcessorParams`, `ObserverParams`, `ControllerMeters`, `ProcessorMeters`, `ObserverMeters`, `ParamValueFor`, `MeterValueFor`, `ParamsSnapshot`, and `MetersSnapshot`.
+Role-specific public types include `ControllerBinding`, `ProcessorBinding`, `ObserverBinding`, `ControllerParams`, `ProcessorParams`, `ObserverParams`, `ControllerMeters`, `ProcessorMeters`, `ObserverMeters`, `ParamValueFor`, `MeterValueFor`, `ScalarParamPatch`, `HydratePatch`, `ParamsSnapshot`, and `MetersSnapshot`.
+
+### ControllerParams
+
+`controller.params` is the controller-side write surface for params.
+
+| Member | Contract |
+| --- | --- |
+| `set(key, value)` | Set one scalar param. |
+| `update(patch)` | Apply a scalar-only micro-batch and publish once. |
+| `stage(key, callback)` | Open the explicit hot-path write window for one array param. |
+| `hydrate(patch)` | Load cold-path scalar and array state; array values may be copied. |
+| `snapshot(...)` | Read params; pass `{ keys, into }` to reuse array buffers. |
+| `version()` | Return the current param update sequence. |
+
+`update(...)` does not accept array params. Use `stage(...)` for hot-path array writes or `hydrate(...)` when loading saved state.
+
+### ControllerMeters
+
+`controller.meters` is the controller-side read surface for meters. Processors publish meters.
+
+| Member | Contract |
+| --- | --- |
+| `snapshot(...)` | Read meters; pass `{ keys, into }` to reuse array buffers. |
+| `version()` | Return the current meter update sequence. |
 
 ## Handoff
 
