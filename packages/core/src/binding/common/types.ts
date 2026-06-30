@@ -245,6 +245,75 @@ export type MeterShape<S extends SpecInput> = Display<{
     : never;
 }>;
 
+type MeterGroupPrefix<Key extends string> =
+  Key extends `${infer Group}.${string}` ? Group : never;
+
+type MeterKeysForGroup<S extends SpecInput, G extends MeterGroup<S>> = Extract<
+  MeterKeys<S>,
+  `${G}.${string}`
+>;
+
+type QualifiedMeterKeyForGroup<
+  S extends SpecInput,
+  G extends MeterGroup<S>,
+  K extends string,
+> = Extract<MeterKeys<S>, `${G}.${K}`>;
+
+type MeterPublishValueFor<
+  S extends SpecInput,
+  K extends MeterKeys<S>,
+> = MeterShape<S>[K];
+
+/**
+ * First namespace segment for canonical dot-key meters in a spec.
+ *
+ * @remarks
+ * - For a meter key such as `runtime.blockSamples`, the group is `runtime`.
+ * - Flat root-level meters do not belong to a group for grouped publishing.
+ */
+export type MeterGroup<S extends SpecInput> = MeterGroupPrefix<MeterKeys<S>>;
+
+/**
+ * Unprefixed meter keys that belong to a schema group.
+ *
+ * @example
+ * `runtime.blockSamples` becomes `blockSamples` for group `runtime`.
+ */
+export type MeterGroupKey<S extends SpecInput, G extends MeterGroup<S>> =
+  MeterKeysForGroup<S, G> extends `${G}.${infer Key}` ? Key : never;
+
+/**
+ * Processor-publishable values for every meter in a schema group.
+ *
+ * @remarks
+ * - Keys are unprefixed by the group name.
+ * - Values use processor-side meter types: numbers for numeric/enum scalars,
+ *   booleans for bool scalars, and typed arrays for array meters.
+ */
+export type MeterGroupValues<
+  S extends SpecInput,
+  G extends MeterGroup<S>,
+> = Readonly<
+  Display<{
+    readonly [K in MeterGroupKey<S, G>]: MeterPublishValueFor<
+      S,
+      QualifiedMeterKeyForGroup<S, G, K>
+    >;
+  }>
+>;
+
+type UnknownMeterGroupKeys<
+  S extends SpecInput,
+  G extends MeterGroup<S>,
+  V,
+> = Exclude<Extract<keyof V, string>, MeterGroupKey<S, G>>;
+
+export type ExactMeterGroupValues<
+  S extends SpecInput,
+  G extends MeterGroup<S>,
+  V extends MeterGroupValues<S, G>,
+> = V & Readonly<Record<UnknownMeterGroupKeys<S, G, V>, never>>;
+
 /**
  * Controller-visible value type for a single param key.
  *
@@ -891,6 +960,32 @@ export type MeterWriter<S extends SpecInput> = {
    * ```
    */
   set<K extends ScalarMeterKeys<S>>(key: K, value: MeterScalarFor<S, K>): void;
+
+  /**
+   * Publish all values for a schema meter group using unprefixed group keys.
+   *
+   * @remarks
+   * - `group` is restricted to namespace groups present in the spec meters.
+   * - `values` must use keys that belong to that group, without the group
+   *   prefix.
+   * - Scalar entries delegate to `set(...)`; array entries use the same staged
+   *   array path as `stage(...)`.
+   *
+   * @example
+   * ```ts
+   * writer.setGroup("runtime", {
+   *   blockSamples: 128,
+   *   state: 1,
+   * });
+   * ```
+   */
+  setGroup<
+    const G extends MeterGroup<S>,
+    const V extends MeterGroupValues<S, G>,
+  >(
+    group: G,
+    values: ExactMeterGroupValues<S, G, V>,
+  ): void;
 };
 
 /**
@@ -937,6 +1032,26 @@ export interface ProcessorMeters<S extends SpecInput> {
    * Array meters are stage-only; there is no `set(key, fn)` array overload.
    */
   publish<T>(callback: (writer: MeterWriter<S>) => T): T;
+
+  /**
+   * Convenience wrapper for publishing one schema meter group atomically.
+   *
+   * @remarks
+   * Equivalent to:
+   *
+   * ```ts
+   * meters.publish((writer) => {
+   *   writer.setGroup(group, values);
+   * });
+   * ```
+   */
+  publishGroup<
+    const G extends MeterGroup<S>,
+    const V extends MeterGroupValues<S, G>,
+  >(
+    group: G,
+    values: ExactMeterGroupValues<S, G, V>,
+  ): void;
 
   /**
    * Current MU sequence number for the binding.

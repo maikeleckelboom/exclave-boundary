@@ -26,7 +26,10 @@ import type { Plan } from "../../plan/types";
 import type { SpecInput } from "../../spec/types";
 import type { ParamArray } from "../common/array-views";
 import type {
+  ExactMeterGroupValues,
   Ephemeral,
+  MeterGroup,
+  MeterGroupValues,
   MeterWriter,
   MUSeq,
   ProcessorBinding,
@@ -324,6 +327,50 @@ function makeScalarWriter(
   };
 }
 
+type MeterArrayDestination =
+  | Ephemeral<Float32Array>
+  | Ephemeral<Float64Array>
+  | Ephemeral<Uint32Array>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNumberArrayLike(value: unknown): value is ArrayLike<number> {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  return typeof (value as { readonly length?: unknown }).length === "number";
+}
+
+function copyMeterArrayValue(
+  destination: MeterArrayDestination,
+  value: unknown,
+  key: string,
+): void {
+  invariant(
+    isNumberArrayLike(value),
+    "internal.assertionFailed",
+    "array-like meter value expected",
+    {
+      where: "meter.setGroup",
+      detail: key,
+    },
+  );
+  invariant(
+    value.length === destination.length,
+    "internal.assertionFailed",
+    "meter array value length mismatch",
+    {
+      where: "meter.setGroup",
+      detail: `${key}:${String(value.length)}/${String(destination.length)}`,
+    },
+  );
+
+  destination.set(value);
+}
+
 /**
  * Assert that the processor binding has not been disposed.
  */
@@ -447,7 +494,13 @@ export function processorImpl<const S extends SpecInput>(
     };
 
     const scalarWriters: Record<string, (value: unknown) => void> = {};
+    const meterGroups = new Set<string>();
     for (const key of Object.keys(meterSlots)) {
+      const groupEnd = key.indexOf(".");
+      if (groupEnd > 0) {
+        meterGroups.add(key.slice(0, groupEnd));
+      }
+
       const slot0 = meterSlots[key];
       if (slot0?.length !== 1) {
         continue;
@@ -564,10 +617,65 @@ export function processorImpl<const S extends SpecInput>(
           scalarWriter(value);
         }
 
+        function setGroup(group: string, values: unknown): void {
+          if (!meterGroups.has(group)) {
+            throwUnknownKey("meters", group, Array.from(meterGroups));
+          }
+
+          invariant(
+            isRecord(values),
+            "internal.assertionFailed",
+            "meter group values object expected",
+            {
+              where: "meter.setGroup",
+              detail: group,
+            },
+          );
+
+          for (const unprefixedKey of Object.keys(values)) {
+            const key = `${group}.${unprefixedKey}`;
+            const value = values[unprefixedKey];
+            const scalarWriter = scalarWriters[key];
+            if (scalarWriter) {
+              scalarWriter(value);
+              continue;
+            }
+
+            const slot0 = meterSlots[key];
+            if (!slot0) {
+              throwUnknownKey("meters", key, Object.keys(meterSlots));
+            }
+            invariant(
+              slot0.length > 1,
+              "internal.assertionFailed",
+              "array meter expected",
+              {
+                where: "meter.setGroup",
+                detail: key,
+              },
+            );
+
+            stage(key, (destination) => {
+              copyMeterArrayValue(destination, value, key);
+            });
+          }
+        }
+
         w.stage = stage;
         w.set = set;
+        w.setGroup = setGroup;
 
         return publish(mu, () => cb(w as MeterWriter<S>));
+      },
+
+      publishGroup<
+        const G extends MeterGroup<S>,
+        const V extends MeterGroupValues<S, G>,
+      >(group: G, values: ExactMeterGroupValues<S, G, V>): void {
+        assertNotDisposed(disposed, "processor.meters.publishGroup");
+        meters.publish((writer) => {
+          writer.setGroup(group, values);
+        });
       },
 
       /**

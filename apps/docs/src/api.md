@@ -74,6 +74,52 @@ Role-specific public types include `ControllerBinding`, `ProcessorBinding`, `Obs
 | `snapshot(...)` | Read meters; pass `{ keys, into }` to reuse array buffers. |
 | `version()` | Return the current meter update sequence. |
 
+### ProcessorMeters
+
+`processor.meters` is the processor-side write surface for meters.
+
+| Member | Contract |
+| --- | --- |
+| `publish(callback)` | Publish one atomic meter transaction. |
+| `publishGroup(group, values)` | Publish one schema meter group with unprefixed group keys. |
+| `version()` | Return the current meter update sequence. |
+
+Inside `publish(...)`, `writer.set(key, value)` still accepts fully qualified scalar meter keys such as `"runtime.blockSamples"`. `writer.setGroup(group, values)` accepts the same group value shape used by `publishGroup(...)` and keeps the write inside the enclosing transaction.
+
+```ts twoslash
+import { defineSpec, type MeterGroupValues } from "@exclave/boundary";
+
+const spec = defineSpec(({ meter }) => ({
+  id: "api/meters" as const,
+  meters: {
+    runtime: {
+      blockSamples: meter.u32(),
+      state: meter.enum(["idle", "running"]),
+    },
+  },
+}));
+
+type RuntimeMeters = MeterGroupValues<typeof spec, "runtime">;
+
+const values: RuntimeMeters = {
+  blockSamples: 128,
+  state: 1,
+};
+
+declare const processor: import("@exclave/boundary").ProcessorBinding<
+  typeof spec
+>;
+
+processor.meters.publishGroup("runtime", values);
+
+processor.meters.publish((writer) => {
+  writer.setGroup("runtime", values);
+  writer.set("runtime.blockSamples", 256);
+});
+```
+
+Grouped publishing is for schema groups: `publishGroup("runtime", values)` maps unprefixed keys in `values` to canonical meter keys under `runtime.*`. It is not arbitrary object flattening. Derived values, such as enum indices or split frame counters, should still be constructed explicitly before publishing.
+
 ## Handoff
 
 - `buildHandoff(plan, backing)` creates a boundary artifact.

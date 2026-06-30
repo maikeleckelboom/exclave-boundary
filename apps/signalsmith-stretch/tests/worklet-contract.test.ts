@@ -111,26 +111,36 @@ describe("Signalsmith real Worklet contract", () => {
     }
   });
 
-  it("publishes canonical dot-key runtime, source, and level meters", () => {
-    const source = [
-      readFileSync(WORKLET_PROCESSOR, "utf8"),
-      readFileSync(
-        join(APP_ROOT, "src", "worklet", "runtime-meters.ts"),
-        "utf8",
-      ),
-      readFileSync(join(APP_ROOT, "src", "worklet", "level-probe.ts"), "utf8"),
-    ].join("\n");
+  it("publishes runtime group values plus canonical source and level meters", () => {
+    const processor = readFileSync(WORKLET_PROCESSOR, "utf8");
+    const runtimeMeters = readFileSync(
+      join(APP_ROOT, "src", "worklet", "runtime-meters.ts"),
+      "utf8",
+    );
+    const levels = readFileSync(
+      join(APP_ROOT, "src", "worklet", "level-probe.ts"),
+      "utf8",
+    );
+
+    expect(runtimeMeters).toContain(
+      'publishGroup("runtime", runtimeMeterValues(input))',
+    );
 
     for (const key of [
-      '"runtime.effectiveRate"',
-      '"runtime.blockSamples"',
-      '"runtime.audioWorkletTimeSeconds"',
       '"source.sourceRevision"',
       '"source.durationFrames"',
       '"levels.rmsLeft"',
       '"levels.peakLeft"',
     ]) {
-      expect(source).toContain(key);
+      expect([processor, levels].join("\n")).toContain(key);
+    }
+
+    for (const key of [
+      "effectiveRate: input.effectiveRate",
+      "blockSamples: input.blockSamples",
+      "audioWorkletTimeSeconds: input.audioWorkletTimeSeconds",
+    ]) {
+      expect(runtimeMeters).toContain(key);
     }
   });
 

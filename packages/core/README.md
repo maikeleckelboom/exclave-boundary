@@ -62,8 +62,10 @@ controller.params.set("runtime.count", 7);
 processor.params.within((params) => {
   if (params.runtime.enabled) {
     processor.meters.publish((meters) => {
-      meters.state(1);
-      meters.delta(-1);
+      meters.setGroup("runtime", {
+        delta: -1,
+        state: 1,
+      });
     });
   }
 });
@@ -79,6 +81,12 @@ params.runtime.count;
 ```
 
 Anonymous specs receive deterministic `anon_<hash>` ids derived from canonical contents.
+
+## Grouped Meter Publishing
+
+Use `processor.meters.publishGroup("runtime", values)` when a processor already has a typed object for one schema meter group. Inside a larger atomic publish block, use `writer.setGroup("runtime", values)` alongside direct `writer.set("runtime.key", value)` calls or staged array writes.
+
+Grouped publishing maps unprefixed keys under one schema group; it is not arbitrary object flattening. Build derived values such as enum indices, split frame counters, and latency seconds explicitly before publishing the group.
 
 ## Package Boundary
 

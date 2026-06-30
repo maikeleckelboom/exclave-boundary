@@ -6,7 +6,7 @@ import {
 } from "../types";
 
 import type { signalsmithStretchSpec } from "../boundary/specs";
-import type { ProcessorBinding } from "@exclave/boundary";
+import type { MeterGroupValues, ProcessorBinding } from "@exclave/boundary";
 
 export interface RuntimeMeterInput {
   readonly audioWorkletFrame: number;
@@ -45,10 +45,14 @@ export interface RuntimeMeterInput {
   readonly workletGeneration: number;
 }
 
-export function publishRuntimeMeters(
-  runtime: ProcessorBinding<typeof signalsmithStretchSpec>,
+export type RuntimeMeterValues = MeterGroupValues<
+  typeof signalsmithStretchSpec,
+  "runtime"
+>;
+
+export function runtimeMeterValues(
   input: RuntimeMeterInput,
-): void {
+): RuntimeMeterValues {
   const frame = splitU64(input.audioWorkletFrame);
   const sampleRate = Math.max(
     1,
@@ -56,74 +60,58 @@ export function publishRuntimeMeters(
       ? input.durationFrames / input.durationSeconds
       : 48_000,
   );
+  const adapterMode = enumIndex(ADAPTER_MODES, "real-worklet");
+  const inputLatencySeconds = input.inputLatencyFrames / sampleRate;
+  const outputLatencySeconds = input.outputLatencyFrames / sampleRate;
+  const state = enumIndex(RUNTIME_STATES, input.state);
 
-  runtime.meters.publish((writer) => {
-    writer.set("runtime.adapterMode", enumIndex(ADAPTER_MODES, "real-worklet"));
-    writer.set("runtime.audioWorkletFrameHi", frame.hi);
-    writer.set("runtime.audioWorkletFrameLo", frame.lo);
-    writer.set(
-      "runtime.audioWorkletTimeSeconds",
-      input.audioWorkletTimeSeconds,
-    );
-    writer.set("runtime.blockSamples", input.blockSamples);
-    writer.set("runtime.bufferReadyFrames", input.bufferReadyFrames);
-    writer.set("runtime.bufferLengthFrames", input.bufferLengthFrames);
-    writer.set("runtime.commandDroppedTotal", input.commandDroppedTotal);
-    writer.set("runtime.durationFrames", input.durationFrames);
-    writer.set("runtime.durationSeconds", input.durationSeconds);
-    writer.set("runtime.effectiveRate", input.effectiveRate);
-    writer.set("runtime.heapGeneration", input.heapGeneration);
-    writer.set("runtime.inputLatencyFrames", input.inputLatencyFrames);
-    writer.set(
-      "runtime.inputLatencySeconds",
-      input.inputLatencyFrames / sampleRate,
-    );
-    writer.set("runtime.intervalSamples", input.intervalSamples);
-    writer.set("runtime.invalidSampleTotal", input.invalidSampleTotal);
-    writer.set("runtime.invalidTransitionTotal", input.invalidTransitionTotal);
-    writer.set(
-      "runtime.lastAppliedCommandSequence",
-      input.lastAppliedCommandSequence,
-    );
-    writer.set(
-      "runtime.lastAppliedConfigSequence",
-      input.lastAppliedConfigSequence,
-    );
-    writer.set(
-      "runtime.lastAppliedDesiredSequence",
-      input.lastAppliedDesiredSequence,
-    );
-    writer.set("runtime.lastErrorCode", input.lastErrorCode);
-    writer.set("runtime.loopEnabled", input.loopEnabled);
-    writer.set("runtime.loopEndFrame", input.loopEndFrame);
-    writer.set("runtime.loopRevision", input.loopRevision);
-    writer.set("runtime.loopStartFrame", input.loopStartFrame);
-    writer.set(
-      "runtime.maxObservedRenderQuantum",
-      input.maxObservedRenderQuantum,
-    );
-    writer.set("runtime.outputFrame", input.outputFrame);
-    writer.set("runtime.outputLatencyFrames", input.outputLatencyFrames);
-    writer.set(
-      "runtime.outputLatencySeconds",
-      input.outputLatencyFrames / sampleRate,
-    );
-    writer.set("runtime.processingCenterFrame", input.processingCenterFrame);
-    writer.set(
-      "runtime.scheduledCommandDroppedTotal",
-      input.scheduledCommandDroppedTotal,
-    );
-    writer.set(
-      "runtime.scheduledCommandQueueSize",
-      input.scheduledCommandQueueSize,
-    );
-    writer.set("runtime.sessionId", input.sessionId);
-    writer.set("runtime.sourceFrame", input.sourceFrame);
-    writer.set("runtime.staleReadTotal", input.staleReadTotal);
-    writer.set("runtime.state", enumIndex(RUNTIME_STATES, input.state));
-    writer.set("runtime.underrunTotal", input.underrunTotal);
-    writer.set("runtime.workletGeneration", input.workletGeneration);
-  });
+  return {
+    adapterMode,
+    audioWorkletFrameHi: frame.hi,
+    audioWorkletFrameLo: frame.lo,
+    audioWorkletTimeSeconds: input.audioWorkletTimeSeconds,
+    blockSamples: input.blockSamples,
+    bufferLengthFrames: input.bufferLengthFrames,
+    bufferReadyFrames: input.bufferReadyFrames,
+    commandDroppedTotal: input.commandDroppedTotal,
+    durationFrames: input.durationFrames,
+    durationSeconds: input.durationSeconds,
+    effectiveRate: input.effectiveRate,
+    heapGeneration: input.heapGeneration,
+    inputLatencyFrames: input.inputLatencyFrames,
+    inputLatencySeconds,
+    intervalSamples: input.intervalSamples,
+    invalidSampleTotal: input.invalidSampleTotal,
+    invalidTransitionTotal: input.invalidTransitionTotal,
+    lastAppliedCommandSequence: input.lastAppliedCommandSequence,
+    lastAppliedConfigSequence: input.lastAppliedConfigSequence,
+    lastAppliedDesiredSequence: input.lastAppliedDesiredSequence,
+    lastErrorCode: input.lastErrorCode,
+    loopEnabled: input.loopEnabled,
+    loopEndFrame: input.loopEndFrame,
+    loopRevision: input.loopRevision,
+    loopStartFrame: input.loopStartFrame,
+    maxObservedRenderQuantum: input.maxObservedRenderQuantum,
+    outputFrame: input.outputFrame,
+    outputLatencyFrames: input.outputLatencyFrames,
+    outputLatencySeconds,
+    processingCenterFrame: input.processingCenterFrame,
+    scheduledCommandDroppedTotal: input.scheduledCommandDroppedTotal,
+    scheduledCommandQueueSize: input.scheduledCommandQueueSize,
+    sessionId: input.sessionId,
+    sourceFrame: input.sourceFrame,
+    staleReadTotal: input.staleReadTotal,
+    state,
+    underrunTotal: input.underrunTotal,
+    workletGeneration: input.workletGeneration,
+  };
+}
+
+export function publishRuntimeMeters(
+  runtime: ProcessorBinding<typeof signalsmithStretchSpec>,
+  input: RuntimeMeterInput,
+): void {
+  runtime.meters.publishGroup("runtime", runtimeMeterValues(input));
 }
 
 function splitU64(value: number): { readonly hi: number; readonly lo: number } {

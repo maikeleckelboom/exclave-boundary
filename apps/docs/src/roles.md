@@ -25,6 +25,7 @@ Processor responsibilities:
 - Use nested read aliases derived from the same spec.
 - Treat array param views as callback-scoped.
 - Publish scalar meters with direct writer functions or `writer.set(...)`.
+- Publish schema meter groups with `meters.publishGroup(...)` or `writer.setGroup(...)`.
 - Publish array meters with `writer.stage(...)`.
 - Keep planning, allocation, validation, logging, and orchestration outside the tight loop.
 
