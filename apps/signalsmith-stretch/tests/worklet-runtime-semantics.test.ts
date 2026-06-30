@@ -76,6 +76,19 @@ describe("Signalsmith Worklet runtime semantics", () => {
     expect(renderBody).toContain("module._process(0, outputFrameCount)");
   });
 
+  it("terminates destroyed processors instead of publishing stale source meters", () => {
+    const source = readFileSync(WORKLET_PROCESSOR, "utf8");
+    const processBody = methodBody(source, "process");
+    const handleMessageBody = methodBody(source, "handleMessage");
+    const applyCommandBody = methodBody(source, "applyCommand");
+
+    expect(source).toContain("private destroyed = false");
+    expect(processBody).toContain("if (this.destroyed)");
+    expect(processBody).toContain("return false");
+    expect(handleMessageBody).toContain("this.destroyed = true");
+    expect(applyCommandBody).toContain("this.destroyed = true");
+  });
+
   it("keeps the Worklet fallback defaults aligned with musical pitch defaults", () => {
     const source = readFileSync(WORKLET_PROCESSOR, "utf8");
 

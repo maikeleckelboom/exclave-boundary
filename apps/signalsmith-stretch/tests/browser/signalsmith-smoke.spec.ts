@@ -324,6 +324,8 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
       sharedArrayBuffer: true,
     });
 
+  await expectRealAdapterAssetsAvailable(page);
+
   const wavPath = testInfo.outputPath("signalsmith-smoke.wav");
   writeFileSync(wavPath, createSmokeWav());
 
@@ -498,6 +500,44 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
 
 function isRealAdapterRun(testInfo: TestInfo): boolean {
   return testInfo.config.metadata.signalsmithRuntime === "real-adapter";
+}
+
+async function expectRealAdapterAssetsAvailable(page: Page): Promise<void> {
+  const generatedModuleUrl = new URL(
+    "/__signalsmith-stretch/signalsmith-stretch.module.js",
+    page.url(),
+  ).toString();
+  const response = await page.request.get(generatedModuleUrl);
+
+  expect(
+    response.ok(),
+    `Expected real-adapter Vite server to serve ${generatedModuleUrl}, got HTTP ${response.status().toString()}.`,
+  ).toBe(true);
+  const generatedModuleSource = await response.text();
+  expect(
+    generatedModuleSource,
+    "Expected generated module to be real Emscripten Signalsmith output, not a missing or shimmed asset.",
+  ).toContain("SignalsmithStretchModule");
+  await expect(
+    page.locator("#adapterAvailability"),
+    "Real browser smoke requires prepared real-adapter assets before loading a source.",
+  ).toHaveText("Ready for a decoded source.");
+  await expect(
+    page.locator("#runtimeModeBadge"),
+    "The real suite must start from real Worklet readiness, not simulator fallback.",
+  ).toHaveText("Real Worklet ready");
+  await expect
+    .poll(() => runtimeFact(page, "Vendored source"), {
+      message:
+        "Expected vendored Signalsmith sources to be visible in the inspector.",
+    })
+    .toBe("Stretch present; Linear present");
+  await expect
+    .poll(() => runtimeFact(page, "Generated module"), {
+      message:
+        "Expected the generated Signalsmith module to be visible in the inspector.",
+    })
+    .toBe("present");
 }
 
 async function runtimeFact(page: Page, name: string): Promise<string> {

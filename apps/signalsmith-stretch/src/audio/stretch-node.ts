@@ -50,12 +50,6 @@ type StretchWorkletHostMessage =
       readonly type: "sourceChunk";
     }
   | {
-      readonly info: ChunkedWavPcmSource["source"]["info"];
-      readonly loadSequence: number;
-      readonly sourceRevision: number;
-      readonly type: "sourceInfo";
-    }
-  | {
       readonly type: "commandsAvailable";
     }
   | {
@@ -125,21 +119,6 @@ export class StretchWorkletRuntime {
       sourceRevision: this.sourceRevision,
       workletReady: this.workletReady,
     };
-  }
-
-  postSource(
-    source: ChunkedWavPcmSource,
-    initialChunk: PlanarFrameChunk,
-  ): void {
-    this.sourceAccepted = false;
-    this.sourceRevision = source.sourceRevision;
-    this.postMessage({
-      info: source.source.info,
-      loadSequence: source.loadSequence,
-      sourceRevision: source.sourceRevision,
-      type: "sourceInfo",
-    });
-    this.postChunk(source.sourceRevision, initialChunk);
   }
 
   postChunk(sourceRevision: number, chunk: PlanarFrameChunk): void {

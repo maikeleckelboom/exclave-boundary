@@ -963,27 +963,23 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         return false;
       }
 
-      if (!realRuntime || realRuntime.status.failed) {
-        const previousRuntime = realRuntime;
-        const nextRuntime = await StretchWorkletRuntime.create({
-          audioContext: context,
-          commands,
-          generatedModuleUrl: signalsmithAssets.generatedModuleUrl,
-          initialChunk,
-          session,
-          source: loaded,
-        });
+      const previousRuntime = realRuntime;
+      const nextRuntime = await StretchWorkletRuntime.create({
+        audioContext: context,
+        commands,
+        generatedModuleUrl: signalsmithAssets.generatedModuleUrl,
+        initialChunk,
+        session,
+        source: loaded,
+      });
 
-        if (options.loadRequestId !== sourceLoadRequestId) {
-          nextRuntime.dispose();
-          return false;
-        }
-
-        previousRuntime?.dispose();
-        realRuntime = nextRuntime;
-      } else {
-        realRuntime.postSource(loaded, initialChunk);
+      if (options.loadRequestId !== sourceLoadRequestId) {
+        nextRuntime.dispose();
+        return false;
       }
+
+      previousRuntime?.dispose();
+      realRuntime = nextRuntime;
 
       return !realRuntime.status.failed;
     }

@@ -33,11 +33,14 @@
   },
   "scripts": {
     "prepare": "simple-git-hooks",
-    "clean": "pnpm -w -r -F \"@exclave/boundary\" -F \"@exclave/docs\" run clean && rimraf .eslintcache node_modules/.vite node_modules/.cache pnpm-debug.log",
+    "clean:artifacts": "pnpm -r -F \"@exclave/boundary\" -F \"@exclave/docs\" run clean && rimraf .eslintcache node_modules/.vite node_modules/.cache pnpm-debug.log",
+    "clean:workspace": "pnpm run clean:artifacts",
+    "clean:dry": "git clean -xfdn -e .env -e \".env.*\"",
+    "clean": "git clean -xfd -e .env -e \".env.*\"",
     "clean:cache": "rimraf node_modules/.vite node_modules/.cache packages/*/node_modules/.vite packages/*/node_modules/.cache apps/*/node_modules/.vite apps/*/node_modules/.cache",
     "clean:caches": "pnpm run clean:cache",
-    "purge": "pnpm run clean && rimraf node_modules packages/**/node_modules",
-    "build": "pnpm -w run clean && pnpm -w -r -F \"@exclave/boundary\" run build",
+    "purge": "pnpm run clean",
+    "build": "pnpm -w run clean:artifacts && pnpm -r -F \"@exclave/boundary\" run build",
     "test": "pnpm -w -F \"@exclave/boundary\" run test",
     "bench": "pnpm -w -F \"@exclave/boundary\" run bench",
     "bench:report": "pnpm -w -F \"@exclave/boundary\" run bench:report",
@@ -48,8 +51,8 @@
     "commitlint": "commitlint --color",
     "lint:md": "markdownlint-cli2",
     "lint:md:fix": "markdownlint-cli2 --fix",
-    "lint": "pnpm -w -r -F \"@exclave/boundary\" -F \"@exclave/docs\" run lint",
-    "lint:fix": "pnpm -w -r -F \"@exclave/boundary\" -F \"@exclave/docs\" run lint:fix",
+    "lint": "pnpm -r -F \"@exclave/boundary\" -F \"@exclave/docs\" run lint",
+    "lint:fix": "pnpm -r -F \"@exclave/boundary\" -F \"@exclave/docs\" run lint:fix",
     "lint:all": "pnpm lint && pnpm lint:md",
     "format": "prettier --ignore-path .prettierignore --write .",
     "docs": "pnpm docs:build",
@@ -58,6 +61,7 @@
     "docs:preview": "pnpm -F @exclave/docs run docs:preview",
     "signalsmith:dev": "pnpm --filter \"@exclave/signalsmith-stretch\" run dev",
     "signalsmith:build": "pnpm --filter \"@exclave/signalsmith-stretch\" run build",
+    "signalsmith:build:real": "pnpm --filter \"@exclave/signalsmith-stretch\" run build:real",
     "signalsmith:check": "pnpm --filter \"@exclave/signalsmith-stretch\" run check",
     "signalsmith:test:browser": "pnpm --filter \"@exclave/signalsmith-stretch\" run test:browser",
     "signalsmith:prepare": "pnpm --filter \"@exclave/signalsmith-stretch\" run prepare:real",
@@ -65,7 +69,9 @@
     "signalsmith:test:browser:real": "pnpm --filter \"@exclave/signalsmith-stretch\" run test:browser:real",
     "check:diff-whitespace": "git diff --check origin/main...HEAD",
     "support": "node scripts/support/boundary-support.ts",
-    "verify": "pnpm clean && pnpm build && pnpm lint && pnpm test:types && pnpm test && pnpm signalsmith:check && pnpm run docs && pnpm test:pack && pnpm support --json"
+    "fresh": "pnpm clean && pnpm install --frozen-lockfile && pnpm build && pnpm signalsmith:build && pnpm signalsmith:build:real",
+    "verify": "pnpm clean:artifacts && pnpm build && pnpm lint && pnpm test:types && pnpm test && pnpm signalsmith:check && pnpm run docs && pnpm test:pack && pnpm support --json",
+    "verify:fresh": "pnpm fresh && pnpm lint && pnpm test:types && pnpm test && pnpm signalsmith:check && pnpm run docs && pnpm test:pack && pnpm support --json && pnpm signalsmith:test:browser && pnpm signalsmith:test:browser:real"
   },
   "simple-git-hooks": {
     "commit-msg": "pnpm commitlint --edit $1"

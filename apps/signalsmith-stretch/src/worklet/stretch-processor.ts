@@ -70,12 +70,6 @@ type HostMessage =
       readonly type: "sourceChunk";
     }
   | {
-      readonly info: ChunkedWavSourceInfo;
-      readonly loadSequence: number;
-      readonly sourceRevision: number;
-      readonly type: "sourceInfo";
-    }
-  | {
       readonly type: "commandsAvailable";
     }
   | {
@@ -99,6 +93,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
   private blockMs = 120;
   private bufferBaseIndex = 0;
   private bufferLengthFrames = 0;
+  private destroyed = false;
   private effectiveRate = 1;
   private failed = false;
   private formantBaseHz = FORMANT_BASE_AUTO_HZ;
@@ -171,6 +166,12 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
   ): boolean {
     const output = outputs[0] ?? [];
     const outputFrameCount = output[0]?.length ?? 0;
+
+    if (this.destroyed) {
+      silence(output);
+      return false;
+    }
+
     this.maxObservedRenderQuantum = Math.max(
       this.maxObservedRenderQuantum,
       outputFrameCount,
@@ -239,6 +240,8 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
         this.drainCommandsFromHost();
         break;
       case "destroy":
+        this.destroyed = true;
+        this.active = false;
         this.runtimeState = "idle";
         break;
       case "sourceChunk":
@@ -246,15 +249,6 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
           this.sourceWindow.addChunk(message.chunk);
           this.publishSourceStatus();
         }
-        break;
-      case "sourceInfo":
-        this.loadSequence = message.loadSequence;
-        this.sourceRevision = message.sourceRevision;
-        this.sourceWindow.setInfo(message.info);
-        this.sourceFrame = 0;
-        this.outputFrame = 0;
-        this.updateBuffers();
-        this.acceptSource();
         break;
     }
   }
@@ -393,6 +387,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
         this.applyConfigControls();
         break;
       case "destroy":
+        this.destroyed = true;
         this.runtimeState = "idle";
         this.active = false;
         break;
