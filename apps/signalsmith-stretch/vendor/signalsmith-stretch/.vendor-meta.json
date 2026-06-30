@@ -1,0 +1,6 @@
+{
+  "name": "signalsmith-stretch",
+  "source": "https://github.com/Signalsmith-Audio/signalsmith-stretch.git",
+  "requestedRef": "14f83ada78c772683c31c6e3f0c0497a4fbdb0df",
+  "sourceBranch": "performance/output-seek"
+}

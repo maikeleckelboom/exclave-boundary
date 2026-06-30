@@ -44,9 +44,9 @@ function assertNoProofFiles(tarballPath: string, packageRoot: string): void {
     .filter((line) => line.length > 0);
   const forbidden = contents.filter(
     (entry) =>
-      entry.includes("apps/signalsmith-stretch-lab/") ||
-      entry.includes("signalsmith-stretch-lab/vendor/") ||
-      entry.includes("signalsmith-stretch-lab/generated/"),
+      entry.includes("apps/signalsmith-stretch/") ||
+      entry.includes("signalsmith-stretch/vendor/") ||
+      entry.includes("signalsmith-stretch/generated/"),
   );
 
   if (forbidden.length > 0) {

@@ -56,8 +56,16 @@
     "docs:dev": "pnpm -F @exclave/docs run docs:dev",
     "docs:build": "pnpm -F @exclave/docs run docs:build",
     "docs:preview": "pnpm -F @exclave/docs run docs:preview",
+    "signalsmith:dev": "pnpm --filter \"@exclave/signalsmith-stretch\" run dev",
+    "signalsmith:build": "pnpm --filter \"@exclave/signalsmith-stretch\" run build",
+    "signalsmith:check": "pnpm --filter \"@exclave/signalsmith-stretch\" run check",
+    "signalsmith:test:browser": "pnpm --filter \"@exclave/signalsmith-stretch\" run test:browser",
+    "signalsmith:prepare": "pnpm --filter \"@exclave/signalsmith-stretch\" run prepare:real",
+    "signalsmith:build:wasm": "pnpm --filter \"@exclave/signalsmith-stretch\" run build:wasm",
+    "signalsmith:test:browser:real": "pnpm --filter \"@exclave/signalsmith-stretch\" run test:browser:real",
+    "check:diff-whitespace": "git diff --check origin/main...HEAD",
     "support": "node scripts/support/boundary-support.ts",
-    "verify": "pnpm clean && pnpm build && pnpm lint && pnpm test:types && pnpm test && pnpm run docs && pnpm test:pack && pnpm support --json"
+    "verify": "pnpm clean && pnpm build && pnpm lint && pnpm test:types && pnpm test && pnpm signalsmith:check && pnpm run docs && pnpm test:pack && pnpm support --json"
   },
   "simple-git-hooks": {
     "commit-msg": "pnpm commitlint --edit $1"

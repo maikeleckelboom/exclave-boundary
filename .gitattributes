@@ -33,3 +33,10 @@
 *.tgz binary
 *.wasm binary
 *.node binary
+
+# Raw upstream mirrors keep their upstream whitespace; repo whitespace checks
+# still apply everywhere else.
+apps/signalsmith-stretch/vendor/** whitespace=-trailing-space
+apps/signalsmith-stretch/third_party/licenses/**/README.md whitespace=-trailing-space
+apps/signalsmith-stretch-lab/vendor/** whitespace=-trailing-space
+apps/signalsmith-stretch-lab/third_party/licenses/**/README.md whitespace=-trailing-space

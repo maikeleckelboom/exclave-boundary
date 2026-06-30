@@ -6,10 +6,10 @@ dist/**
 node_modules/
 dist/
 coverage/
-apps/signalsmith-stretch-lab/.cache/**
-apps/signalsmith-stretch-lab/generated/**
-apps/signalsmith-stretch-lab/third_party/**
-apps/signalsmith-stretch-lab/vendor/**
+apps/signalsmith-stretch/.cache/**
+apps/signalsmith-stretch/generated/**
+apps/signalsmith-stretch/third_party/**
+apps/signalsmith-stretch/vendor/**
 apps/**/src/.vitepress/cache/**
 packages/**/src/.vitepress/cache/**
 

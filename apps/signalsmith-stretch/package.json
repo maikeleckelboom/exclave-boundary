@@ -1,0 +1,38 @@
+{
+  "name": "@exclave/signalsmith-stretch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build --mode simulator",
+    "build:real": "vite build --mode real-adapter",
+    "build:wasm": "tsx scripts/build-signalsmith-wasm.mts",
+    "check": "pnpm run lint && pnpm run test:types && pnpm run test",
+    "dev": "vite --mode simulator --host 127.0.0.1",
+    "dev:real": "vite --mode real-adapter --host 127.0.0.1",
+    "lint": "eslint --config eslint.config.mts src tests scripts *.config.ts",
+    "prepare:real": "pnpm run vendor && pnpm run build:wasm",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "test:browser": "playwright test --config playwright.config.ts",
+    "test:browser:real": "playwright test --config playwright.real.config.ts",
+    "test:types": "tsc -p tsconfig.json --noEmit --pretty",
+    "vendor": "tsx scripts/vendor.mts"
+  },
+  "dependencies": {
+    "@exclave/boundary": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "globals": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
