@@ -14,7 +14,6 @@ export interface WaveformPeaksState {
 
 export interface ChunkedWaveformPeaksOptions {
   readonly binCount?: number;
-  readonly coarseBinCount?: number;
   readonly coarseFramesPerBin?: number;
   readonly complete?: boolean;
   readonly maxFramesPerRead?: number;
@@ -23,24 +22,20 @@ export interface ChunkedWaveformPeaksOptions {
   readonly yieldEveryReads?: number;
 }
 
-export const DEFAULT_WAVEFORM_CACHE_BIN_COUNT = 4_096;
-export const MAX_WAVEFORM_BIN_COUNT = 8_192;
-
-const BINS_PER_PIXEL = 1.5;
-const DEFAULT_COARSE_BIN_COUNT = 320;
+const DEFAULT_BIN_COUNT = 320;
 const DEFAULT_COARSE_FRAMES_PER_BIN = 2_048;
 const DEFAULT_MAX_FRAMES_PER_READ = 16_384;
 const DEFAULT_YIELD_EVERY_READS = 8;
 
 export function createEmptyWaveformPeaks(
-  binCount = DEFAULT_WAVEFORM_CACHE_BIN_COUNT,
+  binCount = DEFAULT_BIN_COUNT,
 ): WaveformPeaksState {
   return { mode: "empty", peaks: new Float32Array(binCount) };
 }
 
 export function createSyntheticWaveformPeaks(
   source: SimulatedSource,
-  binCount = DEFAULT_WAVEFORM_CACHE_BIN_COUNT,
+  binCount = DEFAULT_BIN_COUNT,
 ): WaveformPeaksState {
   const peaks = new Float32Array(binCount);
   const seed = hashSource(source.name, source.frames);
@@ -62,7 +57,7 @@ export function createSyntheticWaveformPeaks(
 export function computePlanarWaveformPeaks(
   channels: readonly Float32Array[],
   frameCount: number,
-  binCount = DEFAULT_WAVEFORM_CACHE_BIN_COUNT,
+  binCount = DEFAULT_BIN_COUNT,
 ): WaveformPeaksState {
   const peaks = new Float32Array(Math.max(1, Math.floor(binCount)));
   const totalFrames = Math.max(0, Math.floor(frameCount));
@@ -88,68 +83,13 @@ export function computePlanarWaveformPeaks(
   return { mode: "actual-complete", peaks };
 }
 
-export function resolveWaveformBinCount(
-  widthCssPx: number,
-  dpr: number,
-): number {
-  const width = Number.isFinite(widthCssPx) ? Math.max(1, widthCssPx) : 1;
-  const ratio = Number.isFinite(dpr) ? Math.max(1, dpr) : 1;
-  const target = Math.ceil(width * ratio * BINS_PER_PIXEL);
-
-  return Math.min(MAX_WAVEFORM_BIN_COUNT, Math.max(1, target));
-}
-
-export function resamplePeaksMax(
-  source: Readonly<Float32Array>,
-  targetBinCount: number,
-): Float32Array {
-  const nextBinCount = Math.max(1, Math.floor(targetBinCount));
-  const target = new Float32Array(nextBinCount);
-
-  if (source.length === 0) {
-    return target;
-  }
-
-  if (source.length === nextBinCount) {
-    return new Float32Array(source);
-  }
-
-  for (let bin = 0; bin < nextBinCount; bin += 1) {
-    const sourceStart = Math.floor((bin * source.length) / nextBinCount);
-    const sourceEnd = Math.max(
-      sourceStart + 1,
-      Math.ceil(((bin + 1) * source.length) / nextBinCount),
-    );
-    let peak = 0;
-
-    for (
-      let sourceIndex = sourceStart;
-      sourceIndex < Math.min(source.length, sourceEnd);
-      sourceIndex += 1
-    ) {
-      peak = Math.max(peak, source[sourceIndex] ?? 0);
-    }
-
-    target[bin] = peak;
-  }
-
-  return target;
-}
-
 export async function computeChunkedWaveformPeaks(
   source: ChunkedWavSource,
   options: ChunkedWaveformPeaksOptions = {},
 ): Promise<WaveformPeaksState> {
   const binCount = Math.max(
     1,
-    Math.floor(options.binCount ?? DEFAULT_WAVEFORM_CACHE_BIN_COUNT),
-  );
-  const coarseBinCount = Math.max(
-    1,
-    Math.min(
-      binCount,
-      Math.floor(options.coarseBinCount ?? DEFAULT_COARSE_BIN_COUNT),
-    ),
+    Math.floor(options.binCount ?? DEFAULT_BIN_COUNT),
   );
   const maxFramesPerRead = Math.max(
     1,
@@ -163,13 +103,13 @@ export async function computeChunkedWaveformPeaks(
     1,
     Math.floor(options.yieldEveryReads ?? DEFAULT_YIELD_EVERY_READS),
   );
-  const coarse = new Float32Array(coarseBinCount);
+  const coarse = new Float32Array(binCount);
   let reads = 0;
 
-  for (let bin = 0; bin < coarseBinCount; bin += 1) {
+  for (let bin = 0; bin < binCount; bin += 1) {
     throwIfAborted(options.signal);
 
-    const range = binRange(source.info.frameCount, bin, coarseBinCount);
+    const range = binRange(source.info.frameCount, bin, binCount);
     const frameCount = Math.min(
       maxFramesPerRead,
       coarseFramesPerBin,

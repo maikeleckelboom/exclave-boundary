@@ -559,7 +559,7 @@ async function sourceFrameNear(
   expected: number,
   tolerance: number,
 ): Promise<boolean> {
-  const frame = parseFrameFact(await page.locator("#seekRange").inputValue());
+  const frame = await numericRuntimeFact(page, "Audible source frame");
 
   return Math.abs(frame - expected) <= tolerance;
 }

@@ -71,9 +71,7 @@ export interface AppElements {
   readonly tonalityHzValue: HTMLElement;
   readonly transportState: HTMLElement;
   readonly waveform: HTMLCanvasElement;
-  readonly waveformOverlay: HTMLCanvasElement;
   readonly waveformPanel: HTMLElement;
-  readonly waveformStack: HTMLElement;
 }
 
 type ElementConstructor<T extends Element> = new () => T;
@@ -118,21 +116,12 @@ export function renderAppShell(root: HTMLElement): AppElements {
       <section id="waveformPanel" class="waveform-panel" aria-labelledby="waveform-title" hidden>
         <div class="section-heading">
           <div>
-            <p class="section-label" id="waveform-title">Deck waveform</p>
+            <p class="section-label" id="waveform-title">Waveform overview</p>
             <h2>Waveform</h2>
           </div>
           <div id="playhead" class="readout"></div>
         </div>
-        <div id="waveformStack" class="waveform-stack">
-          <canvas id="waveform" class="waveform waveform-static" width="1200" height="260"></canvas>
-          <canvas id="waveformOverlay" class="waveform waveform-overlay" width="1200" height="260" aria-hidden="true"></canvas>
-        </div>
-        <div class="waveform-legend" aria-label="Waveform marker legend">
-          <span class="legend-item legend-item-playhead">Playhead</span>
-          <span class="legend-item legend-item-requested">Requested seek</span>
-          <span class="legend-item legend-item-draft">Draft loop</span>
-          <span class="legend-item legend-item-applied">Applied loop</span>
-        </div>
+        <canvas id="waveform" class="waveform" width="1200" height="260"></canvas>
         <div class="seek-grid">
           <label>
             <span>Seek</span>
@@ -418,9 +407,7 @@ export function renderAppShell(root: HTMLElement): AppElements {
     tonalityHzValue: must(root, "#tonalityHzValue", HTMLElement),
     transportState: must(root, "#transportState", HTMLElement),
     waveform: must(root, "#waveform", HTMLCanvasElement),
-    waveformOverlay: must(root, "#waveformOverlay", HTMLCanvasElement),
     waveformPanel: must(root, "#waveformPanel", HTMLElement),
-    waveformStack: must(root, "#waveformStack", HTMLElement),
   };
 }
 

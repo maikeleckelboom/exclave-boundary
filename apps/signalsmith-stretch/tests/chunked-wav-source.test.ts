@@ -320,24 +320,6 @@ describe("ChunkedWavSource", () => {
     ).toBe(true);
   });
 
-  it("caps coarse preview reads independently from final cache resolution", async () => {
-    const file = new VirtualWavFile({ frameCount: 60 * 60 * 48_000 });
-    const source = await ChunkedWavSource.open(file as unknown as File);
-    file.ranges.length = 0;
-
-    const waveform = await computeChunkedWaveformPeaks(source, {
-      binCount: 4_096,
-      coarseBinCount: 24,
-      complete: false,
-      maxFramesPerRead: 1_024,
-      yieldEveryReads: 64,
-    });
-
-    expect(waveform.mode).toBe("actual-coarse");
-    expect(waveform.peaks).toHaveLength(24);
-    expect(file.ranges).toHaveLength(24);
-  });
-
   it("skips unknown chunks", async () => {
     const source = await ChunkedWavSource.open(
       new VirtualWavFile({ unknownChunk: true }) as unknown as File,
