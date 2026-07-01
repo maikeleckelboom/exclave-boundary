@@ -129,10 +129,20 @@ export class SourceWindow {
     }
 
     if (!isValidLoop(loop)) {
-      this.copyLinearRange(targets, 0, startFrame, frameCount);
-      return this.coverageForInputWindow(startFrame, frameCount);
+      const copiedFrames = this.copyLinearRange(
+        targets,
+        0,
+        startFrame,
+        frameCount,
+      );
+
+      return {
+        copiedFrames,
+        missingFrames: Math.max(0, frameCount - copiedFrames),
+      };
     }
 
+    let copiedFrames = 0;
     let remainingFrames = frameCount;
     let targetOffset = 0;
     let requestedFrame = startFrame;
@@ -142,13 +152,21 @@ export class SourceWindow {
       const framesUntilWrap = loop.endFrame - mappedFrame;
       const count = Math.min(remainingFrames, Math.max(1, framesUntilWrap));
 
-      this.copyLinearRange(targets, targetOffset, mappedFrame, count);
+      copiedFrames += this.copyLinearRange(
+        targets,
+        targetOffset,
+        mappedFrame,
+        count,
+      );
       targetOffset += count;
       requestedFrame += count;
       remainingFrames -= count;
     }
 
-    return this.coverageForInputWindow(startFrame, frameCount, loop);
+    return {
+      copiedFrames,
+      missingFrames: Math.max(0, frameCount - copiedFrames),
+    };
   }
 
   coverageForInputWindow(
@@ -179,7 +197,9 @@ export class SourceWindow {
     targetBaseOffset: number,
     startFrame: number,
     frameCount: number,
-  ): void {
+  ): number {
+    let copiedFrames = 0;
+    let countedUntil = startFrame;
     const endFrame = startFrame + frameCount;
 
     for (const chunk of this.chunks) {
@@ -189,6 +209,12 @@ export class SourceWindow {
 
       if (count <= 0) {
         continue;
+      }
+
+      const countedStart = Math.max(overlapStart, countedUntil);
+      if (overlapEnd > countedStart) {
+        copiedFrames += overlapEnd - countedStart;
+        countedUntil = overlapEnd;
       }
 
       const sourceOffset = overlapStart - chunk.startFrame;
@@ -209,7 +235,12 @@ export class SourceWindow {
         }
       }
 
+      if (countedUntil >= endFrame) {
+        return copiedFrames;
+      }
     }
+
+    return copiedFrames;
   }
 
   private coveredFramesForLoopRange(

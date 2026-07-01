@@ -113,6 +113,7 @@ type TransportPumpReason =
   | "refill-complete"
   | "seek"
   | "source-load"
+  | "source-ready"
   | "startup"
   | "visibilitychange";
 type QualityPreset =
@@ -1075,7 +1076,25 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       realRuntime = nextRuntime;
       runTransportPump("source-load");
 
-      return !realRuntime.status.failed;
+      const runtimeReady = await nextRuntime.waitUntilReady({
+        timeoutMs: 5_000,
+      });
+
+      if (options.loadRequestId !== sourceLoadRequestId) {
+        nextRuntime.dispose();
+        return false;
+      }
+
+      if (!runtimeReady || nextRuntime.status.failed) {
+        if (realRuntime === nextRuntime) {
+          realRuntime = null;
+        }
+        nextRuntime.dispose();
+        return false;
+      }
+
+      runTransportPump("source-ready");
+      return true;
     }
 
     function prefetchForFrame(

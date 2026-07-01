@@ -305,6 +305,14 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
 
   await page.addInitScript(() => {
     const state = { sourceAcceptedMessages: 0 };
+    const isSourceAcceptedMessage = (
+      value: unknown,
+    ): value is { readonly type: "sourceAccepted" } =>
+      typeof value === "object" &&
+      value !== null &&
+      "type" in value &&
+      value.type === "sourceAccepted";
+
     Object.defineProperty(window, "__stretchSmoke", {
       configurable: true,
       value: state,
@@ -334,10 +342,7 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
         const listener = (event: Event): void => {
           const message = event as MessageEvent<unknown>;
 
-          if (
-            isRecord(message.data) &&
-            message.data.type === "sourceAccepted"
-          ) {
+          if (isSourceAcceptedMessage(message.data)) {
             state.sourceAcceptedMessages += 1;
           }
 
@@ -759,10 +764,6 @@ function parseFrameFact(value: string): number {
   const [outputFrame = "0"] = value.split(" ");
 
   return Number(outputFrame.replaceAll(",", ""));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 declare global {

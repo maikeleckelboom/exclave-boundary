@@ -27,6 +27,10 @@ export interface StretchWorkletRuntimeStatus {
   readonly workletReady: boolean;
 }
 
+export interface StretchWorkletRuntimeReadyOptions {
+  readonly timeoutMs?: number;
+}
+
 type StretchWorkletMessage =
   | {
       readonly type: "failed";
@@ -63,6 +67,9 @@ type StretchWorkletHostMessage =
 export class StretchWorkletRuntime {
   private failed = false;
   private lastError: string | null = null;
+  private readonly readyWaiters = new Set<
+    (status: StretchWorkletRuntimeStatus) => void
+  >();
   private sourceAccepted = false;
   private sourceRevision = 0;
   private workletReady = false;
@@ -121,6 +128,59 @@ export class StretchWorkletRuntime {
     };
   }
 
+  waitUntilReady(
+    options: StretchWorkletRuntimeReadyOptions = {},
+  ): Promise<boolean> {
+    if (this.failed) {
+      return Promise.resolve(false);
+    }
+
+    if (this.isReady()) {
+      return Promise.resolve(true);
+    }
+
+    const timeoutMs = options.timeoutMs ?? 5_000;
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let listener:
+        | ((status: StretchWorkletRuntimeStatus) => void)
+        | null = null;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (ready: boolean): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+        if (listener !== null) {
+          this.readyWaiters.delete(listener);
+        }
+        resolve(ready);
+      };
+
+      listener = (status: StretchWorkletRuntimeStatus): void => {
+        if (status.failed) {
+          finish(false);
+          return;
+        }
+
+        if (status.workletReady && status.sourceAccepted) {
+          finish(true);
+        }
+      };
+
+      this.readyWaiters.add(listener);
+      timeoutId = setTimeout(() => {
+        finish(this.isReady());
+      }, timeoutMs);
+    });
+  }
+
   postChunk(sourceRevision: number, chunk: PlanarFrameChunk): void {
     this.postMessage({
       chunk,
@@ -168,16 +228,30 @@ export class StretchWorkletRuntime {
       case "failed":
         this.failed = true;
         this.lastError = `${message.errorCode.toString()}: ${message.message}`;
+        this.notifyStatusChanged();
         break;
       case "ready":
         this.workletReady = true;
         this.failed = false;
         this.lastError = null;
+        this.notifyStatusChanged();
         break;
       case "sourceAccepted":
         this.sourceAccepted = true;
         this.sourceRevision = message.sourceRevision;
+        this.notifyStatusChanged();
         break;
+    }
+  }
+
+  private isReady(): boolean {
+    return !this.failed && this.workletReady && this.sourceAccepted;
+  }
+
+  private notifyStatusChanged(): void {
+    const status = this.status;
+    for (const waiter of this.readyWaiters) {
+      waiter(status);
     }
   }
 }

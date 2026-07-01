@@ -110,6 +110,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
   private intervalSamples = 0;
   private invalidSampleTotal = 0;
   private invalidTransitionTotal = 0;
+  private lastInputWindowMissingFrames = 0;
   private lastHeapBuffer: ArrayBufferLike | null = null;
   private lastAppliedCommandSequence = 0;
   private lastAppliedConfigSequence = 0;
@@ -118,8 +119,10 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
   private loadSequence = 0;
   private loopEnabled = false;
   private loopEndFrame = 0;
+  private loopEndMissingFrames = 0;
   private loopRevision = 0;
   private loopStartFrame = 0;
+  private loopStartMissingFrames = 0;
   private maxObservedRenderQuantum = 0;
   private module: SignalsmithStretchModule | null = null;
   private outputBuffers: Float32Array[] = [];
@@ -307,6 +310,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     if (fill.missingFrames > 0) {
       this.underrunTotal += 1;
     }
+    this.lastInputWindowMissingFrames = fill.missingFrames;
 
     module._seek(this.bufferLengthFrames, this.effectiveRate);
     module._process(0, outputFrameCount);
@@ -380,6 +384,8 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     switch (command.name) {
       case "clearLoop":
         this.loopEnabled = false;
+        this.loopStartMissingFrames = 0;
+        this.loopEndMissingFrames = 0;
         this.loopRevision = command.sequence;
         break;
       case "configure":
@@ -544,6 +550,8 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     this.loopStartFrame = validation.range.startFrame;
     this.loopEndFrame = validation.range.endFrame;
     this.repositionToSourceFrame(this.sourceFrame);
+    this.loopStartMissingFrames = 0;
+    this.loopEndMissingFrames = 0;
     return true;
   }
 
@@ -667,7 +675,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
       effectiveRate: this.effectiveRate,
       heapGeneration: this.heapGeneration,
       inputLatencyFrames: this.inputLatencyFrames,
-      inputWindowMissingFrames: this.inputWindowMissingFramesForPublish(),
+      inputWindowMissingFrames: this.lastInputWindowMissingFrames,
       intervalSamples: this.intervalSamples,
       invalidSampleTotal: this.invalidSampleTotal,
       invalidTransitionTotal: this.invalidTransitionTotal,
@@ -677,11 +685,11 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
       lastErrorCode: this.lastErrorCode,
       loopEnabled: this.loopEnabled,
       loopEndFrame: this.loopEndFrame,
-      loopEndMissingFrames: this.loopEndMissingFramesForPublish(),
+      loopEndMissingFrames: this.loopEndMissingFrames,
       loopRevision: this.loopRevision,
       loopSourceFrameInside: this.sourceFrameInsideLoopForPublish(),
       loopStartFrame: this.loopStartFrame,
-      loopStartMissingFrames: this.loopStartMissingFramesForPublish(),
+      loopStartMissingFrames: this.loopStartMissingFrames,
       maxObservedRenderQuantum: this.maxObservedRenderQuantum,
       outputFrame: this.outputFrame,
       outputLatencyFrames: this.outputLatencyFrames,
@@ -769,70 +777,6 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     }
 
     this.repositionToSourceFrame(this.sourceFrame);
-  }
-
-  private inputWindowMissingFramesForPublish(): number {
-    if (!this.sourceWindow.info || this.bufferLengthFrames <= 0) {
-      return 0;
-    }
-
-    const sourceWindow = this.sourceWindowForAudibleFrame(this.sourceFrame);
-    return this.sourceWindow.coverageForInputWindow(
-      sourceWindow.inputWindowStartFrame,
-      this.bufferLengthFrames,
-      {
-        enabled: this.loopEnabled,
-        endFrame: this.loopEndFrame,
-        startFrame: this.loopStartFrame,
-      },
-    ).missingFrames;
-  }
-
-  private loopStartMissingFramesForPublish(): number {
-    return this.loopBoundaryMissingFramesForPublish(this.loopStartFrame);
-  }
-
-  private loopEndMissingFramesForPublish(): number {
-    return this.loopBoundaryMissingFramesForPublish(
-      this.loopEndFrame - this.loopCoverageWindowFrames(),
-    );
-  }
-
-  private loopBoundaryMissingFramesForPublish(startFrame: number): number {
-    if (
-      !this.loopEnabled ||
-      !this.sourceWindow.info ||
-      this.loopEndFrame <= this.loopStartFrame
-    ) {
-      return 0;
-    }
-
-    const frameCount = Math.min(
-      this.loopCoverageWindowFrames(),
-      this.loopEndFrame - this.loopStartFrame,
-    );
-
-    if (frameCount <= 0) {
-      return 0;
-    }
-
-    return this.sourceWindow.coverageForInputWindow(
-      startFrame,
-      frameCount,
-      {
-        enabled: true,
-        endFrame: this.loopEndFrame,
-        startFrame: this.loopStartFrame,
-      },
-    ).missingFrames;
-  }
-
-  private loopCoverageWindowFrames(): number {
-    return Math.max(
-      4_096,
-      this.bufferLengthFrames,
-      (this.module?._blockSamples() ?? 0) + this.intervalSamples,
-    );
   }
 
   private sourceFrameInsideLoopForPublish(): boolean {
