@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { enqueueApplyLoop, enqueuePlayLoop } from "../src/loop/loop-commands";
 import {
+  normalizeSeekFrameIntoLoopRange,
+  sourceFrameInsideLoopRange,
+} from "../src/loop/loop-normalization";
+import {
   SAFE_MINIMUM_LOOP_FRAMES,
   minimumLoopFramesForRuntime,
   validateLoopRange,
@@ -77,6 +81,16 @@ describe("loop controls", () => {
       { name: "seek", options: { targetSourceFrame: 12_000 } },
       { name: "play", options: undefined },
     ]);
+  });
+
+  it("normalizes active-loop seeks into the applied loop range", () => {
+    const range = { endFrame: 20_000, startFrame: 10_000 };
+
+    expect(normalizeSeekFrameIntoLoopRange(5_000, range)).toBe(10_000);
+    expect(normalizeSeekFrameIntoLoopRange(30_000, range)).toBe(10_000);
+    expect(normalizeSeekFrameIntoLoopRange(35_123, range)).toBe(15_123);
+    expect(sourceFrameInsideLoopRange(15_123, range)).toBe(true);
+    expect(sourceFrameInsideLoopRange(20_000, range)).toBe(false);
   });
 
   it("does not enqueue invalid or too-short setLoop commands", () => {

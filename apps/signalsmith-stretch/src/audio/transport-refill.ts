@@ -1,8 +1,12 @@
+import { wrapFrameIntoLoopRange } from "../loop/loop-normalization";
 import { calculateSignalsmithSourceWindow } from "../worklet/source-window-position";
 
 import type { RuntimeStatusSnapshot, SourceStatusSnapshot } from "../types";
 
-export type TransportRefillReason = "ahead-low" | "current-window-missing";
+export type TransportRefillReason =
+  | "ahead-low"
+  | "current-window-missing"
+  | "loop-boundary-missing";
 export type TransportBufferExpectationState =
   | "confirmed"
   | "none"
@@ -190,6 +194,92 @@ export function chooseTransportRefill(
     0,
     effectiveBufferEndFrame - inputWindowEndFrame,
   );
+  const loopEnabled =
+    input.runtime.loopEnabled &&
+    input.runtime.loopEndFrame > input.runtime.loopStartFrame;
+
+  if (loopEnabled) {
+    const loopStartFrame = clampFrame(
+      input.runtime.loopStartFrame,
+      0,
+      sourceFrameCount,
+    );
+    const loopEndFrame = clampFrame(
+      input.runtime.loopEndFrame,
+      loopStartFrame,
+      sourceFrameCount,
+    );
+    const loopRange = {
+      endFrame: loopEndFrame,
+      startFrame: loopStartFrame,
+    };
+    const chunkFrames = calculateChunkFrames(input.runtime, sampleRate);
+
+    if (input.runtime.inputWindowMissingFrames > 0) {
+      let startFrame =
+        wrapFrameIntoLoopRange(inputWindowStartFrame, loopRange) -
+        CURRENT_WINDOW_OVERLAP_FRAMES;
+
+      if (
+        inputWindowEndFrame > loopEndFrame &&
+        input.runtime.loopStartMissingFrames > 0
+      ) {
+        startFrame = loopStartFrame;
+      } else if (
+        inputWindowStartFrame < loopStartFrame &&
+        input.runtime.loopEndMissingFrames > 0
+      ) {
+        startFrame = Math.max(loopStartFrame, loopEndFrame - chunkFrames);
+      }
+
+      return createDecision({
+        aheadFrames: 0,
+        inputWindowEndFrame,
+        inputWindowStartFrame,
+        reason: "current-window-missing",
+        safeFloorFrames,
+        sourceFrameCount,
+        sourceSampleRate: sampleRate,
+        startFrame,
+        targetAheadFrames,
+        runtime: input.runtime,
+      });
+    }
+
+    if (input.runtime.loopStartMissingFrames > 0) {
+      return createDecision({
+        aheadFrames: 0,
+        inputWindowEndFrame,
+        inputWindowStartFrame,
+        maxEndFrame: loopEndFrame,
+        reason: "loop-boundary-missing",
+        safeFloorFrames,
+        sourceFrameCount,
+        sourceSampleRate: sampleRate,
+        startFrame: loopStartFrame,
+        targetAheadFrames,
+        runtime: input.runtime,
+      });
+    }
+
+    if (input.runtime.loopEndMissingFrames > 0) {
+      return createDecision({
+        aheadFrames: 0,
+        inputWindowEndFrame,
+        inputWindowStartFrame,
+        maxEndFrame: loopEndFrame,
+        reason: "loop-boundary-missing",
+        safeFloorFrames,
+        sourceFrameCount,
+        sourceSampleRate: sampleRate,
+        startFrame: Math.max(loopStartFrame, loopEndFrame - chunkFrames),
+        targetAheadFrames,
+        runtime: input.runtime,
+      });
+    }
+
+    return null;
+  }
 
   if (
     observedBufferStartFrame > inputWindowStartFrame ||
@@ -231,6 +321,7 @@ function createDecision(input: {
   readonly aheadFrames: number;
   readonly inputWindowEndFrame: number;
   readonly inputWindowStartFrame: number;
+  readonly maxEndFrame?: number;
   readonly reason: TransportRefillReason;
   readonly runtime: RuntimeStatusSnapshot;
   readonly safeFloorFrames: number;
@@ -241,8 +332,13 @@ function createDecision(input: {
 }): TransportRefillDecision | null {
   const startFrame = clampFrame(input.startFrame, 0, input.sourceFrameCount);
   const chunkFrames = calculateChunkFrames(input.runtime, input.sourceSampleRate);
+  const maxEndFrame = clampFrame(
+    input.maxEndFrame ?? input.sourceFrameCount,
+    startFrame,
+    input.sourceFrameCount,
+  );
   const frameCount = clampFrame(
-    Math.min(chunkFrames, input.sourceFrameCount - startFrame),
+    Math.min(chunkFrames, maxEndFrame - startFrame),
     0,
     input.sourceFrameCount,
   );

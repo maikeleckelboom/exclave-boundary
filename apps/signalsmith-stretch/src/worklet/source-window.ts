@@ -22,6 +22,11 @@ export interface SourceWindowOptions {
   readonly maxCachedBytes?: number;
 }
 
+export interface SourceWindowCoverage {
+  readonly copiedFrames: number;
+  readonly missingFrames: number;
+}
+
 const DEFAULT_MAX_CACHED_BYTES = 24 * 1024 * 1024;
 
 export class SourceWindow {
@@ -114,60 +119,58 @@ export class SourceWindow {
       endFrame: 0,
       startFrame: 0,
     },
-  ): {
-    readonly copiedFrames: number;
-    readonly missingFrames: number;
-  } {
+  ): SourceWindowCoverage {
     for (const target of targets) {
       target.fill(0, 0, frameCount);
     }
 
     if (!this.infoValue || frameCount <= 0) {
-      return { copiedFrames: 0, missingFrames: frameCount };
+      return { copiedFrames: 0, missingFrames: Math.max(0, frameCount) };
     }
 
     if (!isValidLoop(loop)) {
-      const copiedFrames = this.copyLinearRange(
-        targets,
-        0,
-        startFrame,
-        frameCount,
-      );
-
-      return {
-        copiedFrames,
-        missingFrames: Math.max(0, frameCount - copiedFrames),
-      };
+      this.copyLinearRange(targets, 0, startFrame, frameCount);
+      return this.coverageForInputWindow(startFrame, frameCount);
     }
 
-    let copiedFrames = 0;
     let remainingFrames = frameCount;
     let targetOffset = 0;
     let requestedFrame = startFrame;
 
     while (remainingFrames > 0) {
       const mappedFrame = mapLoopFrame(requestedFrame, loop);
-      const framesUntilWrap =
-        requestedFrame < loop.endFrame
-          ? loop.endFrame - requestedFrame
-          : loopLength(loop) -
-            ((requestedFrame - loop.endFrame) % loopLength(loop));
+      const framesUntilWrap = loop.endFrame - mappedFrame;
       const count = Math.min(remainingFrames, Math.max(1, framesUntilWrap));
 
-      copiedFrames += this.copyLinearRange(
-        targets,
-        targetOffset,
-        mappedFrame,
-        count,
-      );
+      this.copyLinearRange(targets, targetOffset, mappedFrame, count);
       targetOffset += count;
       requestedFrame += count;
       remainingFrames -= count;
     }
 
+    return this.coverageForInputWindow(startFrame, frameCount, loop);
+  }
+
+  coverageForInputWindow(
+    startFrame: number,
+    frameCount: number,
+    loop: SourceLoopWindow = {
+      enabled: false,
+      endFrame: 0,
+      startFrame: 0,
+    },
+  ): SourceWindowCoverage {
+    if (!this.infoValue || frameCount <= 0) {
+      return { copiedFrames: 0, missingFrames: Math.max(0, frameCount) };
+    }
+
+    const coveredFrames = isValidLoop(loop)
+      ? this.coveredFramesForLoopRange(startFrame, frameCount, loop)
+      : this.coveredFramesForLinearRange(startFrame, frameCount);
+
     return {
-      copiedFrames,
-      missingFrames: Math.max(0, frameCount - copiedFrames),
+      copiedFrames: coveredFrames,
+      missingFrames: Math.max(0, frameCount - coveredFrames),
     };
   }
 
@@ -176,8 +179,7 @@ export class SourceWindow {
     targetBaseOffset: number,
     startFrame: number,
     frameCount: number,
-  ): number {
-    let copiedFrames = 0;
+  ): void {
     const endFrame = startFrame + frameCount;
 
     for (const chunk of this.chunks) {
@@ -207,10 +209,57 @@ export class SourceWindow {
         }
       }
 
-      copiedFrames += count;
+    }
+  }
+
+  private coveredFramesForLoopRange(
+    startFrame: number,
+    frameCount: number,
+    loop: SourceLoopWindow,
+  ): number {
+    let coveredFrames = 0;
+    let remainingFrames = frameCount;
+    let requestedFrame = startFrame;
+
+    while (remainingFrames > 0) {
+      const mappedFrame = mapLoopFrame(requestedFrame, loop);
+      const framesUntilWrap = loop.endFrame - mappedFrame;
+      const count = Math.min(remainingFrames, Math.max(1, framesUntilWrap));
+
+      coveredFrames += this.coveredFramesForLinearRange(mappedFrame, count);
+      requestedFrame += count;
+      remainingFrames -= count;
     }
 
-    return copiedFrames;
+    return coveredFrames;
+  }
+
+  private coveredFramesForLinearRange(
+    startFrame: number,
+    frameCount: number,
+  ): number {
+    let coveredFrames = 0;
+    let coveredUntil = startFrame;
+    const endFrame = startFrame + frameCount;
+
+    for (const chunk of this.chunks) {
+      const overlapStart = Math.max(startFrame, chunk.startFrame);
+      const overlapEnd = Math.min(endFrame, chunk.endFrame);
+      const segmentStart = Math.max(overlapStart, coveredUntil);
+
+      if (overlapEnd <= segmentStart) {
+        continue;
+      }
+
+      coveredFrames += overlapEnd - segmentStart;
+      coveredUntil = overlapEnd;
+
+      if (coveredUntil >= endFrame) {
+        return coveredFrames;
+      }
+    }
+
+    return coveredFrames;
   }
 
   private evict(): void {
@@ -266,9 +315,11 @@ function loopLength(loop: SourceLoopWindow): number {
 }
 
 function mapLoopFrame(frame: number, loop: SourceLoopWindow): number {
-  if (frame < loop.endFrame) {
-    return frame;
-  }
+  return (
+    loop.startFrame + positiveModulo(frame - loop.startFrame, loopLength(loop))
+  );
+}
 
-  return loop.startFrame + ((frame - loop.endFrame) % loopLength(loop));
+function positiveModulo(value: number, modulus: number): number {
+  return ((value % modulus) + modulus) % modulus;
 }

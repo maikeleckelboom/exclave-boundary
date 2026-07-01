@@ -209,6 +209,37 @@ describe("Signalsmith Worklet runtime semantics", () => {
     expect(Array.from(target)).toEqual([8, 9, 2, 3]);
   });
 
+  it("wraps source-window fills that cross below loopStart", () => {
+    const window = new SourceWindow();
+    const target = new Float32Array(4);
+    window.setInfo(sourceInfo(24, 1));
+    window.addChunk(chunk(10, [10, 11]));
+    window.addChunk(chunk(18, [18, 19]));
+
+    const fill = window.fillInputWindow([target], 8, 4, {
+      enabled: true,
+      endFrame: 20,
+      startFrame: 10,
+    });
+
+    expect(fill).toEqual({ copiedFrames: 4, missingFrames: 0 });
+    expect(Array.from(target)).toEqual([18, 19, 10, 11]);
+  });
+
+  it("detects non-contiguous source-window coverage despite min and max buffer meters", () => {
+    const window = new SourceWindow();
+    window.setInfo(sourceInfo(24, 1));
+    window.addChunk(chunk(10, [10, 11]));
+    window.addChunk(chunk(18, [18, 19]));
+
+    expect(window.bufferStartFrame).toBe(10);
+    expect(window.bufferEndFrame).toBe(20);
+    expect(window.coverageForInputWindow(12, 6)).toEqual({
+      copiedFrames: 0,
+      missingFrames: 6,
+    });
+  });
+
   it("evicts Worklet source chunks below the byte limit", () => {
     const window = new SourceWindow({ maxCachedBytes: 4 * 4 });
     window.setInfo(sourceInfo(12, 1));
@@ -293,12 +324,23 @@ describe("Signalsmith Worklet runtime semantics", () => {
     const playBody = methodBody(source, "play");
 
     expect(playBody).toContain("this.sourceFrame >= durationFrames");
-    expect(playBody).toContain(
-      "this.repositionToSourceFrame(this.loopStartFrame)",
-    );
+    expect(playBody).toContain("this.repositionToSourceFrame(this.sourceFrame)");
     expect(playBody).toContain("this.repositionToSourceFrame(0)");
     expect(playBody).toContain('this.runtimeState = "playing"');
     expect(playBody).toContain("this.active = true");
+  });
+
+  it("normalizes Worklet seek and play positions while a loop is active", () => {
+    const source = readFileSync(WORKLET_PROCESSOR, "utf8");
+    const repositionBody = methodBody(source, "repositionToSourceFrame");
+    const playBody = methodBody(source, "play");
+    const wrapBody = methodBody(source, "wrapLoopIfNeeded");
+
+    expect(repositionBody).toContain("normalizeSeekFrameIntoLoopRange");
+    expect(repositionBody).toContain("this.loopEnabled");
+    expect(playBody).toContain("this.repositionToSourceFrame(this.sourceFrame)");
+    expect(wrapBody).toContain("sourceFrameInsideLoopRange");
+    expect(wrapBody).toContain("this.repositionToSourceFrame(this.sourceFrame)");
   });
 
   it("checks heap view identity before using Worklet input and output buffers", () => {

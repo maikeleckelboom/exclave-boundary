@@ -4,6 +4,10 @@ import {
   readSourceStatus,
   type StretchBoundarySession,
 } from "../boundary/session";
+import {
+  normalizeSeekFrameIntoLoopRange,
+  sourceFrameInsideLoopRange,
+} from "../loop/loop-normalization";
 import { validateLoopRange } from "../loop/loop-validation";
 import {
   ADAPTER_MODES,
@@ -139,8 +143,7 @@ export class FakeStretchEngine {
   }
 
   resetTransportPosition(): void {
-    this.outputFrame = 0;
-    this.sourceFrame = 0;
+    this.repositionToFrame(0);
     this.runtimeState = "ready-paused";
     this.seekStateTicks = 0;
   }
@@ -313,12 +316,7 @@ export class FakeStretchEngine {
 
   private play(): void {
     if (this.loopEnabled && this.loopEndFrame > this.loopStartFrame) {
-      if (
-        this.sourceFrame >= this.loopEndFrame ||
-        this.sourceFrame >= this.source.frames
-      ) {
-        this.repositionToFrame(this.loopStartFrame);
-      }
+      this.repositionToFrame(this.sourceFrame);
     } else if (this.sourceFrame >= this.source.frames) {
       this.repositionToFrame(0);
     }
@@ -328,7 +326,13 @@ export class FakeStretchEngine {
   }
 
   private repositionToFrame(frame: number): void {
-    const target = clamp(frame, 0, this.source.frames);
+    const clampedFrame = clamp(frame, 0, this.source.frames);
+    const target = this.loopEnabled
+      ? normalizeSeekFrameIntoLoopRange(clampedFrame, {
+          endFrame: this.loopEndFrame,
+          startFrame: this.loopStartFrame,
+        })
+      : clampedFrame;
     this.sourceFrame = target;
     this.outputFrame = target / Math.max(0.05, this.appliedControls.rate);
   }
@@ -359,6 +363,7 @@ export class FakeStretchEngine {
     this.loopStartFrame = validation.range.startFrame;
     this.loopEndFrame = validation.range.endFrame;
     this.loopRevision = revision >>> 0;
+    this.repositionToFrame(this.sourceFrame);
   }
 
   private advanceTransport(renderQuantum: number): void {
@@ -375,10 +380,14 @@ export class FakeStretchEngine {
     this.sourceFrame +=
       renderQuantum * Math.max(0.05, this.appliedControls.rate);
 
-    if (this.loopEnabled && this.sourceFrame >= this.loopEndFrame) {
-      const loopLength = Math.max(1, this.loopEndFrame - this.loopStartFrame);
-      const loopOffset = (this.sourceFrame - this.loopStartFrame) % loopLength;
-      this.sourceFrame = this.loopStartFrame + loopOffset;
+    if (
+      this.loopEnabled &&
+      !sourceFrameInsideLoopRange(this.sourceFrame, {
+        endFrame: this.loopEndFrame,
+        startFrame: this.loopStartFrame,
+      })
+    ) {
+      this.repositionToFrame(this.sourceFrame);
     }
 
     if (!this.loopEnabled && this.sourceFrame >= this.source.frames) {
@@ -416,6 +425,7 @@ export class FakeStretchEngine {
       writer.set("runtime.heapGeneration", 0);
       writer.set("runtime.inputLatencyFrames", config.inputLatencyFrames);
       writer.set("runtime.inputLatencySeconds", config.inputLatencySeconds);
+      writer.set("runtime.inputWindowMissingFrames", 0);
       writer.set("runtime.intervalSamples", config.intervalSamples);
       writer.set("runtime.invalidSampleTotal", this.invalidSampleTotal);
       writer.set("runtime.invalidTransitionTotal", this.invalidTransitionTotal);
@@ -434,8 +444,17 @@ export class FakeStretchEngine {
       writer.set("runtime.lastErrorCode", this.lastErrorCode);
       writer.set("runtime.loopEnabled", this.loopEnabled);
       writer.set("runtime.loopEndFrame", this.loopEndFrame);
+      writer.set("runtime.loopEndMissingFrames", 0);
       writer.set("runtime.loopRevision", this.loopRevision);
+      writer.set(
+        "runtime.loopSourceFrameInside",
+        sourceFrameInsideLoopRange(this.sourceFrame, {
+          endFrame: this.loopEndFrame,
+          startFrame: this.loopStartFrame,
+        }),
+      );
       writer.set("runtime.loopStartFrame", this.loopStartFrame);
+      writer.set("runtime.loopStartMissingFrames", 0);
       writer.set(
         "runtime.maxObservedRenderQuantum",
         this.maxObservedRenderQuantum,

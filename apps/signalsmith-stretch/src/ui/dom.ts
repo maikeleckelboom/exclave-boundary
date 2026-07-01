@@ -26,8 +26,10 @@ export interface AppElements {
   readonly loopApplied: HTMLElement;
   readonly loopAppliedSummary: HTMLElement;
   readonly loopDraft: HTMLElement;
+  readonly loopCacheCoverage: HTMLElement;
   readonly loopEnd: HTMLInputElement;
   readonly loopEndValue: HTMLElement;
+  readonly loopSourceFrame: HTMLElement;
   readonly loopStart: HTMLInputElement;
   readonly loopStartValue: HTMLElement;
   readonly loopValidation: HTMLElement;
@@ -150,6 +152,14 @@ export function renderAppShell(root: HTMLElement): AppElements {
           <div>
             <span>Applied loop</span>
             <strong id="loopAppliedSummary">inactive</strong>
+          </div>
+          <div>
+            <span>Source frame</span>
+            <strong id="loopSourceFrame">inactive</strong>
+          </div>
+          <div>
+            <span>Cache coverage</span>
+            <strong id="loopCacheCoverage">inactive</strong>
           </div>
           <div>
             <span>Status</span>
@@ -361,9 +371,11 @@ export function renderAppShell(root: HTMLElement): AppElements {
     levelsSummary: must(root, "#levelsSummary", HTMLElement),
     loopApplied: must(root, "#loopApplied", HTMLElement),
     loopAppliedSummary: must(root, "#loopAppliedSummary", HTMLElement),
+    loopCacheCoverage: must(root, "#loopCacheCoverage", HTMLElement),
     loopDraft: must(root, "#loopDraft", HTMLElement),
     loopEnd: must(root, "#loopEnd", HTMLInputElement),
     loopEndValue: must(root, "#loopEndValue", HTMLElement),
+    loopSourceFrame: must(root, "#loopSourceFrame", HTMLElement),
     loopStart: must(root, "#loopStart", HTMLInputElement),
     loopStartValue: must(root, "#loopStartValue", HTMLElement),
     loopValidation: must(root, "#loopValidation", HTMLElement),

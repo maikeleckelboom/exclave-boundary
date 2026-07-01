@@ -144,6 +144,58 @@ test("primary controls enable after a source loads", async ({
     .toBe("Auto (0)");
 });
 
+test("default sample keeps an active loop coherent after seeking", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    isRealAdapterRun(testInfo),
+    "Default-sample loop seek coverage runs in the standard browser suite; the real suite keeps uploaded-WAV Worklet smoke isolated.",
+  );
+
+  await page.goto("/");
+
+  await expect(page.locator("#sourcePrimary")).toHaveText(
+    "signalsmith-demo-loop.wav",
+  );
+
+  await page.locator("#pauseButton").click();
+  await expect.poll(() => runtimeFact(page, "State")).toBe("ready-paused");
+  await expect.poll(() => runtimeFact(page, "Loop")).toContain("0 to");
+
+  await setRange(page, "#loopStart", "12000");
+  await setRange(page, "#loopEnd", "20000");
+  await expect(page.locator("#loopDraft")).toContainText("12,000");
+  await expect(page.locator("#loopDraft")).toContainText("20,000");
+  await expect(page.locator("#loopValidation")).toContainText("Ready");
+
+  await page.locator("#playLoopButton").click();
+  await expect
+    .poll(() => runtimeFact(page, "Loop"))
+    .toContain("12,000 to 20,000");
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+
+  await setSeekFrame(page, "18000");
+  await expect.poll(() => sourceFrameNear(page, 18_000, 4_096)).toBe(true);
+  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
+    "inside",
+  );
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+
+  await setSeekFrame(page, "5000");
+  await expect.poll(() => sourceFrameNear(page, 12_000, 4_096)).toBe(true);
+  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
+    "inside",
+  );
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+
+  await setSeekFrame(page, "50000");
+  await expect.poll(() => sourceFrameNear(page, 18_000, 4_096)).toBe(true);
+  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
+    "inside",
+  );
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+});
+
 test("reports refused WAV sample-rate contexts without resampling", async ({
   page,
 }, testInfo) => {
@@ -487,6 +539,29 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
   await expect
     .poll(() => runtimeFact(page, "Worklet source cache"))
     .toContain("MiB");
+
+  await setSeekFrame(page, "18000");
+  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
+    "inside",
+  );
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+
+  await setSeekFrame(page, "5000");
+  await expect.poll(() => sourceFrameNear(page, 12_000, 2_048)).toBe(true);
+  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
+    "inside",
+  );
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+
+  await setSeekFrame(page, "50000");
+  await expect.poll(() => sourceFrameNear(page, 26_000, 4_096)).toBe(true);
+  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
+    "inside",
+  );
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+  await expect.poll(() => runtimeFact(page, "Loop cache coverage")).toContain(
+    "current",
+  );
 
   await page.locator("#clearLoopButton").click();
   await expect.poll(() => runtimeFact(page, "Loop")).toBe("inactive");

@@ -177,7 +177,7 @@ describe("FakeStretchEngine", () => {
     }
   });
 
-  it("restarts playback from loop start after reaching ended with a loop", () => {
+  it("keeps playback inside the loop after an EOF seek with a loop", () => {
     const { engine, session, transport } = setup();
 
     try {
@@ -195,8 +195,40 @@ describe("FakeStretchEngine", () => {
       const recovered = engine.tick({ renderQuantum: 128 }).runtime;
       expect(recovered.state).toBe("playing");
       expect(recovered.sourceFrame).toBeGreaterThanOrEqual(12_000);
-      expect(recovered.sourceFrame).toBeLessThan(13_000);
+      expect(recovered.sourceFrame).toBeLessThan(36_000);
       expect(recovered.state).not.toBe("ended");
+    } finally {
+      disposeStretchBoundarySession(session);
+    }
+  });
+
+  it("keeps active-loop seeks inside the applied loop range", () => {
+    const { engine, session, transport } = setup();
+
+    try {
+      transport.enqueue("setLoop", {
+        loopEndFrame: 20_000,
+        loopStartFrame: 10_000,
+      });
+      engine.tick({ renderQuantum: 128 });
+
+      transport.enqueue("seek", { targetSourceFrame: 5_000 });
+      const beforeLoop = engine.tick({ renderQuantum: 128 }).runtime;
+      expect(beforeLoop.loopEnabled).toBe(true);
+      expect(beforeLoop.sourceFrame).toBe(10_000);
+      expect(beforeLoop.loopSourceFrameInside).toBe(true);
+
+      transport.enqueue("seek", { targetSourceFrame: 35_123 });
+      const afterLoop = engine.tick({ renderQuantum: 128 }).runtime;
+      expect(afterLoop.loopEnabled).toBe(true);
+      expect(afterLoop.sourceFrame).toBe(15_123);
+      expect(afterLoop.loopSourceFrameInside).toBe(true);
+
+      transport.enqueue("play");
+      const playing = engine.tick({ renderQuantum: 128 }).runtime;
+      expect(playing.state).toBe("playing");
+      expect(playing.sourceFrame).toBeGreaterThanOrEqual(10_000);
+      expect(playing.sourceFrame).toBeLessThan(20_000);
     } finally {
       disposeStretchBoundarySession(session);
     }

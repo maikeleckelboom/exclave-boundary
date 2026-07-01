@@ -1492,6 +1492,24 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         runtime.commandDroppedTotal.toString();
       elements.loopApplied.textContent = appliedLoopText;
       elements.loopAppliedSummary.textContent = appliedLoopText;
+      elements.loopSourceFrame.textContent = formatLoopSourceFrame(runtime);
+      elements.loopSourceFrame.classList.toggle(
+        "is-valid",
+        runtime.loopEnabled && runtime.loopSourceFrameInside,
+      );
+      elements.loopSourceFrame.classList.toggle(
+        "is-invalid",
+        runtime.loopEnabled && !runtime.loopSourceFrameInside,
+      );
+      elements.loopCacheCoverage.textContent = formatLoopCacheCoverage(runtime);
+      elements.loopCacheCoverage.classList.toggle(
+        "is-valid",
+        runtime.loopEnabled && loopCacheMissingFrames(runtime) === 0,
+      );
+      elements.loopCacheCoverage.classList.toggle(
+        "is-invalid",
+        runtime.loopEnabled && loopCacheMissingFrames(runtime) > 0,
+      );
       elements.loopDraft.textContent = formatLoopDraft(loopStatus);
       elements.loopValidation.textContent = formatLoopValidation(loopStatus);
       elements.loopValidation.classList.toggle("is-valid", loopReady);
@@ -1769,6 +1787,8 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         ],
         ["Processing center frame", formatFrame(runtime.processingCenterFrame)],
         ["Audible source frame", formatFrame(runtime.sourceFrame)],
+        ["Loop source frame", formatLoopSourceFrame(runtime)],
+        ["Loop cache coverage", formatLoopCacheCoverage(runtime)],
         ["Output frame", formatFrame(runtime.outputFrame)],
         [
           "Duration",
@@ -1982,6 +2002,30 @@ function formatLoopValidation(status: LoopDraftStatus): string {
   }
 
   return `Ready; minimum ${formatFrame(status.validation.minimumLoopFrames)} frames`;
+}
+
+function formatLoopSourceFrame(runtime: RuntimeStatusSnapshot): string {
+  if (!runtime.loopEnabled) {
+    return "inactive";
+  }
+
+  return `${runtime.loopSourceFrameInside ? "inside" : "outside"} (${formatFrame(runtime.sourceFrame)})`;
+}
+
+function formatLoopCacheCoverage(runtime: RuntimeStatusSnapshot): string {
+  if (!runtime.loopEnabled) {
+    return "inactive";
+  }
+
+  return `current ${formatFrame(runtime.inputWindowMissingFrames)} missing; start ${formatFrame(runtime.loopStartMissingFrames)}; end ${formatFrame(runtime.loopEndMissingFrames)}`;
+}
+
+function loopCacheMissingFrames(runtime: RuntimeStatusSnapshot): number {
+  return (
+    runtime.inputWindowMissingFrames +
+    runtime.loopStartMissingFrames +
+    runtime.loopEndMissingFrames
+  );
 }
 
 function collectDesiredFromInputs(

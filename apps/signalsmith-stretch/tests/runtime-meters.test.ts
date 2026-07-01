@@ -24,6 +24,10 @@ describe("Signalsmith runtime meter publishing", () => {
     expect(values.audioWorkletFrameHi).toBe(1);
     expect(values.audioWorkletFrameLo).toBe(5);
     expect(values.inputLatencySeconds).toBeCloseTo(0.1);
+    expect(values.inputWindowMissingFrames).toBe(17);
+    expect(values.loopSourceFrameInside).toBe(true);
+    expect(values.loopStartMissingFrames).toBe(23);
+    expect(values.loopEndMissingFrames).toBe(29);
     expect(values.outputLatencySeconds).toBeCloseTo(0.025);
     expect(values.state).toBe(enumIndex(RUNTIME_STATES, "playing"));
   });
@@ -45,6 +49,10 @@ describe("Signalsmith runtime meter publishing", () => {
       "runtime.audioWorkletFrameLo",
       "runtime.blockSamples",
       "runtime.inputLatencySeconds",
+      "runtime.inputWindowMissingFrames",
+      "runtime.loopSourceFrameInside",
+      "runtime.loopStartMissingFrames",
+      "runtime.loopEndMissingFrames",
       "runtime.outputLatencySeconds",
       "runtime.state",
     );
@@ -56,6 +64,10 @@ describe("Signalsmith runtime meter publishing", () => {
     expect(meters["runtime.audioWorkletFrameLo"]).toBe(5);
     expect(meters["runtime.blockSamples"]).toBe(128);
     expect(meters["runtime.inputLatencySeconds"]).toBeCloseTo(0.1);
+    expect(meters["runtime.inputWindowMissingFrames"]).toBe(17);
+    expect(meters["runtime.loopSourceFrameInside"]).toBe(true);
+    expect(meters["runtime.loopStartMissingFrames"]).toBe(23);
+    expect(meters["runtime.loopEndMissingFrames"]).toBe(29);
     expect(meters["runtime.outputLatencySeconds"]).toBeCloseTo(0.025);
     expect(meters["runtime.state"]).toBe(enumIndex(RUNTIME_STATES, "playing"));
   });
@@ -74,6 +86,7 @@ function runtimeInput(): RuntimeMeterInput {
     effectiveRate: 1.25,
     heapGeneration: 3,
     inputLatencyFrames: 4_800,
+    inputWindowMissingFrames: 17,
     intervalSamples: 1_440,
     invalidSampleTotal: 4,
     invalidTransitionTotal: 5,
@@ -83,8 +96,11 @@ function runtimeInput(): RuntimeMeterInput {
     lastErrorCode: 0,
     loopEnabled: true,
     loopEndFrame: 44_100,
+    loopEndMissingFrames: 29,
     loopRevision: 9,
+    loopSourceFrameInside: true,
     loopStartFrame: 1_024,
+    loopStartMissingFrames: 23,
     maxObservedRenderQuantum: 128,
     outputFrame: 12_345,
     outputLatencyFrames: 1_200,

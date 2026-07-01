@@ -107,6 +107,7 @@ export interface RuntimeStatusSnapshot {
   readonly heapGeneration: number;
   readonly inputLatencyFrames: number;
   readonly inputLatencySeconds: number;
+  readonly inputWindowMissingFrames: number;
   readonly intervalSamples: number;
   readonly invalidSampleTotal: number;
   readonly invalidTransitionTotal: number;
@@ -116,8 +117,11 @@ export interface RuntimeStatusSnapshot {
   readonly lastErrorCode: number;
   readonly loopEnabled: boolean;
   readonly loopEndFrame: number;
+  readonly loopEndMissingFrames: number;
   readonly loopRevision: number;
+  readonly loopSourceFrameInside: boolean;
   readonly loopStartFrame: number;
+  readonly loopStartMissingFrames: number;
   readonly maxObservedRenderQuantum: number;
   readonly outputLatencyFrames: number;
   readonly outputLatencySeconds: number;

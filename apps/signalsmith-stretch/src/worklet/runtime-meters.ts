@@ -20,6 +20,7 @@ export interface RuntimeMeterInput {
   readonly effectiveRate: number;
   readonly heapGeneration: number;
   readonly inputLatencyFrames: number;
+  readonly inputWindowMissingFrames: number;
   readonly intervalSamples: number;
   readonly invalidSampleTotal: number;
   readonly invalidTransitionTotal: number;
@@ -29,8 +30,11 @@ export interface RuntimeMeterInput {
   readonly lastErrorCode: number;
   readonly loopEnabled: boolean;
   readonly loopEndFrame: number;
+  readonly loopEndMissingFrames: number;
   readonly loopRevision: number;
+  readonly loopSourceFrameInside: boolean;
   readonly loopStartFrame: number;
+  readonly loopStartMissingFrames: number;
   readonly maxObservedRenderQuantum: number;
   readonly outputFrame: number;
   readonly outputLatencyFrames: number;
@@ -80,6 +84,7 @@ export function runtimeMeterValues(
     heapGeneration: input.heapGeneration,
     inputLatencyFrames: input.inputLatencyFrames,
     inputLatencySeconds,
+    inputWindowMissingFrames: input.inputWindowMissingFrames,
     intervalSamples: input.intervalSamples,
     invalidSampleTotal: input.invalidSampleTotal,
     invalidTransitionTotal: input.invalidTransitionTotal,
@@ -89,8 +94,11 @@ export function runtimeMeterValues(
     lastErrorCode: input.lastErrorCode,
     loopEnabled: input.loopEnabled,
     loopEndFrame: input.loopEndFrame,
+    loopEndMissingFrames: input.loopEndMissingFrames,
     loopRevision: input.loopRevision,
+    loopSourceFrameInside: input.loopSourceFrameInside,
     loopStartFrame: input.loopStartFrame,
+    loopStartMissingFrames: input.loopStartMissingFrames,
     maxObservedRenderQuantum: input.maxObservedRenderQuantum,
     outputFrame: input.outputFrame,
     outputLatencyFrames: input.outputLatencyFrames,
@@ -138,6 +146,10 @@ export function publishRuntimeMeters(
     writer.set("runtime.heapGeneration", input.heapGeneration);
     writer.set("runtime.inputLatencyFrames", input.inputLatencyFrames);
     writer.set("runtime.inputLatencySeconds", inputLatencySeconds);
+    writer.set(
+      "runtime.inputWindowMissingFrames",
+      input.inputWindowMissingFrames,
+    );
     writer.set("runtime.intervalSamples", input.intervalSamples);
     writer.set("runtime.invalidSampleTotal", input.invalidSampleTotal);
     writer.set("runtime.invalidTransitionTotal", input.invalidTransitionTotal);
@@ -156,8 +168,11 @@ export function publishRuntimeMeters(
     writer.set("runtime.lastErrorCode", input.lastErrorCode);
     writer.set("runtime.loopEnabled", input.loopEnabled);
     writer.set("runtime.loopEndFrame", input.loopEndFrame);
+    writer.set("runtime.loopEndMissingFrames", input.loopEndMissingFrames);
     writer.set("runtime.loopRevision", input.loopRevision);
+    writer.set("runtime.loopSourceFrameInside", input.loopSourceFrameInside);
     writer.set("runtime.loopStartFrame", input.loopStartFrame);
+    writer.set("runtime.loopStartMissingFrames", input.loopStartMissingFrames);
     writer.set("runtime.maxObservedRenderQuantum", input.maxObservedRenderQuantum);
     writer.set("runtime.outputFrame", input.outputFrame);
     writer.set("runtime.outputLatencyFrames", input.outputLatencyFrames);

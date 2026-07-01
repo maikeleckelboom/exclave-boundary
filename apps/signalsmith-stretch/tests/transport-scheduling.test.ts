@@ -90,6 +90,79 @@ describe("audio transport scheduling", () => {
     expect(decision?.startFrame).toBeLessThan(SAMPLE_RATE * 31);
   });
 
+  it("repairs active-loop input windows from actual coverage misses", () => {
+    const decision = chooseTransportRefill({
+      active: true,
+      runtime: runtimeStatus({
+        inputWindowMissingFrames: 512,
+        loopEnabled: true,
+        loopEndFrame: SAMPLE_RATE * 4,
+        loopSourceFrameInside: true,
+        loopStartFrame: SAMPLE_RATE,
+        sourceFrame: SAMPLE_RATE * 2,
+      }),
+      sourceFrameCount: SAMPLE_RATE * 120,
+      sourceSampleRate: SAMPLE_RATE,
+      sourceStatus: sourceStatus({
+        bufferEndFrame: SAMPLE_RATE * 4,
+        bufferStartFrame: SAMPLE_RATE,
+      }),
+    });
+
+    expect(decision?.reason).toBe("current-window-missing");
+    expect(decision?.startFrame).toBeGreaterThan(SAMPLE_RATE * 1.9);
+    expect(decision?.startFrame).toBeLessThan(SAMPLE_RATE * 2.1);
+  });
+
+  it("keeps the loop-start cache window warm during active loop playback", () => {
+    const decision = chooseTransportRefill({
+      active: true,
+      runtime: runtimeStatus({
+        loopEnabled: true,
+        loopEndFrame: SAMPLE_RATE * 4,
+        loopSourceFrameInside: true,
+        loopStartFrame: SAMPLE_RATE,
+        loopStartMissingFrames: 1_024,
+        sourceFrame: SAMPLE_RATE * 2,
+      }),
+      sourceFrameCount: SAMPLE_RATE * 120,
+      sourceSampleRate: SAMPLE_RATE,
+      sourceStatus: sourceStatus({
+        bufferEndFrame: SAMPLE_RATE * 4,
+        bufferStartFrame: SAMPLE_RATE,
+      }),
+    });
+
+    expect(decision).toMatchObject({
+      reason: "loop-boundary-missing",
+      startFrame: SAMPLE_RATE,
+    });
+  });
+
+  it("keeps the loop-end cache window warm during active loop playback", () => {
+    const decision = chooseTransportRefill({
+      active: true,
+      runtime: runtimeStatus({
+        loopEnabled: true,
+        loopEndFrame: SAMPLE_RATE * 4,
+        loopEndMissingFrames: 1_024,
+        loopSourceFrameInside: true,
+        loopStartFrame: SAMPLE_RATE,
+        sourceFrame: SAMPLE_RATE * 2,
+      }),
+      sourceFrameCount: SAMPLE_RATE * 120,
+      sourceSampleRate: SAMPLE_RATE,
+      sourceStatus: sourceStatus({
+        bufferEndFrame: SAMPLE_RATE * 4,
+        bufferStartFrame: SAMPLE_RATE,
+      }),
+    });
+
+    expect(decision?.reason).toBe("loop-boundary-missing");
+    expect(decision?.startFrame).toBeGreaterThanOrEqual(SAMPLE_RATE);
+    expect(decision?.startFrame).toBeLessThan(SAMPLE_RATE * 4);
+  });
+
   it("treats posted Worklet buffer end as speculative until source status confirms it", () => {
     let expectation = noteTransportChunkPosted({
       current: emptyTransportBufferExpectation(),
@@ -233,6 +306,7 @@ function runtimeStatus(
     heapGeneration: 1,
     inputLatencyFrames: 5_760,
     inputLatencySeconds: 0.12,
+    inputWindowMissingFrames: 0,
     intervalSamples: 1_440,
     invalidSampleTotal: 0,
     invalidTransitionTotal: 0,
@@ -242,8 +316,11 @@ function runtimeStatus(
     lastErrorCode: 0,
     loopEnabled: false,
     loopEndFrame: 0,
+    loopEndMissingFrames: 0,
     loopRevision: 0,
+    loopSourceFrameInside: false,
     loopStartFrame: 0,
+    loopStartMissingFrames: 0,
     maxObservedRenderQuantum: 128,
     outputFrame: 0,
     outputLatencyFrames: 1_440,

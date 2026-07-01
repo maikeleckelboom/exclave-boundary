@@ -6,6 +6,8 @@ import {
 } from "../src/audio/chunked-wav-source";
 import { SourcePrefetch } from "../src/audio/source-prefetch";
 import { computeChunkedWaveformPeaks } from "../src/audio/waveform-peaks";
+import { normalizeSeekFrameIntoLoopRange } from "../src/loop/loop-normalization";
+import { SourceWindow } from "../src/worklet/source-window";
 
 interface RangeRead {
   readonly end: number | undefined;
@@ -277,6 +279,37 @@ describe("ChunkedWavSource", () => {
     expect(prefetch.facts.cachedFrameCount).toBe(8);
     expect(prefetch.facts.lastReadStartFrame).toBe(source.info.frameCount);
     expect(prefetch.facts.lastReadEndFrame).toBe(source.info.frameCount);
+  });
+
+  it("keeps a synthetic chunked WAV loop coherent after outside-loop seeks", async () => {
+    const source = await ChunkedWavSource.open(
+      asFile(new VirtualWavFile({ frameCount: 100_000 })),
+    );
+    const loop = { endFrame: 20_000, startFrame: 10_000 };
+    const window = new SourceWindow();
+    const target = new Float32Array(4);
+
+    window.setInfo(source.info);
+    window.addChunk(await source.readFrames(loop.endFrame - 2, 2));
+    window.addChunk(await source.readFrames(loop.startFrame, 2));
+
+    expect(normalizeSeekFrameIntoLoopRange(5_000, loop)).toBe(
+      loop.startFrame,
+    );
+    expect(normalizeSeekFrameIntoLoopRange(35_123, loop)).toBe(15_123);
+    expect(
+      window.fillInputWindow([target], loop.endFrame - 2, 4, {
+        enabled: true,
+        endFrame: loop.endFrame,
+        startFrame: loop.startFrame,
+      }),
+    ).toEqual({ copiedFrames: 4, missingFrames: 0 });
+    expect(Array.from(target)).toEqual([
+      (loop.endFrame - 2) / 32_768,
+      (loop.endFrame - 1) / 32_768,
+      loop.startFrame / 32_768,
+      (loop.startFrame + 1) / 32_768,
+    ]);
   });
 
   it("generates waveform peaks from actual bounded WAV chunks", async () => {

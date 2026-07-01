@@ -1,5 +1,9 @@
 import { SWSR_HEADER_DROPPED, type SwsrRingBacking } from "@exclave/boundary";
 
+import {
+  normalizeSeekFrameIntoLoopRange,
+  sourceFrameInsideLoopRange,
+} from "../loop/loop-normalization";
 import { validateLoopRange } from "../loop/loop-validation";
 import {
   enumIndex,
@@ -421,8 +425,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
         this.failed = false;
         this.lastErrorCode = 0;
         this.module?._reset();
-        this.sourceFrame = 0;
-        this.outputFrame = 0;
+        this.repositionToSourceFrame(0);
         this.runtimeState = "ready-paused";
         break;
       case "seek":
@@ -438,8 +441,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
         break;
       case "stop":
         this.active = false;
-        this.sourceFrame = 0;
-        this.outputFrame = 0;
+        this.repositionToSourceFrame(0);
         this.runtimeState = "ready-paused";
         break;
     }
@@ -501,12 +503,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     const durationFrames = this.durationFrames();
 
     if (this.loopEnabled && this.loopEndFrame > this.loopStartFrame) {
-      if (
-        this.sourceFrame >= this.loopEndFrame ||
-        this.sourceFrame >= durationFrames
-      ) {
-        this.repositionToSourceFrame(this.loopStartFrame);
-      }
+      this.repositionToSourceFrame(this.sourceFrame);
     } else if (this.sourceFrame >= durationFrames) {
       this.repositionToSourceFrame(0);
     }
@@ -516,7 +513,14 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
   }
 
   private repositionToSourceFrame(sourceFrame: number): void {
-    this.sourceFrame = clamp(sourceFrame, 0, this.durationFrames());
+    const durationFrames = this.durationFrames();
+    const clampedFrame = clamp(sourceFrame, 0, durationFrames);
+    this.sourceFrame = this.loopEnabled
+      ? normalizeSeekFrameIntoLoopRange(clampedFrame, {
+          endFrame: this.loopEndFrame,
+          startFrame: this.loopStartFrame,
+        })
+      : clampedFrame;
     this.outputFrame = this.sourceFrame / Math.max(0.05, this.effectiveRate);
   }
 
@@ -539,6 +543,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     this.loopEnabled = true;
     this.loopStartFrame = validation.range.startFrame;
     this.loopEndFrame = validation.range.endFrame;
+    this.repositionToSourceFrame(this.sourceFrame);
     return true;
   }
 
@@ -662,6 +667,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
       effectiveRate: this.effectiveRate,
       heapGeneration: this.heapGeneration,
       inputLatencyFrames: this.inputLatencyFrames,
+      inputWindowMissingFrames: this.inputWindowMissingFramesForPublish(),
       intervalSamples: this.intervalSamples,
       invalidSampleTotal: this.invalidSampleTotal,
       invalidTransitionTotal: this.invalidTransitionTotal,
@@ -671,8 +677,11 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
       lastErrorCode: this.lastErrorCode,
       loopEnabled: this.loopEnabled,
       loopEndFrame: this.loopEndFrame,
+      loopEndMissingFrames: this.loopEndMissingFramesForPublish(),
       loopRevision: this.loopRevision,
+      loopSourceFrameInside: this.sourceFrameInsideLoopForPublish(),
       loopStartFrame: this.loopStartFrame,
+      loopStartMissingFrames: this.loopStartMissingFramesForPublish(),
       maxObservedRenderQuantum: this.maxObservedRenderQuantum,
       outputFrame: this.outputFrame,
       outputLatencyFrames: this.outputLatencyFrames,
@@ -749,13 +758,88 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
   }
 
   private wrapLoopIfNeeded(): void {
-    if (!this.loopEnabled || this.sourceFrame < this.loopEndFrame) {
+    if (
+      !this.loopEnabled ||
+      sourceFrameInsideLoopRange(this.sourceFrame, {
+        endFrame: this.loopEndFrame,
+        startFrame: this.loopStartFrame,
+      })
+    ) {
       return;
     }
 
-    const loopLength = Math.max(1, this.loopEndFrame - this.loopStartFrame);
-    const offset = (this.sourceFrame - this.loopStartFrame) % loopLength;
-    this.sourceFrame = this.loopStartFrame + offset;
+    this.repositionToSourceFrame(this.sourceFrame);
+  }
+
+  private inputWindowMissingFramesForPublish(): number {
+    if (!this.sourceWindow.info || this.bufferLengthFrames <= 0) {
+      return 0;
+    }
+
+    const sourceWindow = this.sourceWindowForAudibleFrame(this.sourceFrame);
+    return this.sourceWindow.coverageForInputWindow(
+      sourceWindow.inputWindowStartFrame,
+      this.bufferLengthFrames,
+      {
+        enabled: this.loopEnabled,
+        endFrame: this.loopEndFrame,
+        startFrame: this.loopStartFrame,
+      },
+    ).missingFrames;
+  }
+
+  private loopStartMissingFramesForPublish(): number {
+    return this.loopBoundaryMissingFramesForPublish(this.loopStartFrame);
+  }
+
+  private loopEndMissingFramesForPublish(): number {
+    return this.loopBoundaryMissingFramesForPublish(
+      this.loopEndFrame - this.loopCoverageWindowFrames(),
+    );
+  }
+
+  private loopBoundaryMissingFramesForPublish(startFrame: number): number {
+    if (
+      !this.loopEnabled ||
+      !this.sourceWindow.info ||
+      this.loopEndFrame <= this.loopStartFrame
+    ) {
+      return 0;
+    }
+
+    const frameCount = Math.min(
+      this.loopCoverageWindowFrames(),
+      this.loopEndFrame - this.loopStartFrame,
+    );
+
+    if (frameCount <= 0) {
+      return 0;
+    }
+
+    return this.sourceWindow.coverageForInputWindow(
+      startFrame,
+      frameCount,
+      {
+        enabled: true,
+        endFrame: this.loopEndFrame,
+        startFrame: this.loopStartFrame,
+      },
+    ).missingFrames;
+  }
+
+  private loopCoverageWindowFrames(): number {
+    return Math.max(
+      4_096,
+      this.bufferLengthFrames,
+      (this.module?._blockSamples() ?? 0) + this.intervalSamples,
+    );
+  }
+
+  private sourceFrameInsideLoopForPublish(): boolean {
+    return sourceFrameInsideLoopRange(this.sourceFrame, {
+      endFrame: this.loopEndFrame,
+      startFrame: this.loopStartFrame,
+    });
   }
 
   private channelCount(): 1 | 2 {
