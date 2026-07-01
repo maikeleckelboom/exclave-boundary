@@ -14,9 +14,17 @@ import {
   type PcmSourceFacts,
 } from "./audio/pcm-source";
 import { SourcePrefetch } from "./audio/source-prefetch";
-import { SourceReferenceMonitor } from "./audio/source-reference-monitor";
+import {
+  SourceReferenceMonitor,
+  type SourceReferenceMonitorStatus,
+} from "./audio/source-reference-monitor";
 import { StretchWorkletRuntime } from "./audio/stretch-node";
 import { selectStretchRuntimeMode } from "./audio/stretch-runtime";
+import {
+  chooseTransportRefill,
+  type TransportRefillDecision,
+  type TransportRefillReason,
+} from "./audio/transport-refill";
 import { probeWavFile, type WavProbe } from "./audio/wav-probe";
 import {
   computeChunkedWaveformPeaks,
@@ -90,6 +98,17 @@ type WavLoadMode =
   | "unsupported";
 
 type RangeMode = "musical" | "extended" | "extreme";
+type TransportPumpReason =
+  | "audio-context-statechange"
+  | "command"
+  | "interval"
+  | "loop"
+  | "monitor-change"
+  | "refill-complete"
+  | "seek"
+  | "source-load"
+  | "startup"
+  | "visibilitychange";
 type QualityPreset =
   | "responsive"
   | "balanced"
@@ -126,12 +145,35 @@ interface SourceLoadOptions {
 
 type SourceOrigin = "default" | "local";
 
+interface AudioTransportDiagnostics {
+  audioContextState: AudioContextState | "none";
+  documentVisibility: DocumentVisibilityState;
+  expectedBufferEndFrame: number;
+  hiddenTransitionCount: number;
+  lastAheadFrames: number;
+  lastInputWindowEndFrame: number;
+  lastPumpAtMs: number;
+  lastPumpReason: TransportPumpReason | "none";
+  lastRefillAtMs: number;
+  lastRefillFrameCount: number;
+  lastRefillReason: TransportRefillReason | "none";
+  lastRefillStartFrame: number;
+  lastSafeFloorFrames: number;
+  lastTargetAheadFrames: number;
+  pumpCount: number;
+  refillInFlight: boolean;
+  refillSequence: number;
+  visibleTransitionCount: number;
+}
+
 const DEFAULT_SOURCE = {
   fileName: "signalsmith-demo-loop.wav",
   label: "official Signalsmith demo loop",
   url: "/audio/signalsmith-demo-loop.wav",
 } as const;
 const RECENT_SEEK_MARK_WINDOW_MS = 1_500;
+const TRANSPORT_PUMP_INTERVAL_MS = 250;
+const VISUAL_RENDER_INTERVAL_MS = 80;
 
 const RANGE_MODE_LIMITS: Record<RangeMode, ControlRanges> = {
   extended: {
@@ -223,6 +265,10 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
     const prefetchGate = new LatestPrefetchGate<PlanarFrameChunk>();
     let realRuntime: StretchWorkletRuntime | null = null;
     let referenceMonitor: SourceReferenceMonitor | null = null;
+    let transportRefillInFlight = false;
+    let expectedTransportBufferEndFrame = 0;
+    let expectedTransportSourceRevision = 0;
+    const transportDiagnostics = createAudioTransportDiagnostics();
     let qualityPreset: QualityPreset = "balanced";
     let rangeMode: RangeMode = "musical";
     let source = defaultSimulatedSource();
@@ -487,29 +533,32 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
     ]) {
       mode.addEventListener("change", () => {
         syncMonitorGains();
+        runTransportPump("monitor-change");
         render();
       });
     }
 
-    let lastTickAt = 0;
+    let lastVisualTickAt = 0;
     const animate = (time: number): void => {
-      if (time - lastTickAt >= 80) {
-        lastTickAt = time;
-        if (realRuntimeOwnsCommandRing()) {
-          notifyPendingRealCommands();
-          maybePrefetchFromRuntime();
-        } else {
-          engine.tick({ renderQuantum: 256 });
-        }
+      if (time - lastVisualTickAt >= VISUAL_RENDER_INTERVAL_MS) {
+        lastVisualTickAt = time;
         syncMonitorGains();
-        updateReferencePreview();
         clearAppliedSeekGhost();
         render();
       }
       window.requestAnimationFrame(animate);
     };
+    const transportPumpTimer = window.setInterval(
+      () => {
+        runTransportPump("interval");
+      },
+      TRANSPORT_PUMP_INTERVAL_MS,
+    );
     window.requestAnimationFrame(animate);
+    runTransportPump("startup");
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("beforeunload", () => {
+      window.clearInterval(transportPumpTimer);
       referenceMonitor?.dispose();
       realRuntime?.dispose();
       disposeStretchBoundarySession(session);
@@ -547,15 +596,6 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       writeDesiredControls(session, desired);
     }
 
-    function pumpSimulatorCommandRing(): void {
-      if (realRuntimeOwnsCommandRing()) {
-        realRuntime?.notifyCommandsAvailable();
-        return;
-      }
-
-      engine.tick({ renderQuantum: 128 });
-    }
-
     function enqueueRuntimeCommand(
       name: StretchCommandName,
       options?: EnqueueCommandOptions,
@@ -564,7 +604,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       if (realRuntimeOwnsCommandRing()) {
         realRuntime?.postCommand(result.command);
       }
-      pumpSimulatorCommandRing();
+      runTransportPump("command");
       return result;
     }
 
@@ -592,6 +632,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       elements.seekFrame.value = String(frame);
       prefetchForFrame(frame);
       enqueueRuntimeCommand("seek", { targetSourceFrame: frame });
+      runTransportPump("seek");
       render();
     }
 
@@ -673,6 +714,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         status.validation.range,
         loopFacts(runtime),
       );
+      runTransportPump("loop");
       render();
     }
 
@@ -693,6 +735,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         status.validation.range,
         loopFacts(runtime),
       );
+      runTransportPump("loop");
       render();
     }
 
@@ -836,6 +879,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
           realRuntime = null;
           referenceMonitor?.stop();
           prefetch = null;
+          resetTransportBufferExpectation();
         }
       } catch (error) {
         if (loadRequestId !== sourceLoadRequestId) {
@@ -905,6 +949,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         referenceMonitor?.dispose();
         referenceMonitor = null;
         prefetch = null;
+        resetTransportBufferExpectation();
 
         const previous = audioContext;
         audioContext = null;
@@ -918,6 +963,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
           ? {}
           : { sampleRate: options.sampleRate },
       );
+      attachAudioContextDiagnostics(audioContext);
 
       if (options.resumeAudio ?? true) {
         await resumeAudioContext(audioContext);
@@ -958,6 +1004,11 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       referenceMonitor ??= new SourceReferenceMonitor(context);
       syncMonitorGains();
       prefetch = nextPrefetch;
+      expectedTransportSourceRevision = loaded.sourceRevision;
+      expectedTransportBufferEndFrame =
+        initialChunk.startFrame + initialChunk.frameCount;
+      transportDiagnostics.expectedBufferEndFrame =
+        expectedTransportBufferEndFrame;
 
       if (!signalsmithAssets.generatedModuleUrl) {
         return false;
@@ -980,6 +1031,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
 
       previousRuntime?.dispose();
       realRuntime = nextRuntime;
+      runTransportPump("source-load");
 
       return !realRuntime.status.failed;
     }
@@ -1101,19 +1153,103 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       return loopRevision;
     }
 
-    function maybePrefetchFromRuntime(): void {
-      if (!prefetch || prefetchGate.busy) {
+    function realRuntimeOwnsCommandRing(): boolean {
+      return realRuntime !== null && !realRuntime.status.failed;
+    }
+
+    function runTransportPump(reason: TransportPumpReason): void {
+      transportDiagnostics.pumpCount += 1;
+      transportDiagnostics.lastPumpAtMs = performance.now();
+      transportDiagnostics.lastPumpReason = reason;
+      transportDiagnostics.documentVisibility = document.visibilityState;
+      transportDiagnostics.audioContextState = audioContext?.state ?? "none";
+
+      if (realRuntimeOwnsCommandRing()) {
+        notifyPendingRealCommands();
+        scheduleTransportRefill();
+      } else {
+        engine.tick({ renderQuantum: 256 });
+      }
+
+      updateReferencePreview();
+    }
+
+    function scheduleTransportRefill(): void {
+      if (
+        transportRefillInFlight ||
+        !prefetch ||
+        acceptedSource?.kind !== "chunked-wav" ||
+        !realRuntimeOwnsCommandRing()
+      ) {
+        transportDiagnostics.refillInFlight = transportRefillInFlight;
         return;
       }
 
+      if (expectedTransportSourceRevision !== acceptedSource.sourceRevision) {
+        resetTransportBufferExpectation();
+        expectedTransportSourceRevision = acceptedSource.sourceRevision;
+      }
+
       const runtime = readRuntimeStatus(session);
-      prefetchForFrame(
-        runtime.sourceFrame + Math.max(0, runtime.inputLatencyFrames),
-      );
+      const sourceStatus = readSourceStatus(session);
+      const decision = chooseTransportRefill({
+        active: true,
+        expectedBufferEndFrame: expectedTransportBufferEndFrame,
+        runtime,
+        sourceFrameCount: acceptedSource.durationFrames,
+        sourceSampleRate: acceptedSource.sampleRate,
+        sourceStatus,
+      });
+
+      if (!decision) {
+        return;
+      }
+
+      postTransportRefill(acceptedSource, prefetch, decision);
     }
 
-    function realRuntimeOwnsCommandRing(): boolean {
-      return realRuntime !== null && !realRuntime.status.failed;
+    function postTransportRefill(
+      sourceForPost: ChunkedWavPcmSource,
+      prefetcher: SourcePrefetch,
+      decision: TransportRefillDecision,
+    ): void {
+      transportRefillInFlight = true;
+      transportDiagnostics.refillInFlight = true;
+      transportDiagnostics.refillSequence += 1;
+      transportDiagnostics.lastAheadFrames = decision.aheadFrames;
+      transportDiagnostics.lastInputWindowEndFrame =
+        decision.inputWindowEndFrame;
+      transportDiagnostics.lastRefillAtMs = performance.now();
+      transportDiagnostics.lastRefillFrameCount = decision.frameCount;
+      transportDiagnostics.lastRefillReason = decision.reason;
+      transportDiagnostics.lastRefillStartFrame = decision.startFrame;
+      transportDiagnostics.lastSafeFloorFrames = decision.safeFloorFrames;
+      transportDiagnostics.lastTargetAheadFrames = decision.targetAheadFrames;
+
+      void prefetcher
+        .prefetchWindow(decision.startFrame, decision.frameCount)
+        .then((chunk) => {
+          if (acceptedSource !== sourceForPost || chunk.frameCount === 0) {
+            return;
+          }
+
+          realRuntime?.postChunk(sourceForPost.sourceRevision, chunk);
+          expectedTransportSourceRevision = sourceForPost.sourceRevision;
+          expectedTransportBufferEndFrame = Math.max(
+            expectedTransportBufferEndFrame,
+            chunk.startFrame + chunk.frameCount,
+          );
+          transportDiagnostics.expectedBufferEndFrame =
+            expectedTransportBufferEndFrame;
+        })
+        .catch(() => {
+          prefetcher.markUnderrun();
+        })
+        .finally(() => {
+          transportRefillInFlight = false;
+          transportDiagnostics.refillInFlight = false;
+          runTransportPump("refill-complete");
+        });
     }
 
     function updateSourceLimits(): void {
@@ -1241,9 +1377,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         acceptedSource?.kind !== "chunked-wav" ||
         runtime.state !== "playing"
       ) {
-        if (mode === "processed") {
-          referenceMonitor?.stop();
-        }
+        referenceMonitor?.stop();
         return;
       }
 
@@ -1251,7 +1385,11 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         return;
       }
 
-      void referenceMonitor.previewAt(acceptedSource, runtime.sourceFrame);
+      referenceMonitor.sync(
+        acceptedSource,
+        runtime.sourceFrame,
+        runtime.effectiveRate,
+      );
     }
 
     function render(): void {
@@ -1501,6 +1639,8 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       runtimeSelection: ReturnType<typeof selectStretchRuntimeMode>,
       hasLoadedSource: boolean,
     ): void {
+      const referenceStatus = referenceMonitor?.status ?? null;
+
       renderKeyValues(elements.inspector, [
         ["Signalsmith Stretch branch", SIGNALSMITH_STRETCH_SOURCE_BRANCH],
         ["Signalsmith Stretch SHA", SIGNALSMITH_STRETCH_REF],
@@ -1509,10 +1649,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
           `${SIGNALSMITH_LINEAR_SOURCE_TAG} (${SIGNALSMITH_LINEAR_REF})`,
         ],
         ["Vendored source", vendorFact(signalsmithAssets)],
-        [
-          "Generated module",
-          signalsmithAssets.generatedModuleExists ? "present" : "missing",
-        ],
+        ["Generated module", generatedModuleFact(signalsmithAssets)],
         [
           "Runtime",
           runtimeSelection.mode === "real-worklet"
@@ -1599,6 +1736,14 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
           `${runtime.audioWorkletFrameHi.toString()}:${runtime.audioWorkletFrameLo.toString()} / ${runtime.audioWorkletTimeSeconds.toFixed(3)}s`,
         ],
         [
+          "Runtime buffer",
+          `ready ${formatFrame(runtime.bufferReadyFrames)} / length ${formatFrame(runtime.bufferLengthFrames)}; underruns ${runtime.underrunTotal.toString()}`,
+        ],
+        ["Browser visibility", transportVisibilityFact(transportDiagnostics)],
+        ["Audio context", transportDiagnostics.audioContextState],
+        ["Transport pump", transportPumpFact(transportDiagnostics)],
+        ["Transport refill", transportRefillFact(transportDiagnostics)],
+        [
           "Source prefetch",
           prefetch
             ? `${prefetch.facts.ready ? "ready" : "pending"}; ${formatBytes(prefetch.facts.cachedBytes)} host cache; ${formatFrame(prefetch.facts.cachedFrameCount)} frames cached; read ${formatFrame(prefetch.facts.lastReadStartFrame)}-${formatFrame(prefetch.facts.lastReadEndFrame)}; underruns ${prefetch.facts.underrunTotal.toString()}`
@@ -1621,8 +1766,8 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         ],
         [
           "Reference preview",
-          referenceMonitor
-            ? `${referenceMonitor.status.active ? "active" : "idle"}; frame ${formatFrame(referenceMonitor.status.lastFrame)}; pending ${referenceMonitor.status.pending ? "true" : "false"}`
+          referenceStatus
+            ? referencePreviewFact(referenceStatus)
             : "inactive",
         ],
         ["PU/MU versions", versionFact(plans)],
@@ -1649,9 +1794,60 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         requestedSeekFrame = null;
       }
     }
+
+    function attachAudioContextDiagnostics(context: AudioContext): void {
+      transportDiagnostics.audioContextState = context.state;
+      context.onstatechange = () => {
+        transportDiagnostics.audioContextState = context.state;
+        runTransportPump("audio-context-statechange");
+        render();
+      };
+    }
+
+    function handleVisibilityChange(): void {
+      transportDiagnostics.documentVisibility = document.visibilityState;
+
+      if (document.visibilityState === "hidden") {
+        transportDiagnostics.hiddenTransitionCount += 1;
+      } else {
+        transportDiagnostics.visibleTransitionCount += 1;
+      }
+
+      runTransportPump("visibilitychange");
+      render();
+    }
+
+    function resetTransportBufferExpectation(): void {
+      expectedTransportBufferEndFrame = 0;
+      expectedTransportSourceRevision = 0;
+      transportDiagnostics.expectedBufferEndFrame = 0;
+    }
   } catch (error) {
     renderUnsupported(appRoot, describeBoundaryError(error));
   }
+}
+
+function createAudioTransportDiagnostics(): AudioTransportDiagnostics {
+  return {
+    audioContextState: "none",
+    documentVisibility: document.visibilityState,
+    expectedBufferEndFrame: 0,
+    hiddenTransitionCount: 0,
+    lastAheadFrames: 0,
+    lastInputWindowEndFrame: 0,
+    lastPumpAtMs: 0,
+    lastPumpReason: "none",
+    lastRefillAtMs: 0,
+    lastRefillFrameCount: 0,
+    lastRefillReason: "none",
+    lastRefillStartFrame: 0,
+    lastSafeFloorFrames: 0,
+    lastTargetAheadFrames: 0,
+    pumpCount: 0,
+    refillInFlight: false,
+    refillSequence: 0,
+    visibleTransitionCount: 0,
+  };
 }
 
 function renderAdapterHeader(
@@ -2093,6 +2289,16 @@ function vendorFact(assets: SignalsmithWorkletAssetFacts): string {
   return `${stretch}; ${linear}`;
 }
 
+function generatedModuleFact(assets: SignalsmithWorkletAssetFacts): string {
+  if (assets.generatedModuleExists) {
+    return "present";
+  }
+
+  return assets.realAdapterEnabled
+    ? "missing"
+    : "not exposed in simulator mode";
+}
+
 function sourceModeFact(
   acceptedSource: ProofPcmSource | null,
   source: SimulatedSource,
@@ -2183,6 +2389,37 @@ function cacheStatusFact(prefetch: SourcePrefetch | null): string {
         : "prefetching";
 
   return `${state}; ${formatBytes(prefetch.facts.cachedBytes)} host cache`;
+}
+
+function transportVisibilityFact(
+  diagnostics: AudioTransportDiagnostics,
+): string {
+  return `${diagnostics.documentVisibility}; hidden ${diagnostics.hiddenTransitionCount.toString()} / visible ${diagnostics.visibleTransitionCount.toString()}`;
+}
+
+function transportPumpFact(diagnostics: AudioTransportDiagnostics): string {
+  const lastPump =
+    diagnostics.lastPumpAtMs > 0
+      ? `${Math.round(diagnostics.lastPumpAtMs).toString()} ms`
+      : "never";
+
+  return `${diagnostics.pumpCount.toString()} ticks; last ${diagnostics.lastPumpReason} at ${lastPump}`;
+}
+
+function transportRefillFact(diagnostics: AudioTransportDiagnostics): string {
+  if (diagnostics.refillSequence === 0) {
+    return "none";
+  }
+
+  const busy = diagnostics.refillInFlight ? "busy" : "idle";
+
+  return `${busy}; seq ${diagnostics.refillSequence.toString()} ${diagnostics.lastRefillReason} at ${Math.round(diagnostics.lastRefillAtMs).toString()} ms; input end ${formatFrame(diagnostics.lastInputWindowEndFrame)}; start ${formatFrame(diagnostics.lastRefillStartFrame)} count ${formatFrame(diagnostics.lastRefillFrameCount)}; ahead ${formatFrame(diagnostics.lastAheadFrames)} floor ${formatFrame(diagnostics.lastSafeFloorFrames)} target ${formatFrame(diagnostics.lastTargetAheadFrames)}; expected end ${formatFrame(diagnostics.expectedBufferEndFrame)}`;
+}
+
+function referencePreviewFact(
+  status: SourceReferenceMonitorStatus,
+): string {
+  return `${status.active ? "active" : "idle"}; t ${status.currentTimeSeconds.toFixed(3)}s; frame ${formatFrame(status.lastFrame)} predicted ${formatFrame(status.predictedFrame)} drift ${formatFrame(status.driftFrames)}; rate ${status.playbackRate.toFixed(3)}x; queued ${status.scheduledSourceCount.toString()} until ${formatFrame(status.scheduledUntilFrame)}; resyncs ${status.resyncTotal.toString()}; pending ${status.pending ? "true" : "false"}`;
 }
 
 function workletModeFact(mode: "real-worklet" | "simulator"): string {

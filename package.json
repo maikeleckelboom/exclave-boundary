@@ -60,6 +60,8 @@
     "docs:build": "pnpm -F @exclave/docs run docs:build",
     "docs:preview": "pnpm -F @exclave/docs run docs:preview",
     "signalsmith:dev": "pnpm --filter \"@exclave/signalsmith-stretch\" run dev",
+    "signalsmith:dev:real": "pnpm --filter \"@exclave/signalsmith-stretch\" run dev:real",
+    "signalsmith:dev:simulator": "pnpm --filter \"@exclave/signalsmith-stretch\" run dev:simulator",
     "signalsmith:build": "pnpm --filter \"@exclave/signalsmith-stretch\" run build",
     "signalsmith:build:real": "pnpm --filter \"@exclave/signalsmith-stretch\" run build:real",
     "signalsmith:check": "pnpm --filter \"@exclave/signalsmith-stretch\" run check",

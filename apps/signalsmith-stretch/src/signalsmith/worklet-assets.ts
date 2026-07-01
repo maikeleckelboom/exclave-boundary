@@ -18,6 +18,7 @@ export type SignalsmithRuntimeMode = "real-adapter" | "simulator-fallback";
 export interface SignalsmithWorkletAssetFacts {
   readonly generatedModuleExists: boolean;
   readonly generatedModuleUrl: string | null;
+  readonly realAdapterEnabled: boolean;
   readonly linearVendorMeta: VendorMeta | null;
   readonly realAdapterAvailable: boolean;
   readonly realAdapterStatus: string;
@@ -36,6 +37,7 @@ const vendorMetaModules = import.meta.glob<VendorMeta>(
 export function readSignalsmithWorkletAssets(): SignalsmithWorkletAssetFacts {
   const stretchVendorMeta = vendorMetaModules[STRETCH_META_PATH] ?? null;
   const linearVendorMeta = vendorMetaModules[LINEAR_META_PATH] ?? null;
+  const realAdapterEnabled = __SIGNALSMITH_REAL_ADAPTER_ENABLED__;
   const missing: string[] = [];
 
   if (!stretchVendorMeta) {
@@ -44,7 +46,7 @@ export function readSignalsmithWorkletAssets(): SignalsmithWorkletAssetFacts {
   if (!linearVendorMeta) {
     missing.push("vendored Linear source missing");
   }
-  if (!generatedModuleUrl) {
+  if (realAdapterEnabled && !generatedModuleUrl) {
     missing.push("generated module missing");
   }
 
@@ -52,16 +54,21 @@ export function readSignalsmithWorkletAssets(): SignalsmithWorkletAssetFacts {
   const sourceAssetsPresent =
     stretchVendorMeta !== null &&
     linearVendorMeta !== null &&
+    realAdapterEnabled &&
     generatedModuleExists;
+  const realAdapterStatus = sourceAssetsPresent
+    ? "Real adapter assets available; waiting for decoded source and AudioWorklet acceptance."
+    : realAdapterEnabled
+      ? `Real adapter unavailable: ${missing.join(", ")}.`
+      : "Real adapter unavailable: simulator mode.";
 
   return {
     generatedModuleExists,
     generatedModuleUrl,
     linearVendorMeta,
+    realAdapterEnabled,
     realAdapterAvailable: sourceAssetsPresent,
-    realAdapterStatus: sourceAssetsPresent
-      ? "Real adapter assets available; waiting for decoded source and AudioWorklet acceptance."
-      : `Real adapter unavailable: ${missing.join(", ")}.`,
+    realAdapterStatus,
     runtimeMode: sourceAssetsPresent ? "real-adapter" : "simulator-fallback",
     stretchVendorMeta,
   };

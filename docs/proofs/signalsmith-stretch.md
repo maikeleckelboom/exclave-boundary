@@ -82,27 +82,37 @@ The following old positions are now superseded:
 6. **Do not claim zero-copy audio.** The proof targets deterministic ownership, bounded control/status, and no per-quantum metadata messaging.
 7. **Do not overfit the name or docs to AudioWorklet.** Audio is the first and clearest proof. Exclave Boundary remains a general typed shared-memory boundary substrate for timing-sensitive systems.
 
-### 0.4 Clean-clone runtime policy
+### 0.4 Runtime policy
 
-The merge-ready checkout path is simulator-first:
+The local audible dev path prepares the generated module and starts Vite in
+real-adapter mode:
 
 ```sh
 pnpm install
 pnpm signalsmith:dev
+```
+
+The clean-checkout validation path is simulator-first:
+
+```sh
 pnpm signalsmith:build
 pnpm signalsmith:check
 pnpm signalsmith:test:browser
 ```
 
 Those commands run `apps/signalsmith-stretch` through the private package
-`@exclave/signalsmith-stretch`. They do not require ignored local files.
-Simulator mode is the default even when a developer machine happens to have an
-ignored `apps/signalsmith-stretch/generated/signalsmith-stretch.module.js`.
+`@exclave/signalsmith-stretch`. The default dev command requires the local
+real-adapter toolchain because it prepares the generated module before serving.
+The simulator dev server is still available explicitly:
+
+```sh
+pnpm signalsmith:dev:simulator
+```
 
 The tracked vendor files are enough for provenance checks and for building the
 real adapter on a machine with Emscripten, but the generated module is not
-committed. Real adapter generation remains an explicit opt-in path because it
-requires external Emscripten tooling:
+committed. Real adapter generation remains an explicit step in validation
+because it requires external Emscripten tooling:
 
 ```sh
 pnpm signalsmith:prepare
@@ -112,7 +122,7 @@ pnpm signalsmith:test:browser:real
 `pnpm signalsmith:prepare` runs the vendor/provenance refresh and then builds
 `generated/signalsmith-stretch.module.js`. `pnpm signalsmith:test:browser:real`
 runs the browser smoke with Vite in `real-adapter` mode. Without that opt-in,
-dev, build, and browser smoke stay on the clean-checkout simulator path.
+build and the default browser smoke stay on the clean-checkout simulator path.
 
 Root `pnpm verify` includes `pnpm signalsmith:check`, so the proof app's lint,
 typecheck, and unit tests are part of root validation. Browser smoke remains a

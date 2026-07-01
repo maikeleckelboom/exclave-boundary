@@ -265,6 +265,18 @@ describe("Signalsmith Worklet runtime semantics", () => {
     );
   });
 
+  it("keeps audio transport scheduling out of the visual RAF loop", () => {
+    const source = readFileSync(MAIN, "utf8");
+    const animateBody = constFunctionBody(source, "animate");
+
+    expect(animateBody).not.toContain("engine.tick");
+    expect(animateBody).not.toContain("prefetch");
+    expect(animateBody).not.toContain("updateReferencePreview");
+    expect(source).toContain("window.setInterval(");
+    expect(source).toContain('runTransportPump("interval")');
+    expect(source).toContain("chooseTransportRefill");
+  });
+
   it("recovers Worklet play commands from ended source positions", () => {
     const source = readFileSync(WORKLET_PROCESSOR, "utf8");
     const playBody = methodBody(source, "play");
@@ -384,4 +396,30 @@ function methodBody(source: string, methodName: string): string {
   }
 
   throw new Error(`Missing body for ${methodName}.`);
+}
+
+function constFunctionBody(source: string, constName: string): string {
+  const signature = source.indexOf(`const ${constName} =`);
+
+  if (signature < 0) {
+    throw new Error(`Missing const function ${constName}.`);
+  }
+
+  const bodyStart = source.indexOf("{", signature);
+  let depth = 0;
+
+  for (let index = bodyStart; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(bodyStart, index + 1);
+      }
+    }
+  }
+
+  throw new Error(`Missing body for const function ${constName}.`);
 }
