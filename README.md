@@ -87,7 +87,6 @@ Use `.set()` for the lowest-level explicit canonical-key surface:
 
 ```ts
 processor.meters.publish((writer) => {
-  writer.set("runtime.state", state);
   writer.set("runtime.delta", -1);
 });
 ```
@@ -96,8 +95,8 @@ Use `writer.setGroup()` when a group object belongs inside one larger coherent p
 
 ```ts
 processor.meters.publish((writer) => {
-  writer.set("runtime.state", state);
   writer.setGroup("runtime", {
+    state,
     delta: -1,
   });
 });
@@ -111,6 +110,9 @@ processor.meters.publishGroup("runtime", {
   delta: -1,
 });
 ```
+
+Use `writer.set(...)` for partial or dynamic key updates. Use `setGroup(...)`
+and `publishGroup(...)` only when publishing a complete schema group.
 
 Grouped keys are unprefixed under the exact schema group, so `delta` maps to
 `runtime.delta` in the `runtime` group. `publishGroup()` is the convenience
