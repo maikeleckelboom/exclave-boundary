@@ -249,6 +249,7 @@ describe("Signalsmith Worklet runtime semantics", () => {
 
     expect(window.cachedBytes).toBeLessThanOrEqual(4 * 4);
     expect(window.droppedBufferTotal).toBe(1);
+    expect(window.readyFrames).toBe(4);
     expect(window.bufferStartFrame).toBe(2);
   });
 
@@ -296,6 +297,50 @@ describe("Signalsmith Worklet runtime semantics", () => {
     );
   });
 
+  it("prefetches the loop-normalized target for host seek requests", () => {
+    const source = readFileSync(MAIN, "utf8");
+    const commitSeekBody = functionBody(source, "commitSeek");
+    const recentSeekFrameForMarkBody = functionBody(
+      source,
+      "recentSeekFrameForMark",
+    );
+    const clearAppliedSeekGhostBody = functionBody(
+      source,
+      "clearAppliedSeekGhost",
+    );
+
+    expect(commitSeekBody).toContain(
+      "const targetFrame = normalizeSeekFrameForRuntime(frame, runtime)",
+    );
+    expect(commitSeekBody).toContain("requestedSeekTargetFrame = targetFrame");
+    expect(commitSeekBody).toContain("recentSeekFrame = targetFrame");
+    expect(commitSeekBody).toContain("prefetchForFrame(targetFrame)");
+    expect(commitSeekBody).toContain("targetSourceFrame: frame");
+    expect(recentSeekFrameForMarkBody).toContain("requestedSeekTargetFrame");
+    expect(recentSeekFrameForMarkBody).toContain("return null");
+    expect(clearAppliedSeekGhostBody).toContain(
+      "const targetFrame = requestedSeekTargetFrame ?? requestedSeekFrame",
+    );
+  });
+
+  it("keeps loop cache coverage checks out of render-quantum publishing", () => {
+    const source = readFileSync(WORKLET_PROCESSOR, "utf8");
+    const renderBody = methodBody(source, "renderQuantum");
+    const publishRuntimeStatusBody = methodBody(source, "publishRuntimeStatus");
+
+    expect(source).toContain("private updateLoopCacheCoverage()");
+    expect(source).toContain("this.updateLoopCacheCoverage();");
+    expect(source).toContain("coverageForInputWindow(");
+    expect(renderBody).not.toContain("updateLoopCacheCoverage");
+    expect(publishRuntimeStatusBody).not.toContain("coverageForInputWindow");
+    expect(publishRuntimeStatusBody).toContain(
+      "loopStartMissingFrames: this.loopStartMissingFrames",
+    );
+    expect(publishRuntimeStatusBody).toContain(
+      "loopEndMissingFrames: this.loopEndMissingFrames",
+    );
+  });
+
   it("keeps audio transport scheduling out of the visual RAF loop", () => {
     const source = readFileSync(MAIN, "utf8");
     const animateBody = constFunctionBody(source, "animate");
@@ -324,7 +369,9 @@ describe("Signalsmith Worklet runtime semantics", () => {
     const playBody = methodBody(source, "play");
 
     expect(playBody).toContain("this.sourceFrame >= durationFrames");
-    expect(playBody).toContain("this.repositionToSourceFrame(this.sourceFrame)");
+    expect(playBody).toContain(
+      "this.repositionToSourceFrame(this.sourceFrame)",
+    );
     expect(playBody).toContain("this.repositionToSourceFrame(0)");
     expect(playBody).toContain('this.runtimeState = "playing"');
     expect(playBody).toContain("this.active = true");
@@ -338,9 +385,13 @@ describe("Signalsmith Worklet runtime semantics", () => {
 
     expect(repositionBody).toContain("normalizeSeekFrameIntoLoopRange");
     expect(repositionBody).toContain("this.loopEnabled");
-    expect(playBody).toContain("this.repositionToSourceFrame(this.sourceFrame)");
+    expect(playBody).toContain(
+      "this.repositionToSourceFrame(this.sourceFrame)",
+    );
     expect(wrapBody).toContain("sourceFrameInsideLoopRange");
-    expect(wrapBody).toContain("this.repositionToSourceFrame(this.sourceFrame)");
+    expect(wrapBody).toContain(
+      "this.repositionToSourceFrame(this.sourceFrame)",
+    );
   });
 
   it("checks heap view identity before using Worklet input and output buffers", () => {
@@ -451,6 +502,16 @@ function methodBody(source: string, methodName: string): string {
   throw new Error(`Missing body for ${methodName}.`);
 }
 
+function functionBody(source: string, functionName: string): string {
+  const signature = source.indexOf(`function ${functionName}(`);
+
+  if (signature < 0) {
+    throw new Error(`Missing function ${functionName}.`);
+  }
+
+  return bodyFrom(source, signature, functionName);
+}
+
 function constFunctionBody(source: string, constName: string): string {
   const signature = source.indexOf(`const ${constName} =`);
 
@@ -475,6 +536,26 @@ function constFunctionBody(source: string, constName: string): string {
   }
 
   throw new Error(`Missing body for const function ${constName}.`);
+}
+
+function bodyFrom(source: string, signature: number, name: string): string {
+  const bodyStart = source.indexOf("{", signature);
+  let depth = 0;
+
+  for (let index = bodyStart; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(bodyStart, index + 1);
+      }
+    }
+  }
+
+  throw new Error(`Missing body for ${name}.`);
 }
 
 function calledFunctions(body: string): string[] {

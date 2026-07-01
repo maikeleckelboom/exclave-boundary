@@ -36,6 +36,7 @@ export class SourceWindow {
   private cachedBytesValue = 0;
   private droppedBufferTotalValue = 0;
   private infoValue: ChunkedWavSourceInfo | null = null;
+  private readyFramesValue = 0;
   private tick = 0;
 
   constructor(options: SourceWindowOptions = {}) {
@@ -78,11 +79,7 @@ export class SourceWindow {
   }
 
   get readyFrames(): number {
-    let total = 0;
-    for (const chunk of this.chunks) {
-      total += chunk.frameCount;
-    }
-    return total;
+    return this.readyFramesValue;
   }
 
   setInfo(info: ChunkedWavSourceInfo): void {
@@ -90,6 +87,7 @@ export class SourceWindow {
     this.chunks.length = 0;
     this.cachedBytesValue = 0;
     this.droppedBufferTotalValue = 0;
+    this.readyFramesValue = 0;
     this.tick = 0;
   }
 
@@ -105,6 +103,7 @@ export class SourceWindow {
       startFrame: chunk.startFrame,
     });
     this.cachedBytesValue += bytes;
+    this.readyFramesValue += chunk.frameCount;
 
     this.chunks.sort((a, b) => a.startFrame - b.startFrame);
     this.evict();
@@ -309,6 +308,7 @@ export class SourceWindow {
 
       this.chunks.splice(index, 1);
       this.cachedBytesValue -= oldest.bytes;
+      this.readyFramesValue -= oldest.frameCount;
       this.droppedBufferTotalValue += 1;
     }
   }

@@ -254,6 +254,8 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
       case "sourceChunk":
         if (message.sourceRevision === this.sourceRevision) {
           this.sourceWindow.addChunk(message.chunk);
+          this.updateLoopCacheCoverage();
+          this.publishRuntimeStatus();
           this.publishSourceStatus();
         }
         break;
@@ -550,9 +552,45 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     this.loopStartFrame = validation.range.startFrame;
     this.loopEndFrame = validation.range.endFrame;
     this.repositionToSourceFrame(this.sourceFrame);
-    this.loopStartMissingFrames = 0;
-    this.loopEndMissingFrames = 0;
+    this.updateLoopCacheCoverage();
     return true;
+  }
+
+  private updateLoopCacheCoverage(): void {
+    const loopLengthFrames = Math.max(
+      0,
+      Math.floor(this.loopEndFrame - this.loopStartFrame),
+    );
+
+    if (!this.loopEnabled || loopLengthFrames <= 0) {
+      this.loopStartMissingFrames = 0;
+      this.loopEndMissingFrames = 0;
+      return;
+    }
+
+    const frameCount = Math.min(
+      loopLengthFrames,
+      Math.max(1, Math.floor(this.bufferLengthFrames)),
+    );
+    const loopStartCoverage = this.sourceWindow.coverageForInputWindow(
+      this.loopStartFrame,
+      frameCount,
+    );
+    const loopEndWindowStartFrame = Math.max(
+      this.loopStartFrame,
+      this.loopEndFrame - frameCount,
+    );
+    const loopEndCoverage = this.sourceWindow.coverageForInputWindow(
+      loopEndWindowStartFrame,
+      this.loopEndFrame - loopEndWindowStartFrame,
+    );
+
+    this.loopStartMissingFrames = boundedMissingFrames(
+      loopStartCoverage.missingFrames,
+    );
+    this.loopEndMissingFrames = boundedMissingFrames(
+      loopEndCoverage.missingFrames,
+    );
   }
 
   private configureModule(preset: StretchPreset): void {
@@ -610,6 +648,7 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     this.bufferBaseIndex = pointer / Float32Array.BYTES_PER_ELEMENT;
     this.bindHeapViews(module);
     this.heapGeneration += 1;
+    this.updateLoopCacheCoverage();
   }
 
   private checkHeapViews(): void {
@@ -656,6 +695,21 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
     outputFrameCount: number,
     silentOutput: boolean,
   ): void {
+    this.publishRuntimeStatus();
+
+    this.levelProbe.publish(this.binding, output, {
+      active: this.active && !silentOutput,
+      channelCount: this.channelCount(),
+      failed: this.failed,
+      lastErrorCode: this.lastErrorCode,
+      outputFrame: this.outputFrame,
+      silent: silentOutput,
+      unsupportedChannelBlockTotal: this.unsupportedChannelBlockTotal,
+      windowFrames: outputFrameCount,
+    });
+  }
+
+  private publishRuntimeStatus(): void {
     const info = this.sourceWindow.info;
     const durationFrames = this.durationFrames();
     const durationSeconds = info?.durationSeconds ?? 0;
@@ -702,17 +756,6 @@ class SignalsmithStretchProcessor extends AudioWorkletProcessor {
       state: this.failed ? "failed-recoverable" : this.runtimeState,
       underrunTotal: this.underrunTotal,
       workletGeneration: this.workletGeneration,
-    });
-
-    this.levelProbe.publish(this.binding, output, {
-      active: this.active && !silentOutput,
-      channelCount: this.channelCount(),
-      failed: this.failed,
-      lastErrorCode: this.lastErrorCode,
-      outputFrame: this.outputFrame,
-      silent: silentOutput,
-      unsupportedChannelBlockTotal: this.unsupportedChannelBlockTotal,
-      windowFrames: outputFrameCount,
     });
   }
 
@@ -818,6 +861,10 @@ function clamp(value: number, min: number, max: number): number {
   }
 
   return Math.min(max, Math.max(min, value));
+}
+
+function boundedMissingFrames(value: number): number {
+  return Math.floor(clamp(value, 0, 0xffffffff));
 }
 
 registerProcessor(STRETCH_PROCESSOR_NAME, SignalsmithStretchProcessor);

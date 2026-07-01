@@ -59,6 +59,7 @@ const handoff = buildHandoff(plan, backing);
 
 const controller = bindController(spec, plan, backing);
 const processor = bindProcessor(handoff);
+const state = 1;
 
 controller.params.set("runtime.enabled", true);
 controller.params.set("runtime.count", 42);
@@ -68,9 +69,9 @@ controller.params.stage("runtime.payload", (payload) => {
 
 processor.params.within((params) => {
   if (params.runtime.enabled) {
-    processor.meters.publish((meters) => {
-      meters.state(1);
-      meters.delta(-1);
+    processor.meters.publish((writer) => {
+      writer.set("runtime.state", state);
+      writer.set("runtime.delta", -1);
     });
   }
 });
@@ -79,6 +80,41 @@ console.log(controller.meters.snapshot());
 ```
 
 Authored specs may use nested namespaces. Write APIs use explicit canonical string keys, and processor read views expose nested aliases such as `params.runtime.enabled`.
+
+## Meter Publishing
+
+Use `.set()` for the lowest-level explicit canonical-key surface:
+
+```ts
+processor.meters.publish((writer) => {
+  writer.set("runtime.state", state);
+  writer.set("runtime.delta", -1);
+});
+```
+
+Use `writer.setGroup()` when a group object belongs inside one larger coherent publish section:
+
+```ts
+processor.meters.publish((writer) => {
+  writer.set("runtime.state", state);
+  writer.setGroup("runtime", {
+    delta: -1,
+  });
+});
+```
+
+Use `publishGroup()` when you already have one complete typed group object:
+
+```ts
+processor.meters.publishGroup("runtime", {
+  state,
+  delta: -1,
+});
+```
+
+Grouped keys are unprefixed under the exact schema group, so `delta` maps to
+`runtime.delta` in the `runtime` group. `publishGroup()` is the convenience
+path. Hard hot paths should benchmark it against direct `writer.set()` calls.
 
 ## Package Boundary
 

@@ -176,23 +176,31 @@ test("default sample keeps an active loop coherent after seeking", async ({
 
   await setSeekFrame(page, "18000");
   await expect.poll(() => sourceFrameNear(page, 18_000, 4_096)).toBe(true);
-  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
-    "inside",
-  );
+  await expect
+    .poll(() => runtimeFact(page, "Loop source frame"))
+    .toContain("inside");
   await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
 
   await setSeekFrame(page, "5000");
   await expect.poll(() => sourceFrameNear(page, 12_000, 4_096)).toBe(true);
-  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
-    "inside",
-  );
+  await expect.poll(() => seekInputInside(page, 12_000, 20_000)).toBe(true);
+  await expect
+    .poll(() => runtimeFact(page, "Loop source frame"))
+    .toContain("inside");
+  await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
+  await page.locator("#pauseButton").click();
+  await expect.poll(() => runtimeFact(page, "State")).toBe("ready-paused");
+  await page.locator("#markLoopStartButton").click();
+  await expect(page.locator("#loopDraft")).toContainText("12,000");
+  await expect(page.locator("#loopDraft")).not.toContainText("5,000");
+  await page.locator("#playButton").click();
   await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
 
   await setSeekFrame(page, "50000");
   await expect.poll(() => sourceFrameNear(page, 18_000, 4_096)).toBe(true);
-  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
-    "inside",
-  );
+  await expect
+    .poll(() => runtimeFact(page, "Loop source frame"))
+    .toContain("inside");
   await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
 });
 
@@ -546,27 +554,27 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
     .toContain("MiB");
 
   await setSeekFrame(page, "18000");
-  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
-    "inside",
-  );
+  await expect
+    .poll(() => runtimeFact(page, "Loop source frame"))
+    .toContain("inside");
   await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
 
   await setSeekFrame(page, "5000");
   await expect.poll(() => sourceFrameNear(page, 12_000, 2_048)).toBe(true);
-  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
-    "inside",
-  );
+  await expect
+    .poll(() => runtimeFact(page, "Loop source frame"))
+    .toContain("inside");
   await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
 
   await setSeekFrame(page, "50000");
   await expect.poll(() => sourceFrameNear(page, 26_000, 4_096)).toBe(true);
-  await expect.poll(() => runtimeFact(page, "Loop source frame")).toContain(
-    "inside",
-  );
+  await expect
+    .poll(() => runtimeFact(page, "Loop source frame"))
+    .toContain("inside");
   await expect.poll(() => runtimeFact(page, "State")).toBe("playing");
-  await expect.poll(() => runtimeFact(page, "Loop cache coverage")).toContain(
-    "current",
-  );
+  await expect
+    .poll(() => runtimeFact(page, "Loop cache coverage"))
+    .toContain("current");
 
   await page.locator("#clearLoopButton").click();
   await expect.poll(() => runtimeFact(page, "Loop")).toBe("inactive");
@@ -688,6 +696,16 @@ async function sourceFrameNear(
   const frame = await numericRuntimeFact(page, "Audible source frame");
 
   return Math.abs(frame - expected) <= tolerance;
+}
+
+async function seekInputInside(
+  page: Page,
+  startFrame: number,
+  endFrame: number,
+): Promise<boolean> {
+  const value = Number(await page.locator("#seekFrame").inputValue());
+
+  return value >= startFrame && value < endFrame;
 }
 
 async function setRange(

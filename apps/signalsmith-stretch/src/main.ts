@@ -56,6 +56,7 @@ import {
   writeDesiredControls,
 } from "./boundary/session";
 import { enqueueApplyLoop, enqueuePlayLoop } from "./loop/loop-commands";
+import { normalizeSeekFrameIntoLoopRange } from "./loop/loop-normalization";
 import {
   validateLoopRange,
   type LoopRange,
@@ -182,6 +183,7 @@ const DEFAULT_SOURCE = {
   url: "/audio/signalsmith-demo-loop.wav",
 } as const;
 const RECENT_SEEK_MARK_WINDOW_MS = 1_500;
+const APPLIED_SEEK_FRAME_TOLERANCE = 512;
 const TRANSPORT_PUMP_INTERVAL_MS = 250;
 const VISUAL_RENDER_INTERVAL_MS = 80;
 
@@ -295,6 +297,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
     let waveformMode: WaveformPeakMode = waveform.mode;
     let waveformAbort: AbortController | null = null;
     let requestedSeekFrame: number | null = null;
+    let requestedSeekTargetFrame: number | null = null;
     let recentSeekFrame: number | null = null;
     let recentSeekAt = 0;
     let loopRevision = 1;
@@ -327,7 +330,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       enqueueCommand("pause");
     });
     elements.stopButton.addEventListener("click", () => {
-      requestedSeekFrame = null;
+      clearRequestedSeek();
       enqueueCommand("stop");
     });
     elements.staleButton.addEventListener("click", () => {
@@ -634,12 +637,15 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
 
     function commitSeek(value: number): void {
       const frame = clamp(value, 0, source.frames);
+      const runtime = readRuntimeStatus(session);
+      const targetFrame = normalizeSeekFrameForRuntime(frame, runtime);
       requestedSeekFrame = frame;
-      recentSeekFrame = frame;
+      requestedSeekTargetFrame = targetFrame;
+      recentSeekFrame = targetFrame;
       recentSeekAt = performance.now();
       elements.seekRange.value = String(frame);
       elements.seekFrame.value = String(frame);
-      prefetchForFrame(frame);
+      prefetchForFrame(targetFrame);
       enqueueRuntimeCommand("seek", { targetSourceFrame: frame });
       runTransportPump("seek");
       render();
@@ -667,7 +673,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
     function markLoopBoundary(boundary: "end" | "start"): void {
       const runtime = readRuntimeStatus(session);
       const frame = clamp(
-        recentSeekFrameForMark(runtime.state) ?? runtime.sourceFrame,
+        recentSeekFrameForMark(runtime) ?? runtime.sourceFrame,
         0,
         source.frames,
       );
@@ -690,16 +696,34 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       render();
     }
 
-    function recentSeekFrameForMark(runtimeState: string): number | null {
+    function recentSeekFrameForMark(
+      runtime: RuntimeStatusSnapshot,
+    ): number | null {
       if (requestedSeekFrame !== null) {
-        return requestedSeekFrame;
+        if (
+          frameMatchesAppliedPosition(requestedSeekFrame, runtime.sourceFrame)
+        ) {
+          return requestedSeekFrame;
+        }
+
+        if (
+          requestedSeekTargetFrame !== null &&
+          frameMatchesAppliedPosition(
+            requestedSeekTargetFrame,
+            runtime.sourceFrame,
+          )
+        ) {
+          return requestedSeekTargetFrame;
+        }
+
+        return null;
       }
 
       if (recentSeekFrame === null) {
         return null;
       }
 
-      if (runtimeState !== "playing") {
+      if (runtime.state !== "playing") {
         return recentSeekFrame;
       }
 
@@ -856,7 +880,7 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
         wavMode = loaded.kind === "chunked-wav" ? "chunked" : "browser decoded";
         resetWaveformForLoadedSource(loaded);
         loopDraft = createLoopDraft(source.frames, nextLoopRevision());
-        requestedSeekFrame = null;
+        clearRequestedSeek();
         recentSeekFrame = null;
         engine.loadSource(source);
         updateSourceLimits();
@@ -1876,9 +1900,36 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       }
 
       const runtime = readRuntimeStatus(session);
-      if (Math.abs(runtime.sourceFrame - requestedSeekFrame) < 512) {
-        requestedSeekFrame = null;
+      const targetFrame = requestedSeekTargetFrame ?? requestedSeekFrame;
+      if (frameMatchesAppliedPosition(targetFrame, runtime.sourceFrame)) {
+        clearRequestedSeek();
       }
+    }
+
+    function clearRequestedSeek(): void {
+      requestedSeekFrame = null;
+      requestedSeekTargetFrame = null;
+    }
+
+    function normalizeSeekFrameForRuntime(
+      frame: number,
+      runtime: RuntimeStatusSnapshot,
+    ): number {
+      if (!runtime.loopEnabled) {
+        return frame;
+      }
+
+      return normalizeSeekFrameIntoLoopRange(frame, {
+        endFrame: runtime.loopEndFrame,
+        startFrame: runtime.loopStartFrame,
+      });
+    }
+
+    function frameMatchesAppliedPosition(
+      frame: number,
+      appliedFrame: number,
+    ): boolean {
+      return Math.abs(appliedFrame - frame) < APPLIED_SEEK_FRAME_TOLERANCE;
     }
 
     function attachAudioContextDiagnostics(context: AudioContext): void {
@@ -2036,7 +2087,7 @@ function formatLoopCacheCoverage(runtime: RuntimeStatusSnapshot): string {
     return "inactive";
   }
 
-  return `current ${formatFrame(runtime.inputWindowMissingFrames)} missing; start ${formatFrame(runtime.loopStartMissingFrames)}; end ${formatFrame(runtime.loopEndMissingFrames)}`;
+  return `current window ${formatFrame(runtime.inputWindowMissingFrames)} missing; start window ${formatFrame(runtime.loopStartMissingFrames)}; end window ${formatFrame(runtime.loopEndMissingFrames)}`;
 }
 
 function loopCacheMissingFrames(runtime: RuntimeStatusSnapshot): number {
