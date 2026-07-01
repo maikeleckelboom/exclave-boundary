@@ -44,6 +44,11 @@ test("primary demo loads the default comparison track and keeps proof diagnostic
   ).toHaveCount(0);
   await expect(page.locator("#configPreset")).toBeEnabled();
   await expect(page.locator("#controlsHint")).toBeHidden();
+  await expect(page.locator("#loopDraft")).toContainText("0 to 495,513");
+  await expect(page.locator("#loopAppliedSummary")).toContainText(
+    "0 to 495,513",
+  );
+  await expect.poll(() => runtimeFact(page, "Loop")).toContain("0 to 495,513");
 
   await expect(
     page.locator("label").filter({ hasText: "Tonality limit" }),
@@ -449,6 +454,7 @@ test("real Worklet runtime handles chunked WAV transport controls", async ({
   await setSeekFrame(page, "12000");
   await expect.poll(() => sourceFrameNear(page, 12_000, 2_048)).toBe(true);
   await page.locator("#markLoopStartButton").click();
+  await expect(page.locator("#loopDraft")).toContainText("12,000");
   await expect(page.locator("#loopDraft")).toContainText("not set");
 
   await setSeekFrame(page, "36000");

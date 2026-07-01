@@ -889,6 +889,10 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
           prefetch = null;
           resetTransportBufferExpectation();
         }
+
+        if (options.origin === "default") {
+          applyDefaultSourceLoop();
+        }
       } catch (error) {
         if (loadRequestId !== sourceLoadRequestId) {
           return;
@@ -900,6 +904,34 @@ function startSignalsmithStretch(appRoot: HTMLElement): void {
       }
 
       render();
+    }
+
+    function applyDefaultSourceLoop(): void {
+      const range: LoopRange = {
+        endFrame: source.frames,
+        startFrame: 0,
+      };
+      const runtime = readRuntimeStatus(session);
+      const validation = validateLoopRange(range, loopFacts(runtime));
+
+      if (!validation.valid) {
+        return;
+      }
+
+      loopDraft = {
+        endFrame: validation.range.endFrame,
+        hasEnd: true,
+        hasStart: true,
+        revision: nextLoopRevision(),
+        startFrame: validation.range.startFrame,
+      };
+      syncLoopDraftInputs();
+      prefetchForLoop(validation.range, runtime);
+      enqueueApplyLoop({ enqueue: enqueueRuntimeCommand }, validation.range, {
+        blockSamples: runtime.blockSamples,
+        intervalSamples: runtime.intervalSamples,
+      });
+      runTransportPump("loop");
     }
 
     function shouldSkipDefaultSource(loadRequestBaseline: number): boolean {
